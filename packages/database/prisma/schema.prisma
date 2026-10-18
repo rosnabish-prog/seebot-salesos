@@ -216,6 +216,8 @@ model StageComment {
 }
 model Task {
   id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict)
   title String
   description String?
   status TaskStatus @default(OPEN)
@@ -227,6 +229,7 @@ model Task {
   createdAt DateTime @default(now())
   completedAt DateTime?
   @@index([assigneeId,status,dueAt])
+  @@index([organizationId,status])
 }
 model Activity {
   id String @id @default(cuid())
@@ -286,6 +289,8 @@ model Contract {
 }
 model Campaign {
   id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict)
   name String
   sector String
   status String @default("PLANNING")
@@ -294,6 +299,7 @@ model Campaign {
   owner User @relation(fields:[ownerId],references:[id])
   createdAt DateTime @default(now())
   accounts CampaignAccount[]
+  @@index([organizationId,createdAt])
 }
 model Industry {
   id String @id @default(cuid())
@@ -560,6 +566,8 @@ model Organization {
   accountingJournals AccountingJournal[]
   bankStatementRows BankStatementRow[]
   taxRules TaxRule[]
+  tasks Task[]
+  campaigns Campaign[]
   employeeInvitations EmployeeInvitation[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
