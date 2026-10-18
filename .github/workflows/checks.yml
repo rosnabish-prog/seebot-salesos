@@ -72,6 +72,8 @@ jobs:
         run: npm run test
       - name: Build API and Next.js frontend
         run: npm run build
+      - name: Cross-tenant API isolation over HTTP
+        run: node scripts/tenant-isolation-e2e.cjs
       - name: Confirm pending real-world security gates
         run: |
           test "$SIGNING_ENABLED" = false
