@@ -47,6 +47,45 @@ async function main(){
   check(await hit('/workspace-crm/'+a.org.id+'/accounts',a.cookie),200,'Own account list');
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+a.invoice.id,a.cookie),200,'Own invoice');
   check(await hit('/workspace-tax/'+a.org.id+'/rules',a.cookie),200,'Own finance rules');
+
+  // A valid login must not require Seebot membership. Zero memberships enters setup.
+  const standalone=await db.user.create({data:{email:'ci-unassigned-'+id+'@example.invalid',name:'Unassigned CI User',passwordHash:'NOT_REAL',role:'SALES_REP'}});
+  const standaloneCookie=token(standalone,null);
+  check(await hit('/auth/me',standaloneCookie),200,'Identity sign-in without a workspace');
+  const emptyMemberships=await hit('/workspaces',standaloneCookie);
+  check(emptyMemberships,200,'Workspace list for an unaffiliated user');
+  assert.equal(emptyMemberships.body.length,0);
+  check(await hit('/accounts',standaloneCookie),403,'Unaffiliated user cannot access legacy CRM');
+  const createdWorkspace=await hit('/workspaces',standaloneCookie,{method:'POST',body:JSON.stringify({name:'CI New Team '+id,website:'https://team-'+id+'.example'})});
+  check(createdWorkspace,201,'First-time workspace creation');
+  const standaloneSelect=await hit('/workspaces/'+createdWorkspace.body.id+'/select',standaloneCookie,{method:'POST',body:'{}'});
+  check(standaloneSelect,201,'New owner can select created workspace');
+  assert.equal(standaloneSelect.body.crmEnabled,false);
+  const owned=await hit('/workspaces',standaloneCookie);check(owned,200,'New owner workspace list');
+  assert.equal(owned.body.length,1);assert.equal(owned.body[0].role,'OWNER');
+
+  // An invite does not grant access until redeemed by the exact recipient.
+  const pendingUser=await db.user.create({data:{email:'ci-invite-'+id+'@example.invalid',name:'CI Invitee',passwordHash:'NOT_REAL',role:'SALES_REP'}});
+  const pendingCookie=token(pendingUser,null);
+  const invited=await hit('/workspace-invitations/organizations/'+a.org.id,a.cookie,{method:'POST',body:JSON.stringify({name:'CI Invitee',email:pendingUser.email,role:'MEMBER'})});
+  check(invited,201,'Workspace administrator creates email-bound team invitation');
+  assert.equal(invited.body.delivery,'NOT_SENT');
+  assert.ok(invited.body.inviteUrl,'Manual link available only when real email was not delivered');
+  const invitationToken=new URL(invited.body.inviteUrl).searchParams.get('token');
+  assert.ok(invitationToken);
+  check(await hit('/workspace-business/'+a.org.id+'/invoices',pendingCookie),403,'Invitation alone grants no tenant access');
+  check(await hit('/workspace-invitations/accept-existing',b.cookie,{method:'POST',body:JSON.stringify({token:invitationToken})}),401,'Another email cannot redeem invitation');
+  const accepted=await hit('/workspace-invitations/accept-existing',pendingCookie,{method:'POST',body:JSON.stringify({token:invitationToken})});
+  check(accepted,201,'Verified existing identity accepts invite');
+  assert.equal(accepted.body.organizationId,a.org.id);
+  check(await hit('/workspace-invitations/accept-existing',pendingCookie,{method:'POST',body:JSON.stringify({token:invitationToken})}),401,'Single-use invitation cannot be redeemed twice');
+  const memberCookie=token(pendingUser,a.org.id);
+  check(await hit('/workspace-business/'+a.org.id+'/invoices',memberCookie),200,'Accepted invite grants selected-org membership');
+  check(await hit('/workspace-business/'+b.org.id+'/invoices',memberCookie),403,'New member cannot open a foreign workspace');
+  const selectedCheck=await hit('/workspaces/selected',memberCookie);
+  check(selectedCheck,200,'Selected workspace is determined from the signed session');
+  assert.equal(selectedCheck.body.legacyAllowed,false);
+
   check(await hit('/workspace-crm/'+a.org.id+'/accounts/'+b.account.id,a.cookie),400,'Foreign account hidden');
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+b.invoice.id,a.cookie),404,'Foreign invoice hidden');
   check(await hit('/workspace-business/'+a.org.id+'/dashboard',b.cookie),403,'Foreign dashboard forbidden');
