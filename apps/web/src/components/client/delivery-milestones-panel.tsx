@@ -1,0 +1,14 @@
+'use client';
+import {useEffect,useState,FormEvent} from 'react';
+import {Button,Field,ErrorMessage} from '@/components/ui';
+import {request,post,patch,fmtDate} from '@/lib/api';
+export function DeliveryMilestonesPanel({accountId,editable,isDemo}:{accountId:string;editable:boolean;isDemo:boolean}){
+ const [milestones,setMilestones]=useState<any[]>([]),[title,setTitle]=useState(''),[criteria,setCriteria]=useState(''),[description,setDescription]=useState(''),[date,setDate]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+ async function load(){setMilestones(await request<any[]>(`/delivery/clients/${accountId}/milestones`));}
+ useEffect(()=>{void load().catch(e=>setError(e.message))},[accountId]);
+ async function run(fn:()=>Promise<any>){setBusy(true);setError('');try{await fn();await load();setNotice('Saved to this client record.');setTitle('');setCriteria('');setDescription('')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+ return <section className="panel" style={{padding:22}}><header className="panel-head"><h3>Client Delivery Milestones</h3></header><p className="muted small-text">Track real deliverables and evidence of acceptance. A draft does not count as client approval. {isDemo?'All milestones here are fictional.':''}</p>
+ {editable&&<form className="stack-16" onSubmit={e=>{e.preventDefault();void run(()=>post(`/delivery/clients/${accountId}/milestones`,{title,description,acceptanceCriteria:criteria,dueAt:date||undefined}))}}><div className="field-grid"><Field label="Deliverable"><input required value={title} onChange={e=>setTitle(e.target.value)}/></Field><Field label="Due date"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field></div><Field label="Acceptance criteria"><textarea required value={criteria} onChange={e=>setCriteria(e.target.value)}/></Field><Field label="Scope notes"><textarea value={description} onChange={e=>setDescription(e.target.value)}/></Field><Button disabled={busy}>Add milestone</Button></form>}
+ {milestones.map(m=><div className="record-row" key={m.id}><div style={{flex:1}}><strong>{m.title}</strong><p>{m.status} · Due {fmtDate(m.dueAt)}</p><small>Acceptance: {m.acceptanceCriteria}</small></div>{editable&&m.status!=='ACCEPTED'&&<div><select aria-label={`Status for ${m.title}`} defaultValue={m.status} onChange={e=>{const status=e.target.value,evidenceReference=status==='ACCEPTED'?window.prompt('Enter actual client acceptance evidence reference')||'':'';if(status==='ACCEPTED'&&!evidenceReference)return;void run(()=>patch(`/delivery/milestones/${m.id}`,{status,evidenceReference}))}}>{['PLANNED','IN_PROGRESS','SUBMITTED','ACCEPTED','REJECTED'].map(x=><option key={x}>{x}</option>)}</select></div>}</div>)}
+ <ErrorMessage message={error}/>{notice&&<div className="soft-callout" role="status">{notice}</div>}</section>;
+}
