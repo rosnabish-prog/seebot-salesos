@@ -1054,6 +1054,7 @@ model InvoiceTaxReview {
   reviewedById String
   taxRuleId String?
   ruleCodeSnapshot String?
+  ruleInvoiceNoteSnapshot String? @db.Text
   ratePercentSnapshot Decimal? @db.Decimal(9,4)
   reviewedAt DateTime @default(now())
 }
