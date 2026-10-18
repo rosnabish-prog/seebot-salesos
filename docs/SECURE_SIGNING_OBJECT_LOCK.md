@@ -4,7 +4,7 @@ The SalesOS signing service creates Ed25519-sealed receipts with event hashes an
 
 ## Deployment requirements
 1. Provision a dedicated evidence bucket in a **separate security-controlled AWS account**, enable Object Lock **at bucket creation**, enable versioning, and prohibit anonymous access.
-2. Limit the application role to `s3:PutObject`, `s3:GetObject` on the `signing-evidence/v1/` prefix only. Do not grant `s3:DeleteObject`, `s3:BypassGovernanceRetention`, bucket-policy administration or Object Lock configuration rights to the app.
+2. Limit the application role to  `s3:PutObject`, `s3:GetObject`, `s3:GetObjectRetention` on the `signing-evidence/v1/` prefix only. Do not grant `s3:DeleteObject`, `s3:BypassGovernanceRetention`, bucket-policy administration or Object Lock configuration rights to the app.
 3. Require TLS, server-side KMS encryption, bucket policy object-lock controls and separately monitored CloudTrail data events.
 4. Keep the Ed25519 private sealing key inaccessible to database administrators and outside the public frontend. Maintain a separately pinned public key, backup, key rotation record and disaster recovery procedure.
 5. Configure `SIGNING_EVIDENCE_OBJECT_LOCK_BUCKET`, `SIGNING_EVIDENCE_KMS_KEY_ARN`, `SIGNING_EVIDENCE_RETENTION_DAYS` and `AWS_REGION` securely in server-side secret management. Never commit keys.
