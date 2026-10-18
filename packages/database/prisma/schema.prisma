@@ -1,0 +1,1032 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum UserRole {
+  SUPER_ADMIN
+  CEO
+  DIRECTOR
+  SALES_MANAGER
+  SALES_REP
+  TECHNICAL_REVIEWER
+}
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+enum OpportunityStatus {
+  OPEN
+  NURTURE
+  CLOSED_LOST
+  UNQUALIFIED
+  CLOSED_WON
+}
+enum TaskStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+enum ActivityType {
+  EMAIL
+  CALL
+  MEETING
+  LINKEDIN
+  NOTE
+  OTHER
+}
+enum ActivityOutcome {
+  OUTBOUND
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  NO_RESPONSE
+  OPTED_OUT
+  BOUNCED
+}
+enum ProposalStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+}
+enum ContractType {
+  NDA
+  MSA
+  SOW
+  DPA
+  PRODUCTION_OTHER
+}
+enum ContractStatus {
+  DRAFT
+  SIGNED
+  PENDING_SIGNATURE
+  EXPIRED
+  TERMINATED
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  passwordVersion Int @default(1)
+  name String
+  role UserRole @default(SALES_REP)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  accounts Account[] @relation("AccountOwner")
+  opportunities Opportunity[] @relation("OpportunityOwner")
+  comments StageComment[]
+  tasks Task[] @relation("TaskAssignee")
+  activities Activity[]
+  audits AuditEvent[]
+  createdCampaigns Campaign[]
+  intelligenceRuns IntelligenceRun[]
+  outreachDrafts OutreachDraft[]
+  opportunityStageDrafts OpportunityStageDraft[]
+  organizationMemberships OrganizationMembership[]
+  googleSubject String? @unique
+  gmailConnections GmailConnection[]
+  outgoingMessages OutgoingMessage[]
+  googleOAuthStates GoogleOAuthState[]
+  createdInvitations EmployeeInvitation[]
+  issuedSurveys ClientSurveyInvitation[]
+}
+model Account {
+  id String @id @default(cuid())
+  name String
+  domain String
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  website String
+  industry String
+  priority Priority @default(MEDIUM)
+  status String @default("Researching")
+  hypothesis String
+  country String?
+  billingAddress String? @db.Text
+  taxRegistrationNumber String?
+  ownerId String
+  owner User @relation("AccountOwner",fields:[ownerId],references:[id])
+  isDemo Boolean @default(false)
+  clientSince DateTime?
+  invoices Invoice[]
+  clientReviews ClientReview[]
+  surveyInvitations ClientSurveyInvitation[]
+  clientReports ClientReport[]
+  clientIssues ClientIssue[]
+  milestones DeliveryMilestone[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contacts Contact[]
+  opportunities Opportunity[]
+  campaignLinks CampaignAccount[]
+  intelligenceRuns IntelligenceRun[]
+  outreachDrafts OutreachDraft[]
+  outreachMessages OutreachMessage[]
+  @@unique([organizationId,domain])
+  @@index([ownerId])
+  @@index([organizationId])
+  @@index([industry])
+  @@index([status,isDemo])
+}
+model Contact {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  name String
+  title String
+  email String?
+  linkedinUrl String?
+  source String
+  verified Boolean @default(false)
+  optedOut Boolean @default(false)
+  createdAt DateTime @default(now())
+  outreachDrafts OutreachDraft[]
+  outreachMessages OutreachMessage[]
+  @@index([accountId])
+}
+model Opportunity {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id])
+  title String
+  stage String @default("ACCOUNT_RESEARCHED")
+  status OpportunityStatus @default(OPEN)
+  ownerId String
+  owner User @relation("OpportunityOwner",fields:[ownerId],references:[id])
+  serviceLine String
+  nextAction String?
+  nextActionAt DateTime?
+  estimatedAmount Decimal? @db.Decimal(18,2)
+  contractedAmount Decimal? @db.Decimal(18,2)
+  currency String @default("USD")
+  version Int @default(1)
+  closedAt DateTime?
+  closedReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  stageVisits StageVisit[]
+  aiStageDrafts OpportunityStageDraft[]
+  transitions StageTransition[]
+  tasks Task[]
+  activities Activity[]
+  proposals Proposal[]
+  contracts Contract[]
+  invoices Invoice[]
+  @@index([ownerId,status,stage])
+  @@index([createdAt])
+}
+model StageVisit {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
+  stage String
+  evidence Json @default("{}")
+  enteredAt DateTime @default(now())
+  exitedAt DateTime?
+  comments StageComment[]
+  @@index([opportunityId,enteredAt])
+}
+model StageTransition {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
+  fromStage String
+  toStage String
+  actorId String
+  reason String?
+  automated Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([opportunityId,createdAt])
+}
+model StageComment {
+  id String @id @default(cuid())
+  visitId String
+  visit StageVisit @relation(fields:[visitId],references:[id],onDelete:Cascade)
+  authorId String
+  author User @relation(fields:[authorId],references:[id])
+  body String @db.Text
+  createdAt DateTime @default(now())
+  editedAt DateTime?
+  @@index([visitId,createdAt])
+}
+model Task {
+  id String @id @default(cuid())
+  title String
+  description String?
+  status TaskStatus @default(OPEN)
+  dueAt DateTime?
+  opportunityId String?
+  opportunity Opportunity? @relation(fields:[opportunityId],references:[id],onDelete:SetNull)
+  assigneeId String
+  assignee User @relation("TaskAssignee",fields:[assigneeId],references:[id])
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  @@index([assigneeId,status,dueAt])
+}
+model Activity {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
+  actorId String
+  actor User @relation(fields:[actorId],references:[id])
+  type ActivityType
+  outcome ActivityOutcome
+  note String
+  occurredAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  @@index([opportunityId,occurredAt])
+}
+model Proposal {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
+  title String
+  amount Decimal @db.Decimal(18,2)
+  currency String
+  acceptanceCriteria String
+  status ProposalStatus @default(DRAFT)
+  createdAt DateTime @default(now())
+  @@index([opportunityId])
+}
+model Contract {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
+  title String
+  type ContractType
+  status ContractStatus @default(DRAFT)
+  evidenceReference String?
+  signedAt DateTime?
+  signatureDueAt DateTime?
+  expiresAt DateTime?
+  sentForSignatureAt DateTime?
+  committedAmount Decimal? @db.Decimal(18,2)
+  currency String?
+  createdAt DateTime @default(now())
+  isDemo Boolean @default(false)
+  documents ContractDocument[]
+  signatureEvents ContractSignatureEvent[]
+  invoices Invoice[]
+  pricingLines ContractPricingLine[]
+  signingEnvelopes SigningEnvelope[]
+  renewalPlan RenewalPlan?
+  parentContractId String?
+  parentContract Contract? @relation("ContractFamily",fields:[parentContractId],references:[id],onDelete:SetNull)
+  childContracts Contract[] @relation("ContractFamily")
+  amendments ContractAmendment[]
+  signingParties ContractSignatory[]
+  billingSchedules BillingSchedule[]
+  milestones DeliveryMilestone[]
+  @@index([opportunityId])
+}
+model Campaign {
+  id String @id @default(cuid())
+  name String
+  sector String
+  status String @default("PLANNING")
+  objective String?
+  ownerId String
+  owner User @relation(fields:[ownerId],references:[id])
+  createdAt DateTime @default(now())
+  accounts CampaignAccount[]
+}
+model Industry {
+  id String @id @default(cuid())
+  name String @unique
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model CampaignAccount {
+  campaignId String
+  accountId String
+  createdAt DateTime @default(now())
+  campaign Campaign @relation(fields:[campaignId], references:[id], onDelete:Cascade)
+  account Account @relation(fields:[accountId], references:[id], onDelete:Cascade)
+  @@id([campaignId,accountId])
+  @@index([accountId])
+}
+model AuditEvent {
+  id String @id @default(cuid())
+  actorId String
+  actor User @relation(fields:[actorId],references:[id])
+  action String
+  entityType String
+  entityId String
+  detail Json @default("{}")
+  createdAt DateTime @default(now())
+  @@index([entityType,entityId,createdAt])
+}
+
+// v1.4: DEMO-FIRST intelligence. Generated records are not verified evidence.
+model IntelligenceRun {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  createdById String
+  createdBy User @relation(fields:[createdById],references:[id])
+  kind String
+  mode String @default("DEMO")
+  status String @default("DRAFT")
+  payload Json
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  @@index([accountId,kind,createdAt])
+}
+model OutreachDraft {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  contactId String?
+  contact Contact? @relation(fields:[contactId],references:[id],onDelete:SetNull)
+  ownerId String
+  owner User @relation(fields:[ownerId],references:[id])
+  subject String
+  body String @db.Text
+  status String @default("DRAFT")
+  mode String @default("DEMO")
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  revisions OutreachRevision[]
+  messages OutreachMessage[]
+  @@index([accountId,updatedAt])
+}
+model OutreachRevision {
+  id String @id @default(cuid())
+  draftId String
+  draft OutreachDraft @relation(fields:[draftId],references:[id],onDelete:Cascade)
+  instruction String
+  beforeSubject String
+  beforeBody String @db.Text
+  afterSubject String
+  afterBody String @db.Text
+  createdAt DateTime @default(now())
+  @@index([draftId,createdAt])
+}
+model OutreachMessage {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  draftId String?
+  draft OutreachDraft? @relation(fields:[draftId],references:[id],onDelete:SetNull)
+  contactId String?
+  contact Contact? @relation(fields:[contactId],references:[id],onDelete:SetNull)
+  direction String
+  mode String @default("DEMO")
+  subject String
+  body String @db.Text
+  analysis Json?
+  createdAt DateTime @default(now())
+  @@index([accountId,createdAt])
+}
+
+// v1.4.1: private opportunity work-in-progress, never stage evidence.
+model OpportunityStageDraft {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
+  stage String
+  createdById String
+  createdBy User @relation(fields:[createdById],references:[id])
+  fields Json @default("{}")
+  suggestions Json @default("[]")
+  feedback Json @default("[]")
+  notes String @default("") @db.Text
+  mode String @default("DEMO")
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([opportunityId,stage])
+  @@index([opportunityId,updatedAt])
+}
+
+// v1.5: Post-sale client operations. Documents are private, never web-public.
+model ContractDocument {
+  id String @id @default(cuid())
+  contractId String
+  contract Contract @relation(fields:[contractId],references:[id],onDelete:Cascade)
+  fileName String
+  storageKey String @unique
+  mimeType String @default("application/pdf")
+  size Int
+  sha256 String
+  kind String @default("EXECUTED")
+  uploadedById String
+  uploadedAt DateTime @default(now())
+  verifiedById String?
+  verifiedAt DateTime?
+  signingEnvelopes SigningEnvelope[]
+  @@index([contractId,uploadedAt])
+}
+model ContractSignatureEvent {
+  id String @id @default(cuid())
+  contractId String
+  contract Contract @relation(fields:[contractId],references:[id],onDelete:Cascade)
+  event String
+  signerName String?
+  signerEmail String?
+  source String @default("MANUAL")
+  externalReference String?
+  isDemo Boolean @default(false)
+  occurredAt DateTime @default(now())
+  recordedById String
+  notes String? @db.Text
+  @@index([contractId,occurredAt])
+}
+model Invoice {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id])
+  opportunityId String?
+  opportunity Opportunity? @relation(fields:[opportunityId],references:[id],onDelete:SetNull)
+  contractId String?
+  contract Contract? @relation(fields:[contractId],references:[id],onDelete:SetNull)
+  number String @unique
+  status String @default("DRAFT")
+  currency String @default("USD")
+  lineItems Json @default("[]")
+  subtotal Decimal @db.Decimal(18,2)
+  tax Decimal @default(0) @db.Decimal(18,2)
+  total Decimal @db.Decimal(18,2)
+  billingEmail String
+  notes String? @db.Text
+  dueAt DateTime
+  issuedAt DateTime?
+  sentAt DateTime?
+  isDemo Boolean @default(false)
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  document InvoiceDocument?
+  taxReview InvoiceTaxReview?
+  payments PaymentRecord[]
+  reminders InvoiceReminder[]
+  adjustments InvoiceAdjustment[]
+  recipients InvoiceRecipient[]
+  @@index([accountId,dueAt])
+  @@index([status,dueAt])
+}
+model PaymentRecord {
+  id String @id @default(cuid())
+  invoiceId String
+  invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
+  amount Decimal @db.Decimal(18,2)
+  paidAt DateTime
+  reference String
+  recordedById String
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  statementMatch BankStatementRow?
+  @@index([invoiceId,paidAt])
+}
+model InvoiceReminder {
+  id String @id @default(cuid())
+  invoiceId String
+  invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
+  scheduledFor DateTime
+  status String @default("PENDING_APPROVAL")
+  mode String @default("DRAFT_ONLY")
+  createdById String
+  createdAt DateTime @default(now())
+  sentAt DateTime?
+  @@index([invoiceId,scheduledFor])
+}
+model ClientReview {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  type String
+  title String
+  score Int?
+  summary String @db.Text
+  actionItems Json @default("[]")
+  occurredAt DateTime @default(now())
+  isDemo Boolean @default(false)
+  recordedById String
+  createdAt DateTime @default(now())
+  @@index([accountId,occurredAt])
+}
+model ClientIssue {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  title String
+  details String? @db.Text
+  severity String @default("MEDIUM")
+  status String @default("OPEN")
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  @@index([accountId,status])
+}
+
+
+// v1.6.0 FOUNDATION — ONE ACTIVE SEEBOT WORKSPACE ONLY.
+// Do not enable additional organization logins until all existing record endpoints
+// have been changed to enforce membership + organization ownership.
+model Organization {
+  id String @id @default(cuid())
+  slug String @unique
+  name String
+  legalName String?
+  website String?
+  industry String?
+  description String? @db.Text
+  services Json @default("[]")
+  idealCustomers String? @db.Text
+  country String?
+  timezone String @default("Europe/London")
+  defaultCurrency String @default("GBP")
+  logoUrl String?
+  logoStorageKey String?
+  logoSha256 String?
+  billingAddress String? @db.Text
+  taxRegistrationNumber String?
+  invoiceSequences InvoiceSequence[]
+  creditNoteSequences CreditNoteSequence[]
+  workspaceInvitations WorkspaceInvitation[]
+  status String @default("ACTIVE")
+  memberships OrganizationMembership[]
+  accounts Account[]
+  workspaceSettings WorkspaceSettings?
+  reportTemplates ReportTemplate[]
+  outgoingMessages OutgoingMessage[]
+  accountingJournals AccountingJournal[]
+  bankStatementRows BankStatementRow[]
+  employeeInvitations EmployeeInvitation[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model OrganizationMembership {
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  role String @default("MEMBER")
+  status String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  @@id([organizationId,userId])
+  @@index([userId,status])
+}
+
+enum ContractPricingModel {
+  FIXED
+  HOURLY
+  UNIT
+  MONTHLY_RETAINER
+  FTE
+  MILESTONE
+  OUTCOME
+}
+model ContractPricingLine {
+  id String @id @default(cuid())
+  contractId String
+  contract Contract @relation(fields:[contractId],references:[id],onDelete:Cascade)
+  serviceName String
+  model ContractPricingModel
+  unit String?
+  rate Decimal @db.Decimal(18,6)
+  currency String
+  billingFrequency String?
+  notes String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([contractId,createdAt])
+}
+
+// v1.6 Signing engine — invitation is scoped to ONE document and ONE email.
+// Until Google OAuth and end-to-end security tests pass, external signing is disabled.
+model SigningEnvelope {
+  id String @id @default(cuid())
+  contractId String
+  contract Contract @relation(fields:[contractId],references:[id],onDelete:Cascade)
+  documentId String
+  document ContractDocument @relation(fields:[documentId],references:[id])
+  documentSha256 String
+  recipientEmail String
+  recipientName String
+  recipientGoogleSub String?
+  signatoryId String?
+  tokenHash String @unique
+  status String @default("DRAFT")
+  expiresAt DateTime
+  createdById String
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+  signedAt DateTime?
+  signedDocumentId String?
+  audit SigningAuditEvent[]
+  @@index([contractId,status])
+  @@index([contractId,signatoryId])
+  @@index([recipientEmail,status])
+}
+model SigningAuditEvent {
+  id String @id @default(cuid())
+  envelopeId String
+  envelope SigningEnvelope @relation(fields:[envelopeId],references:[id],onDelete:Restrict)
+  sequence Int
+  type String
+  actorEmail String?
+  googleSub String?
+  ipAddress String?
+  userAgent String?
+  metadata Json @default("{}")
+  occurredAt DateTime @default(now())
+  previousDigest String
+  digest String
+  @@unique([envelopeId,sequence])
+  @@index([envelopeId,occurredAt])
+}
+
+// v1.6.1: outbound email and account links share one provider abstraction.
+// Google refresh tokens are AES-GCM encrypted before storage. Never expose them to the browser.
+model GmailConnection {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  googleEmail String
+  googleSubject String
+  refreshTokenEncrypted String @db.Text
+  scopes String
+  status String @default("CONNECTED")
+  connectedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sentMessages OutgoingMessage[]
+}
+model GoogleOAuthState {
+  id String @id @default(cuid())
+  stateHash String @unique
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
+}
+model OutgoingMessage {
+  id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:SetNull)
+  createdById String
+  createdBy User @relation(fields:[createdById],references:[id])
+  gmailConnectionId String?
+  gmailConnection GmailConnection? @relation(fields:[gmailConnectionId],references:[id],onDelete:SetNull)
+  recipientEmail String
+  subject String
+  bodyText String @db.Text
+  category String
+  entityType String
+  entityId String
+  status String @default("DRAFT")
+  idempotencyKey String @unique
+  providerMessageId String?
+  attachmentInvoiceId String?
+  attachmentContractDocumentId String?
+  errorMessage String?
+  attempts Int @default(0)
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([entityType,entityId,createdAt])
+  @@index([status,createdAt])
+}
+
+model InvoiceSequence {
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  year Int
+  nextNumber Int @default(1)
+  @@id([organizationId,year])
+}
+model InvoiceDocument {
+  id String @id @default(cuid())
+  invoiceId String @unique
+  invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
+  storageKey String @unique
+  sha256 String
+  size Int
+  invoiceNumber String
+  generatedById String
+  createdAt DateTime @default(now())
+}
+
+model EmployeeInvitation {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  createdById String
+  createdBy User @relation(fields:[createdById],references:[id])
+  invitedEmail String
+  invitedName String
+  role UserRole
+  tokenHash String @unique
+  status String @default("PENDING")
+  expiresAt DateTime
+  deliveredAt DateTime?
+  redeemedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId,invitedEmail])
+}
+
+// v1.6.2 — recipient-specific, one-use satisfaction survey invitations.
+// Never use survey tokens as proof of signer identity.
+model ClientSurveyInvitation {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  createdById String
+  createdBy User @relation(fields:[createdById],references:[id])
+  recipientEmail String
+  type String // NPS | CSAT
+  title String
+  question String @db.Text
+  tokenHash String @unique
+  status String @default("DRAFT") // DRAFT | SENT | ANSWERED | EXPIRED | REVOKED
+  isDemo Boolean @default(false)
+  expiresAt DateTime
+  sentAt DateTime?
+  respondedAt DateTime?
+  score Int?
+  feedback String? @db.Text
+  createdAt DateTime @default(now())
+  @@index([accountId,createdAt])
+  @@index([status,expiresAt])
+}
+
+
+// v1.6.3 — internal client success reporting, no outside API required.
+// Reports capture an immutable data snapshot at generation time.
+model ClientReport {
+  id String @id @default(cuid())
+  accountId String
+  account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
+  type String // MBR | QBR
+  periodStart DateTime
+  periodEnd DateTime
+  title String
+  snapshot Json
+  createdById String
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  status String @default("DRAFT") // DRAFT | APPROVED | ARCHIVED
+  approvedById String?
+  approvedAt DateTime?
+  actions ReviewAction[]
+  templateId String?
+  template ReportTemplate? @relation(fields:[templateId],references:[id],onDelete:SetNull)
+  @@index([accountId,createdAt])
+  @@index([accountId,type,periodStart,periodEnd])
+}
+
+model RenewalPlan {
+  id String @id @default(cuid())
+  contractId String @unique
+  contract Contract @relation(fields:[contractId],references:[id],onDelete:Cascade)
+  ownerId String
+  nextReviewAt DateTime
+  status String @default("OPEN") // OPEN | IN_PROGRESS | RENEWED | CLOSED
+  notes String @default("") @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([nextReviewAt,status])
+}
+
+// Stable idempotency records for local internal automations.
+model LocalAutomationEvent {
+ id String @id @default(cuid())
+ key String @unique
+ entityType String
+ entityId String
+ action String
+ isDemo Boolean @default(false)
+ createdById String
+ createdAt DateTime @default(now())
+ @@index([entityType,entityId])
+}
+
+// v1.6.4 — standalone offline commercial records. Signed source documents are never edited.
+model ContractAmendment {
+ id String @id @default(cuid())
+ contractId String
+ contract Contract @relation(fields:[contractId],references:[id],onDelete:Restrict)
+ version Int
+ title String
+ rationale String @db.Text
+ status String @default("DRAFT") // DRAFT | APPROVED | WITHDRAWN
+ effectiveAt DateTime
+ pricingSnapshot Json
+ createdById String
+ approvedById String?
+ approvedAt DateTime?
+ createdAt DateTime @default(now())
+ @@unique([contractId,version])
+ @@index([contractId,effectiveAt])
+}
+model ContractSignatory {
+ id String @id @default(cuid())
+ contractId String
+ contract Contract @relation(fields:[contractId],references:[id],onDelete:Restrict)
+ name String
+ email String
+ role String @default("SIGNER") // SIGNER | APPROVER | CC
+ signingOrder Int @default(1)
+ status String @default("PENDING") // PENDING | SIGNED | DECLINED
+ signedAt DateTime?
+ createdAt DateTime @default(now())
+ @@unique([contractId,email])
+ @@index([contractId,signingOrder])
+}
+model InvoiceAdjustment {
+ id String @id @default(cuid())
+ invoiceId String
+ invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Restrict)
+ kind String // CREDIT_NOTE | WRITE_OFF
+ amount Decimal @db.Decimal(18,2)
+ reason String @db.Text
+ status String @default("DRAFT") // DRAFT | APPROVED | VOID
+ reference String?
+ createdById String
+ approvedById String?
+ approvedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([invoiceId,status])
+}
+model InvoiceRecipient {
+ id String @id @default(cuid())
+ invoiceId String
+ invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
+ email String
+ name String?
+ kind String @default("TO") // TO | CC
+ createdAt DateTime @default(now())
+ @@unique([invoiceId,email])
+}
+model BillingSchedule {
+ id String @id @default(cuid())
+ contractId String
+ contract Contract @relation(fields:[contractId],references:[id],onDelete:Restrict)
+ description String
+ cadence String // MONTHLY | QUARTERLY | MILESTONE | ONE_TIME
+ amount Decimal? @db.Decimal(18,2)
+ currency String
+ nextDueAt DateTime?
+ milestoneId String?
+ status String @default("ACTIVE") // ACTIVE | PAUSED | CANCELLED
+ createdById String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@index([contractId,status])
+ @@index([nextDueAt,status])
+}
+model DeliveryMilestone {
+ id String @id @default(cuid())
+ accountId String
+ account Account @relation(fields:[accountId],references:[id],onDelete:Restrict)
+ contractId String?
+ contract Contract? @relation(fields:[contractId],references:[id],onDelete:SetNull)
+ title String
+ description String @db.Text
+ acceptanceCriteria String @db.Text
+ dueAt DateTime?
+ status String @default("PLANNED") // PLANNED | IN_PROGRESS | SUBMITTED | ACCEPTED | REJECTED
+ actualAcceptedAt DateTime?
+ isDemo Boolean @default(false)
+ createdById String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@index([accountId,status,dueAt])
+}
+model ReviewAction {
+ id String @id @default(cuid())
+ reportId String
+ report ClientReport @relation(fields:[reportId],references:[id],onDelete:Restrict)
+ title String
+ ownerId String
+ dueAt DateTime?
+ status String @default("OPEN") // OPEN | DONE
+ createdAt DateTime @default(now())
+ completedAt DateTime?
+ @@index([reportId,status])
+}
+model WorkspaceSettings {
+ organizationId String @id
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ targetIndustries Json @default("[]")
+ plan String @default("ALL_FEATURES_UNLOCKED")
+ setupComplete Boolean @default(false)
+ updatedAt DateTime @updatedAt
+}
+model WorkspaceInvitation {
+ id String @id @default(cuid())
+ organizationId String
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ email String
+ name String
+ role String @default("MEMBER")
+ tokenHash String @unique
+ status String @default("PENDING")
+ expiresAt DateTime
+ createdById String
+ createdAt DateTime @default(now())
+ @@index([organizationId,email,status])
+}
+
+model ReportTemplate {
+ id String @id @default(cuid())
+ organizationId String
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ name String
+ type String // MBR | QBR
+ sections Json @default("[]")
+ active Boolean @default(true)
+ version Int @default(1)
+ createdAt DateTime @default(now())
+ reports ClientReport[]
+ @@index([organizationId,type,active])
+}
+
+model CreditNoteSequence {
+ organizationId String
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ year Int
+ nextNumber Int @default(1)
+ @@id([organizationId,year])
+}
+model CreditNoteDocument {
+ id String @id @default(cuid())
+ adjustmentId String @unique
+ adjustment InvoiceAdjustment @relation(fields:[adjustmentId],references:[id],onDelete:Restrict)
+ number String @unique
+ storageKey String @unique
+ sha256 String
+ size Int
+ issuedAt DateTime @default(now())
+ issuedById String
+}
+
+// v1.6.6 — immutable accounting journals and manually reconciled bank statement rows.
+// These are accounting-source records, not claims that banking/tax integration is certified.
+model AccountingJournal {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  externalKey String
+  sourceType String
+  sourceId String
+  currency String
+  memo String
+  postedById String
+  postedAt DateTime @default(now())
+  reversedJournalId String?
+  postings AccountingPosting[]
+  @@unique([organizationId,externalKey])
+  @@index([organizationId,postedAt])
+  @@index([sourceType,sourceId])
+}
+model AccountingPosting {
+  id String @id @default(cuid())
+  journalId String
+  journal AccountingJournal @relation(fields:[journalId],references:[id],onDelete:Restrict)
+  accountCode String
+  side String // DEBIT | CREDIT
+  amountMinor BigInt
+  @@index([journalId])
+}
+model BankStatementRow {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  bankAccountReference String
+  statementReference String
+  currency String
+  amountMinor BigInt
+  valueDate DateTime
+  paymentRecordId String? @unique
+  paymentRecord PaymentRecord? @relation(fields:[paymentRecordId],references:[id],onDelete:Restrict)
+  matchedById String?
+  matchedAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([organizationId,bankAccountReference,statementReference])
+  @@index([organizationId,valueDate])
+}
+
+// Human-reviewed tax snapshot. This records decisions, it does not decide VAT jurisdiction.
+model InvoiceTaxReview {
+  id String @id @default(cuid())
+  invoiceId String @unique
+  invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Restrict)
+  jurisdiction String
+  treatment String
+  rationale String @db.Text
+  reviewedSubtotal Decimal @db.Decimal(18,2)
+  reviewedTax Decimal @db.Decimal(18,2)
+  reviewedTotal Decimal @db.Decimal(18,2)
+  reviewedById String
+  reviewedAt DateTime @default(now())
+}

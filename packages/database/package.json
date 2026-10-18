@@ -1,0 +1,25 @@
+{
+  "name": "@seebot/database",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.js",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "seed": "tsx prisma/seed.ts",
+    "studio": "prisma studio",
+    "bootstrap:organization": "tsx prisma/bootstrap-seebot-organization.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.1",
+    "argon2": "^0.41.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "prisma": "^6.3.1",
+    "tsx": "^4.19.2"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  }
+}
