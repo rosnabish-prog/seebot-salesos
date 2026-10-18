@@ -80,6 +80,10 @@ async function main(){
   await page.getByLabel('Due date').fill('2030-01-10');
   await page.getByRole('button',{name:'Create invoice draft'}).click();
   await page.getByText('Invoice draft created. Finance must apply and approve a tax rule before it can be issued.').waitFor({timeout:10000});
+  const drafted=await db.invoice.findFirst({where:{billingEmail:'ci-billing-'+unique+'@example.invalid'},include:{contract:true}});
+  assert.ok(drafted,'Invoice draft should persist to PostgreSQL.');
+  assert.equal(drafted.contract?.title,'CI Browser Draft SOW '+unique,'Invoice draft should link to the selected contract.');
+
   await page.getByText('Create a finance tax rule').click();
   await page.getByLabel('Unique rate/version code').fill('CI_BROWSER_'+unique.toUpperCase());
   await page.getByLabel('Rule name').fill('CI Browser Test Standard');
@@ -96,6 +100,10 @@ async function main(){
   await page.getByLabel('Invoice',{exact:true}).selectOption({index:1});
   await page.getByRole('button',{name:'Approve reviewed draft'}).click();
   await page.getByRole('status').getByText('APPROVED',{exact:true}).waitFor({timeout:10000});
+  const approved=await db.invoice.findUniqueOrThrow({where:{id:drafted.id},include:{taxReview:true}});
+  assert.equal(approved.status,'APPROVED');
+  assert.equal(approved.total.toFixed(2),'120.00');
+  assert.equal(approved.taxReview?.ratePercentSnapshot?.toString(),'20');
   console.log('PASS: browser login, company onboarding, prospect, opportunity, contract, invoice draft, tax rule, tax review, finance approval.');
  }finally{await browser.close();}
 }
