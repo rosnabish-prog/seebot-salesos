@@ -1,6 +1,7 @@
 /* Headless browser smoke using disposable CI-only PostgreSQL and fictional records. */
 const assert=require('node:assert/strict');
 const {spawn}=require('node:child_process');
+const path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {PrismaClient}=require('@prisma/client');
 const argon2=require('argon2');
@@ -12,8 +13,8 @@ if(process.env.CI!=='true'||process.env.NODE_ENV!=='test'||!process.env.DATABASE
 const db=new PrismaClient();
 const children=[];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-function launch(command,args,env){
- const cp=spawn(command,args,{cwd:process.cwd(),env:{...process.env,...env},stdio:['ignore','pipe','pipe']});
+function launch(command,args,env,cwd=process.cwd()){
+ const cp=spawn(command,args,{cwd,env:{...process.env,...env},stdio:['ignore','pipe','pipe']});
  let output='';
  for(const stream of [cp.stdout,cp.stderr])stream.on('data',chunk=>output=(output+chunk.toString()).slice(-16000));
  children.push(cp);
@@ -36,7 +37,7 @@ async function main(){
  await db.organizationMembership.upsert({where:{organizationId_userId:{organizationId:org.id,userId:user.id}},create:{organizationId:org.id,userId:user.id,role:'MEMBER'},update:{status:'ACTIVE'}});
  const api=launch(process.execPath,['apps/api/dist/main.js'],{API_PORT:'4000',TENANT_SCOPED_CRM_PREVIEW:'true'});
  const nextBin=require.resolve('next/dist/bin/next',{paths:[require('node:path').resolve('apps/web')]});
- const web=launch(process.execPath,[nextBin,'start','-p','3000','-H','127.0.0.1'],{NEXT_PUBLIC_API_URL:'http://localhost:4000'});
+ const web=launch(process.execPath,[nextBin,'start','-p','3000','-H','127.0.0.1'],{NEXT_PUBLIC_API_URL:'http://localhost:4000'},path.resolve('apps/web'));
  await ready('http://127.0.0.1:4000/health',api);
  await ready('http://127.0.0.1:3000/login',web);
  const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
