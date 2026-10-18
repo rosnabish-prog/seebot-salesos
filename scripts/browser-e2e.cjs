@@ -98,7 +98,8 @@ async function main(){
   await page.getByLabel('Document the tax basis').fill('Fictional CI browser-reviewed standard tax treatment.');
   await page.getByRole('button',{name:'Approve invoice tax calculation'}).click();
   await page.getByText('Tax review saved to invoice with locked rate and total.').waitFor({timeout:10000});
-  await page.getByLabel('Invoice',{exact:true}).selectOption({index:1});
+  const financePanel=page.getByRole('heading',{name:'Invoice approval, delivery & payments'}).locator('..');
+  await financePanel.locator('select').first().selectOption({index:1});
   await page.getByRole('button',{name:'Approve reviewed draft'}).click();
   await page.getByRole('status').filter({hasText:'APPROVED'}).waitFor({timeout:10000});
   const approved=await db.invoice.findUniqueOrThrow({where:{id:drafted.id},include:{taxReview:true}});
