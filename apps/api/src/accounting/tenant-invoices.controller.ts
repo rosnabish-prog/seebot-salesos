@@ -4,6 +4,7 @@ import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from '../workspace/identity.guard';
 import type {AuthRequest} from '../common/auth.guard';
 import {InvoicePdfService} from '../invoices/invoice-pdf.service';
+import {OutgoingMessageService} from '../communications/outgoing-message.service';
 import {amountMinor,receiptJournal} from './journal-policy';
 import {receivableMinor} from './receivable-policy';
 import {writeJournal} from './journal.service';
@@ -11,14 +12,14 @@ type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 /** Tenant finance endpoints never delegate authorization to a global role. */
 @UseGuards(IdentityGuard) @Controller('workspace-finance')
 export class TenantInvoicesController{
- constructor(private db:PrismaService,private pdf:InvoicePdfService){}
+ constructor(private db:PrismaService,private pdf:InvoicePdfService,private outbox:OutgoingMessageService){}
  private async finance(req:ScopedRequest,orgId:string){
   if(req.selectedWorkspace!==orgId)throw new ForbiddenException('Select the issuing organization.');
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}},include:{organization:{select:{status:true}}}});
   if(!member||member.status!=='ACTIVE'||!['SETUP','ACTIVE'].includes(member.organization.status)||!['OWNER','ADMIN','FINANCE'].includes(member.role))throw new ForbiddenException('Organization finance approval required.');
  }
  private async invoice(orgId:string,id:string){
-  const inv=await this.db.invoice.findFirst({where:{id,account:{organizationId:orgId}},include:{taxReview:true,document:true,payments:true,adjustments:true}});
+  const inv=await this.db.invoice.findFirst({where:{id,account:{organizationId:orgId}},include:{account:true,taxReview:true,document:true,payments:true,adjustments:true,recipients:true}});
   if(!inv)throw new BadRequestException('Invoice unavailable in this workspace.');
   return inv;
  }
@@ -44,6 +45,35 @@ export class TenantInvoicesController{
   res.setHeader('Content-Disposition',`attachment; filename="${record.invoiceNumber}.pdf"`);
   res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
   return new StreamableFile(bytes);
+ }
+ /** Send through the finance operator's separately authorized Gmail connection. */
+ @Post(':orgId/invoices/:id/email')async email(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
+  await this.finance(req,orgId);const invoice=await this.invoice(orgId,id);
+  if(invoice.isDemo||!invoice.document||!['APPROVED','SENT'].includes(invoice.status))throw new BadRequestException('A real approved and issued invoice PDF is required.');
+  const recipients=[invoice.billingEmail,...invoice.recipients.map(r=>r.email)].filter((v,i,a)=>a.findIndex(x=>x.toLowerCase()===v.toLowerCase())===i);
+  const results:{email:string;status:string}[]=[];
+  let primarySent=false;
+  for(const [index,recipientEmail] of recipients.entries()){
+   try{
+    const draft=await this.outbox.draft(req.user.id,{
+     organizationId:orgId,recipientEmail,category:'INVOICE_NOTICE',entityType:'INVOICE',entityId:id,
+     idempotencyKey:`invoice-mail:${orgId}:${id}:${recipientEmail.toLowerCase()}`,
+     subject:`Invoice ${invoice.number} — ${invoice.account.name}`,
+     bodyText:`Please find attached invoice ${invoice.number} for ${invoice.currency} ${invoice.total}, due ${invoice.dueAt.toISOString().slice(0,10)}.\n\nPlease contact our finance team regarding queries.`,
+     attachmentInvoiceId:id
+    });
+    const sent=await this.outbox.send(draft.id,req.user.id);
+    results.push({email:recipientEmail,status:sent.status});
+    if(index===0&&sent.status==='SENT')primarySent=true;
+   }catch(e){
+    results.push({email:recipientEmail,status:'FAILED'});
+    if(index===0)break;
+   }
+  }
+  if(primarySent){
+   await this.db.invoice.updateMany({where:{id,status:'APPROVED',account:{organizationId:orgId}},data:{status:'SENT',sentAt:new Date()}});
+  }
+  return {invoiceId:id,status:primarySent?'SENT':'FAILED',delivery:results,note:primarySent?'Primary billing address received a provider-confirmed send. Review additional recipient delivery statuses.':'No successful primary delivery was recorded; confirm Gmail configuration before retrying.'};
  }
  /** Confirmation of an ACTUAL external send only, never an email-dispatch claim. */
  @Post(':orgId/invoices/:id/record-external-send')async sent(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:any){
