@@ -4,11 +4,13 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import * as path from 'node:path';
 import {PrismaService} from '../prisma/prisma.service';
 import {auditDigest} from './security';
+import {ImmutableEvidenceStore} from './immutable-evidence.store';
 
 /** An independently verifiable Ed25519 evidence seal, written on a separately provisioned mount. */
 @Injectable()
 export class EvidenceArchiveService {
  constructor(private db:PrismaService){}
+ private readonly immutable=new ImmutableEvidenceStore();
  private config(){
   const dir=process.env.SIGNING_EVIDENCE_DIR,privateKeyPath=process.env.SIGNING_EVIDENCE_PRIVATE_KEY_FILE,publicKeyPath=process.env.SIGNING_EVIDENCE_PUBLIC_KEY_FILE;
   if(!dir||!path.isAbsolute(dir)||!privateKeyPath||!path.isAbsolute(privateKeyPath)||!publicKeyPath||!path.isAbsolute(publicKeyPath))throw new ServiceUnavailableException('Independent evidence archive storage and signing key path required.');
@@ -40,8 +42,10 @@ export class EvidenceArchiveService {
    const valid=original.sha256===createHash('sha256').update(existingBytes).digest('hex')&&verify(null,existingBytes,publicKey,Buffer.from(original.signature,'base64'));
    if(original.payload?.finalHmacDigest!==receipt.payload.finalHmacDigest||original.payload?.eventCount!==receipt.payload.eventCount||original.payload?.sourceDocumentSha256!==receipt.payload.sourceDocumentSha256)throw new ForbiddenException('Existing evidence anchor differs from current signing events.');
    if(!valid||original.payload?.envelopeId!==envelopeId)throw new ForbiddenException('Existing external evidence checkpoint mismatch.');
+   await this.immutable.persist(envelopeId,await readFile(filename,'utf8'));
    return {archived:true,reused:true,sha256:original.sha256,eventsAtAnchor:original.payload.eventCount};
   }
+  await this.immutable.persist(envelopeId,await readFile(filename,'utf8'));
   return {archived:true,reused:false,sha256:receipt.sha256,eventsAtAnchor:env.audit.length};
  }
  /** Finalize only if every required signer has signed AND each envelope has a valid sealed receipt. */
@@ -60,7 +64,9 @@ export class EvidenceArchiveService {
  }
  async verify(envelopeId:string){
   const {dir,publicKeyPath}=this.config();
-  const receipt=JSON.parse(await readFile(path.join(dir,this.name(envelopeId)),'utf8'));
+  const receiptText=await readFile(path.join(dir,this.name(envelopeId)),'utf8');
+  await this.immutable.verify(envelopeId,receiptText);
+  const receipt=JSON.parse(receiptText);
   const bytes=Buffer.from(JSON.stringify(receipt.payload));const key=createPublicKey(await readFile(publicKeyPath,'utf8'));
   if(key.asymmetricKeyType!=='ed25519')throw new ServiceUnavailableException('Ed25519 public verification key required.');
   const valid=receipt.payload?.envelopeId===envelopeId&&receipt.sha256===createHash('sha256').update(bytes).digest('hex')&&verify(null,bytes,key,Buffer.from(receipt.signature,'base64'));
