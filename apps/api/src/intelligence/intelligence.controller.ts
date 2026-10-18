@@ -10,13 +10,13 @@ export class IntelligenceController {
   constructor(private db:PrismaService,private demo:DemoIntelligenceProvider){}
   private async account(req:AuthRequest,id:string,write=false){
     const a=await this.db.account.findUnique({where:{id},include:{contacts:true}});
-    if(!a)throw new NotFoundException('Account not found.');
+    if(!a||a.organizationId!==req.user.organizationId)throw new NotFoundException('Account not found.');
     write?ensureCanEdit(req.user,a.ownerId):ensureOwner(req.user,a.ownerId);
     return a;
   }
   private async draft(req:AuthRequest,id:string,write=false){
     const d=await this.db.outreachDraft.findUnique({where:{id},include:{account:true,contact:true,revisions:{orderBy:{createdAt:'desc'},take:15}}});
-    if(!d)throw new NotFoundException('Draft not found.');
+    if(!d||d.account.organizationId!==req.user.organizationId)throw new NotFoundException('Draft not found.');
     write?ensureCanEdit(req.user,d.account.ownerId):ensureOwner(req.user,d.account.ownerId);
     return d;
   }
