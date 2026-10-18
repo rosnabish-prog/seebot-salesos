@@ -2,7 +2,7 @@ name: SalesOS build and database checks
 
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
