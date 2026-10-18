@@ -94,7 +94,7 @@ export class ClientsController {
    const i=await this.invoice(req,id,true);const {balance}=invoiceBalance(i);if(!['SENT','PARTIALLY_PAID'].includes(i.status)||balance<=0)throw new BadRequestException('Only unpaid, sent invoices can have reminders.');
    const days=Number(body.daysAfterDue??5);if(!Number.isInteger(days)||days<1||days>90)throw new BadRequestException('Days must be between 1 and 90.');const when=new Date(i.dueAt);when.setUTCDate(when.getUTCDate()+days);const effective=when<new Date()?new Date():when;
    const existing=await this.db.invoiceReminder.findFirst({where:{invoiceId:id,status:'PENDING_APPROVAL'}});if(existing)return existing;
-   return this.db.$transaction(async tx=>{const r=await tx.invoiceReminder.create({data:{invoiceId:id,scheduledFor:effective,status:'PENDING_APPROVAL',mode:'DRAFT_ONLY',createdById:req.user.id}});await tx.task.create({data:{title:`Invoice ${i.number}: review overdue reminder`,description:`Check payment and dispute status before emailing ${i.billingEmail}. Balance ${balance} ${i.currency}. Reminder is NOT sent automatically in this preview.`,assigneeId:i.account.ownerId,opportunityId:i.opportunityId,dueAt:effective}});return r;});
+   return this.db.$transaction(async tx=>{const r=await tx.invoiceReminder.create({data:{invoiceId:id,scheduledFor:effective,status:'PENDING_APPROVAL',mode:'DRAFT_ONLY',createdById:req.user.id}});await tx.task.create({data:{organizationId:req.user.organizationId,title:`Invoice ${i.number}: review overdue reminder`,description:`Check payment and dispute status before emailing ${i.billingEmail}. Balance ${balance} ${i.currency}. Reminder is NOT sent automatically in this preview.`,assigneeId:i.account.ownerId,opportunityId:i.opportunityId,dueAt:effective}});return r;});
  }
  @Post(':id/reviews') async review(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:{type:string;title:string;score?:number;summary:string;occurredAt?:string;actionItems?:string[]}){
    const a=await this.account(req,id,true);if(!['NPS','CSAT','MBR','QBR'].includes(body.type))throw new BadRequestException('Invalid review type.');if(!text(body.title)||!text(body.summary))throw new BadRequestException('Title and summary required.');
@@ -104,7 +104,7 @@ export class ClientsController {
      const review=await tx.clientReview.create({data:{accountId:id,type:body.type,title:text(body.title,150),score:['NPS','CSAT'].includes(body.type)?body.score:null,summary:text(body.summary,8000),actionItems:actions,recordedById:req.user.id,occurredAt:body.occurredAt?validDate(body.occurredAt,'review date'):new Date(),isDemo:a.isDemo}});
      if(body.type==='NPS'&&Number(body.score)<=6){
        const opp=await tx.opportunity.findFirst({where:{accountId:id},orderBy:{updatedAt:'desc'},select:{id:true}});
-       await tx.task.create({data:{assigneeId:a.ownerId,opportunityId:opp?.id,title:`Client NPS follow-up: ${a.name}`,description:`Score ${body.score}/10. Review the recorded feedback and agree corrective actions. ${a.isDemo?'DEMO ONLY — not a real client.':''}`,dueAt:new Date(Date.now()+2*86400000)}});
+       await tx.task.create({data:{organizationId:req.user.organizationId,assigneeId:a.ownerId,opportunityId:opp?.id,title:`Client NPS follow-up: ${a.name}`,description:`Score ${body.score}/10. Review the recorded feedback and agree corrective actions. ${a.isDemo?'DEMO ONLY — not a real client.':''}`,dueAt:new Date(Date.now()+2*86400000)}});
      }
      await tx.auditEvent.create({data:{actorId:req.user.id,action:'CLIENT_REVIEW_RECORDED',entityType:'ACCOUNT',entityId:id,detail:{reviewId:review.id,type:body.type,demo:a.isDemo}}});return review;
    });
@@ -115,7 +115,7 @@ export class ClientsController {
      const issue=await tx.clientIssue.create({data:{accountId:id,title:text(body.title,200),details:text(body.details,4000)||null,severity:body.severity||'MEDIUM',isDemo:a.isDemo}});
      if(['HIGH','CRITICAL'].includes(body.severity||'')){
        const opp=await tx.opportunity.findFirst({where:{accountId:id},orderBy:{updatedAt:'desc'},select:{id:true}});
-       await tx.task.create({data:{assigneeId:a.ownerId,opportunityId:opp?.id,title:`Resolve client escalation: ${a.name}`,description:`${text(body.title,200)} ${a.isDemo?'DEMO ONLY — not a real client.':''}`,dueAt:new Date(Date.now()+86400000)}});
+       await tx.task.create({data:{organizationId:req.user.organizationId,assigneeId:a.ownerId,opportunityId:opp?.id,title:`Resolve client escalation: ${a.name}`,description:`${text(body.title,200)} ${a.isDemo?'DEMO ONLY — not a real client.':''}`,dueAt:new Date(Date.now()+86400000)}});
      }
      await tx.auditEvent.create({data:{actorId:req.user.id,action:'CLIENT_ISSUE_RECORDED',entityType:'ACCOUNT',entityId:id,detail:{issueId:issue.id,severity:issue.severity,demo:a.isDemo}}});return issue;
    });
@@ -145,7 +145,7 @@ export class ClientDemoController {
      await tx.invoice.create({data:{accountId:a.id,opportunityId:o.id,contractId:contract.id,number:'DEMO-ORION-003',currency:'USD',lineItems:[{description:'DEMO · June data annotation services',quantity:1,unitPrice:8000}],subtotal:8000,total:8000,tax:0,dueAt:days(18),issuedAt:days(-12),sentAt:days(-12),status:'SENT',isDemo:true,billingEmail:'billing@seebot-client-demo.example',createdById:req.user.id}});
      await tx.clientReview.createMany({data:[{accountId:a.id,type:'NPS',title:'DEMO · Quarterly client feedback',score:3,summary:'DEMO ONLY — Client expressed concern over QA turnaround and asked for a corrective plan.',recordedById:req.user.id,isDemo:true,occurredAt:days(-5)},{accountId:a.id,type:'MBR',title:'DEMO · Monthly Business Review',summary:'DEMO ONLY — Client requested improved weekly QA reporting and fewer missed handoff deadlines.',actionItems:['Share corrective-action plan','Review next month capacity forecast'],recordedById:req.user.id,isDemo:true,occurredAt:days(-10)}]});
      await tx.clientIssue.create({data:{accountId:a.id,title:'DEMO · QA turnaround below agreed target',details:'Fictional escalation; test low client health and executive attention.',severity:'HIGH',status:'OPEN',isDemo:true}});
-     await tx.task.create({data:{title:'DEMO · Review low NPS with Orion contact',description:'Synthetic scenario; not a real task for client outreach.',dueAt:days(4),opportunityId:o.id,assigneeId:req.user.id}});
+     await tx.task.create({data:{organizationId:req.user.organizationId,title:'DEMO · Review low NPS with Orion contact',description:'Synthetic scenario; not a real task for client outreach.',dueAt:days(4),opportunityId:o.id,assigneeId:req.user.id}});
      await tx.auditEvent.create({data:{actorId:req.user.id,action:'DEMO_CLIENT_CREATED',entityType:'ACCOUNT',entityId:a.id,detail:{mode:'DEMO',synthetic:true}}});
      return a;
    });return {accountId:result.id,reused:false};
