@@ -94,7 +94,7 @@ export class TaxRulesController{
    const {tax,total}=taxTotals(new Prisma.Decimal(invoice.subtotal),new Prisma.Decimal(rule.ratePercent));
    const updated=await tx.invoice.updateMany({where:{id:invoice.id,status:'DRAFT',issuedAt:null,taxReview:{is:null}},data:{tax,total}});
    if(updated.count!==1)throw new BadRequestException('Invoice changed concurrently.');
-   const review=await tx.invoiceTaxReview.create({data:{invoiceId:invoice.id,jurisdiction:rule.jurisdiction,treatment:rule.treatment,rationale,reviewedSubtotal:invoice.subtotal,reviewedTax:tax,reviewedTotal:total,reviewedById:req.user.id,taxRuleId:rule.id,ruleCodeSnapshot:rule.code,ratePercentSnapshot:rule.ratePercent}});
+   const review=await tx.invoiceTaxReview.create({data:{invoiceId:invoice.id,jurisdiction:rule.jurisdiction,treatment:rule.treatment,rationale,reviewedSubtotal:invoice.subtotal,reviewedTax:tax,reviewedTotal:total,reviewedById:req.user.id,taxRuleId:rule.id,ruleCodeSnapshot:rule.code,ruleInvoiceNoteSnapshot:rule.invoiceNote,ratePercentSnapshot:rule.ratePercent}});
    await tx.auditEvent.create({data:{actorId:req.user.id,entityType:'INVOICE',entityId:invoice.id,action:'INVOICE_TAX_RULE_APPLIED',detail:{organizationId:orgId,ruleId:rule.id,code:rule.code,ratePercent:rule.ratePercent.toString(),tax:tax.toString(),total:total.toString(),reviewId:review.id}}});
    return {invoiceId:invoice.id,ruleCode:rule.code,tax:tax.toFixed(2),total:total.toFixed(2),reviewId:review.id};
   },{isolationLevel:'Serializable'});
