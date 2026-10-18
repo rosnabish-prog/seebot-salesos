@@ -9,7 +9,7 @@ function load(relative){
  const compiled=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const m=new Module(filename,module);m.filename=filename;m.paths=Module._nodeModulePaths(path.dirname(filename));m._compile(compiled,filename);return m.exports;
 }
-const {taxRuleInput,taxTotals,taxRate,exportCsv}=load('accounting/tax-policy.ts');
+const {taxRuleInput,taxTotals,taxRate,exportCsv,parseTaxCsv}=load('accounting/tax-policy.ts');
 const {Prisma}=require('@prisma/client');
 test('finance tax catalog rejects unsupported treatments and invented rate precision',()=>{
  assert.throws(()=>taxRuleInput({code:'UK_STANDARD',name:'VAT standard',jurisdiction:'GB',treatment:'UNKNOWN',ratePercent:'20'}));
@@ -34,4 +34,17 @@ test('CSV export safely escapes names, notes and embedded quotes',()=>{
 });
 test('effective-date intervals reject reversal',()=>{
  assert.throws(()=>taxRuleInput({code:'UK_VAT_DEMO',name:'Test tax rate',jurisdiction:'GB',treatment:'STANDARD',ratePercent:'20',effectiveFrom:'2030-06-01',effectiveTo:'2029-06-01'}));
+});
+
+test('editable tax CSV roundtrips quoted notes into inactive import drafts',()=>{
+ const csv=exportCsv([{code:'GB_TAX_V2',name:'Standard, service',jurisdiction:'GB',treatment:'STANDARD',ratePercent:'20.00',status:'APPROVED',invoiceNote:'Quoted "text" in note'}]);
+ const parsed=parseTaxCsv(csv);
+ assert.equal(parsed.length,1);assert.equal(parsed[0].code,'GB_TAX_V2');
+ assert.equal(parsed[0].invoiceNote,'Quoted "text" in note');
+ assert.equal(parsed[0].ratePercent.toString(),'20');
+});
+test('tax CSV import rejects missing rates and duplicate codes',()=>{
+ const base='code,name,jurisdiction,treatment,ratePercent,status,invoiceNote\r\n';
+ assert.throws(()=>parseTaxCsv(base+'GB_A,Sample name,GB,STANDARD,,DRAFT,Note\r\n'));
+ assert.throws(()=>parseTaxCsv(base+'GB_A,Sample name,GB,STANDARD,20,DRAFT,Note\r\nGB_A,Sample name,GB,STANDARD,20,DRAFT,Note\r\n'));
 });
