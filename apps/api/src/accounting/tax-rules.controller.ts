@@ -4,7 +4,7 @@ import {Prisma} from '@prisma/client';
 import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from '../workspace/identity.guard';
 import type {AuthRequest} from '../common/auth.guard';
-import {exportCsv,taxRuleInput,taxTotals} from './tax-policy';
+import {exportCsv,parseTaxCsv,taxRuleInput,taxTotals} from './tax-policy';
 
 type ScopeRequest=AuthRequest & {selectedWorkspace?:string|null};
 
@@ -29,6 +29,17 @@ export class TaxRulesController{
   res.setHeader('Cache-Control','private, no-store');
   res.setHeader('Content-Disposition','attachment; filename="salesos-tax-rules.csv"');
   return exportCsv(rows);
+ }
+ @Post(':orgId/rules/import-csv')async importCsv(@Req()req:ScopeRequest,@Param('orgId')orgId:string,@Body()body:any){
+  await this.finance(req,orgId);
+  const rows=parseTaxCsv(body?.csv);
+  return this.db.$transaction(async tx=>{
+   const existing=await tx.taxRule.findMany({where:{organizationId:orgId,code:{in:rows.map(r=>r.code)}},select:{code:true}});
+   if(existing.length)throw new BadRequestException('CSV contains an already-used tax code. Use a new code/version rather than overwrite an approved or historical rule.');
+   const inserted=await tx.taxRule.createMany({data:rows.map(row=>({...row,organizationId:orgId,status:'DRAFT',createdById:req.user.id}))});
+   await tx.auditEvent.create({data:{actorId:req.user.id,entityType:'TAX_RULE_CATALOG',entityId:orgId,action:'TAX_RULE_CSV_IMPORTED',detail:{organizationId:orgId,codes:rows.map(r=>r.code),count:inserted.count,allImportedAs:'DRAFT'}}});
+   return {imported:inserted.count,status:'DRAFT',notice:'Imported rules are drafts and must be approved by finance before use.'};
+  },{isolationLevel:'Serializable'});
  }
  @Post(':orgId/rules')async create(@Req()req:ScopeRequest,@Param('orgId')orgId:string,@Body()body:any){
   await this.finance(req,orgId);
