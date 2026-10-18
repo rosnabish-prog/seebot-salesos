@@ -92,6 +92,7 @@ async function main(){
   await page.getByText('Finance record saved.').waitFor({timeout:10000});
   await page.getByRole('button',{name:'Approve',exact:true}).click();
   await page.getByRole('button',{name:'Archive',exact:true}).waitFor({timeout:10000});
+  await page.getByText('Apply an approved rule to an invoice draft').click();
   await page.getByLabel('Invoice draft').selectOption({index:1});
   await page.getByLabel('Finance-approved tax rule').selectOption({index:1});
   await page.getByLabel('Document the tax basis').fill('Fictional CI browser-reviewed standard tax treatment.');
