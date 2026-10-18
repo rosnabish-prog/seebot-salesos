@@ -24,7 +24,7 @@ export class LocalReminderJobsController {
      // The event key is database-unique; this prevents duplicate jobs from parallel runs.
      await tx.localAutomationEvent.create({data:{key:eligible.key,entityType:'INVOICE',entityId:inv.id,action:'REMINDER_APPROVAL',isDemo:inv.isDemo,createdById:req.user.id}});
      await tx.invoiceReminder.create({data:{invoiceId:inv.id,createdById:req.user.id,scheduledFor:eligible.scheduledFor,status:'PENDING_APPROVAL',mode:'DRAFT_ONLY'}});
-     if(!inv.isDemo)await tx.task.create({data:{assigneeId:item.assigneeId,opportunityId:inv.opportunityId,title:`Approve payment reminder: ${inv.number} (day ${eligible.day})`,description:`${item.clientName}: check recorded payments/disputes and review the reminder draft. This task does not send an email.`,dueAt:new Date()}});
+     if(!inv.isDemo)await tx.task.create({data:{organizationId:req.user.organizationId,assigneeId:item.assigneeId,opportunityId:inv.opportunityId,title:`Approve payment reminder: ${inv.number} (day ${eligible.day})`,description:`${item.clientName}: check recorded payments/disputes and review the reminder draft. This task does not send an email.`,dueAt:new Date()}});
      return true;
    },{isolationLevel:'Serializable'});if(done)created++;else skipped++;}catch(e:any){if(e?.code==='P2002'){skipped++;continue;}throw e;}
   }
