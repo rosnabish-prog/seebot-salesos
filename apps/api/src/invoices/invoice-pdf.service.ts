@@ -36,7 +36,8 @@ export class InvoicePdfService {
     const number=await this.db.$transaction(async tx=>{
       await tx.invoiceSequence.upsert({where:{organizationId_year:{organizationId:issuer.id,year}},create:{organizationId:issuer.id,year,nextNumber:1},update:{}});
       const counter=await tx.invoiceSequence.update({where:{organizationId_year:{organizationId:issuer.id,year}},data:{nextNumber:{increment:1}}});
-      const number=`SBS-${year}-${String(counter.nextNumber-1).padStart(6,'0')}`;
+      const prefix=issuer.slug==='seebot'?'SBS':`ORG-${issuer.slug.toUpperCase()}`;
+      const number=`${prefix}-${year}-${String(counter.nextNumber-1).padStart(6,'0')}`;
       await tx.invoice.update({where:{id:invoiceId},data:{number}});
       await tx.auditEvent.create({data:{actorId,action:'INVOICE_NUMBER_RESERVED',entityType:'INVOICE',entityId:invoiceId,detail:{number}}});
       return number;
