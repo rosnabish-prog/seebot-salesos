@@ -78,6 +78,12 @@ async function main(){
   check(await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/record-external-send',a.cookie,{method:'POST',body:JSON.stringify({reference:'CI-ONLY-MANUAL-TEST'})}),201,'Actual external-send reference stored (no mail sent by test)');
   const partial=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payments',a.cookie,{method:'POST',body:JSON.stringify({amount:'3.50',paidAt:'2026-10-18',reference:'CI-TEST-PARTIAL'})});
   check(partial,201,'Manually recorded partial payment with journal');assert.equal(partial.body.remainingMinor,850);
+  const replay=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payments',a.cookie,{method:'POST',body:JSON.stringify({amount:'3.50',paidAt:'2026-10-18',reference:'ci-test-partial'})});
+  check(replay,400,'Case-insensitive replay of a manual bank reference is rejected');
+  const afterReplay=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payment-history',a.cookie);
+  check(afterReplay,200,'Payment history after duplicate attempt');
+  assert.equal(afterReplay.body.amountRemainingMinor,850);
+  assert.equal(afterReplay.body.payments.length,1);
   const final=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payments',a.cookie,{method:'POST',body:JSON.stringify({amount:'8.50',paidAt:'2026-10-18',reference:'CI-TEST-FINAL'})});
   check(final,201,'Final payment closes receivable');assert.equal(final.body.status,'PAID');assert.equal(final.body.remainingMinor,0);
   const history=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payment-history',a.cookie);
