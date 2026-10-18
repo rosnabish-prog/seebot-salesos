@@ -49,6 +49,8 @@ export class InvoicePdfService {
     text('INVOICE',22,true);text(issuer.legalName,13,true);
     text(issuer.billingAddress,10);if(issuer.taxRegistrationNumber)text(`Tax registration: ${issuer.taxRegistrationNumber}`);
     text(`Tax treatment: ${invoice.taxReview.treatment} (${invoice.taxReview.jurisdiction})`);
+    if(invoice.taxReview.ruleCodeSnapshot)text(`Tax rule: ${invoice.taxReview.ruleCodeSnapshot} · ${invoice.taxReview.ratePercentSnapshot||0}%`);
+    if(invoice.taxReview.ruleInvoiceNoteSnapshot)text(`Tax note: ${invoice.taxReview.ruleInvoiceNoteSnapshot}`);
     y-=12;text(`Invoice: ${number}`,12,true);text(`Issued (UTC): ${new Date().toISOString().slice(0,10)}`);text(`Due: ${new Date(invoice.dueAt).toISOString().slice(0,10)}`);
     text(`Billed to: ${invoice.account.name}`,11,true);text(invoice.account.billingAddress);
     if(invoice.account.taxRegistrationNumber)text(`Customer tax ID: ${invoice.account.taxRegistrationNumber}`);
