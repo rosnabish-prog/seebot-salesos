@@ -12,7 +12,7 @@ export class LocalReminderJobsController {
  }
  @Get('preview') async preview(@Req()req:AuthRequest){requireManager(req.user);return {simulation:true,sendsEmail:false,proposals:await this.candidates(req.user.organizationId!)};}
  @Post('create-approval-tasks') async enqueue(@Req()req:AuthRequest){requireManager(req.user);
-  const proposed=await this.candidates();let created=0,skipped=0;
+  const proposed=await this.candidates(req.user.organizationId!);let created=0,skipped=0;
   for(const item of proposed){
    // Recheck inside a transaction to avoid reminders for paid invoices, with unique event guard.
    try{const done=await this.db.$transaction(async tx=>{
