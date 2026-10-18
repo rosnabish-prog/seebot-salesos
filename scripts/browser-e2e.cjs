@@ -107,6 +107,48 @@ async function main(){
   assert.equal(approved.total.toFixed(2),'120.00');
   assert.equal(approved.taxReview?.ratePercentSnapshot?.toString(),'20');
   console.log('PASS: browser login, company onboarding, prospect, opportunity, contract, invoice draft, tax rule, tax review, finance approval.');
+
+  // A freshly authenticated account without a company must reach setup, not legacy CRM.
+  const guestEmail='ci-new-user-'+unique+'@example.invalid';
+  const guest=await db.user.create({data:{email:guestEmail,name:'CI New Workspace User',passwordHash:await argon2.hash(password),role:'SALES_REP'}});
+  const newContext=await browser.newContext(),newPage=await newContext.newPage();
+  try{
+   await newPage.goto('http://localhost:3000/login');
+   await newPage.getByPlaceholder('name@company.com').fill(guestEmail);
+   await newPage.getByPlaceholder('Your password').fill(password);
+   await newPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await newPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
+   await newPage.getByText('Create your team workspace').waitFor();
+   const ownName='CI Fresh Team '+unique;
+   await newPage.getByLabel('Company name').fill(ownName);
+   await newPage.getByPlaceholder('https://example.com').fill('https://fresh-'+unique+'.example');
+   await newPage.getByRole('button',{name:'Create workspace profile'}).click();
+   await newPage.getByRole('heading',{name:ownName+' · Organization Profile'}).waitFor({timeout:15000});
+   const ownerMembership=await db.organizationMembership.findFirst({where:{userId:guest.id,role:'OWNER'},include:{organization:true}});
+   assert.ok(ownerMembership,'New user becomes workspace owner.');
+   assert.equal(ownerMembership.organization.name,ownName);
+   await newPage.getByLabel('Team member name').fill('CI Invited Colleague');
+   await newPage.getByLabel('Invite email address').fill('ci-invite-browser-'+unique+'@example.invalid');
+   await newPage.getByRole('button',{name:'Create team invitation'}).click();
+   await newPage.getByLabel('One-time invitation URL').waitFor({timeout:10000});
+   const link=await newPage.getByLabel('One-time invitation URL').inputValue();
+   assert.ok(new URL(link).searchParams.get('token'));
+   const storedInvite=await db.workspaceInvitation.findFirst({where:{organizationId:ownerMembership.organizationId}});
+   assert.equal(storedInvite?.status,'PENDING');
+  }finally{await newContext.close();}
+  // Multiple memberships require an explicit workspace choice on the next login.
+  await db.organization.create({data:{slug:'ci-second-'+unique,name:'CI Second Team '+unique,status:'SETUP',memberships:{create:{userId:guest.id,role:'MEMBER',status:'ACTIVE'}}}});
+  const multiContext=await browser.newContext(),multiPage=await multiContext.newPage();
+  try{
+   await multiPage.goto('http://localhost:3000/login');
+   await multiPage.getByPlaceholder('name@company.com').fill(guestEmail);
+   await multiPage.getByPlaceholder('Your password').fill(password);
+   await multiPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await multiPage.waitForURL(/\/workspaces(?:\?.*)?$/,{timeout:15000});
+   await multiPage.getByText('CI Second Team '+unique).waitFor({timeout:10000});
+  }finally{await multiContext.close();}
+  console.log('PASS: new-user workspace setup, team invitation link and multi-workspace selection.');
+
  }finally{await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{
