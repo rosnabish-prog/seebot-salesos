@@ -36,8 +36,8 @@ export class PublicSurveysController {
       // A survey is feedback, never evidence that an opportunity stage was completed.
       if(!item.isDemo&&item.type==='NPS'&&score<=6){
         const opp=await tx.opportunity.findFirst({where:{accountId:item.accountId},orderBy:{updatedAt:'desc'},select:{id:true}});
-        const account=await tx.account.findUniqueOrThrow({where:{id:item.accountId},select:{ownerId:true,name:true}});
-        await tx.task.create({data:{assigneeId:account.ownerId,opportunityId:opp?.id,title:`Client NPS follow-up: ${account.name}`,description:`Verified survey response: ${score}/10. Contact the client to discuss feedback.`,dueAt:new Date(Date.now()+2*86400000)}});
+        const account=await tx.account.findUniqueOrThrow({where:{id:item.accountId},select:{ownerId:true,name:true,organizationId:true}});
+        await tx.task.create({data:{organizationId:account.organizationId,assigneeId:account.ownerId,opportunityId:opp?.id,title:`Client NPS follow-up: ${account.name}`,description:`Verified survey response: ${score}/10. Contact the client to discuss feedback.`,dueAt:new Date(Date.now()+2*86400000)}});
       }
     },{isolationLevel:'Serializable'});
     return {received:true,type:item.type,classification:surveyClassification(item.type as SurveyType,score)};
