@@ -22,7 +22,7 @@ async function main(){
  const event={envelopeId,sequence:1,type:'DOCUMENT_VIEWED',actorEmail:'example@example.invalid',googleSub:'google-example',ipAddress:'127.0.0.1',userAgent:'CI browser',metadata:{fictional:true},occurredAt:new Date('2026-10-18T00:00:00.000Z'),previousDigest:'GENESIS'};
  event.digest=auditDigest(secret,{...event,occurredAt:event.occurredAt.toISOString()});
  const envelope={id:envelopeId,contractId:'fictional-contract',recipientEmail:'example@example.invalid',recipientGoogleSub:'google-example',documentSha256:'a'.repeat(64),signedDocumentId:'fictional-final-doc',signedAt:new Date('2026-10-18T00:02:00.000Z'),audit:[event],document:{id:'fictional-doc'}};
- const service=new EvidenceArchiveService({signingEnvelope:{findUnique:async()=>envelope}});
+ const service=new EvidenceArchiveService({signingEnvelope:{findUnique:async()=>envelope},signingAuditEvent:{findMany:async()=>[event]}});
  const first=await service.archive(envelopeId);
  assert.equal(first.archived,true);assert.equal(first.reused,false);
  const check=await service.verify(envelopeId);assert.equal(check.valid,true);
