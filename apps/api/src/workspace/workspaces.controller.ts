@@ -8,12 +8,12 @@ import {normalizeSlug} from './workspace-policy';
 @UseGuards(IdentityGuard) @Controller('workspaces')
 export class WorkspacesController{
  constructor(private db:PrismaService,private jwt:JwtService){}
- @Get()async list(@Req()req:AuthRequest){const members=await this.db.organizationMembership.findMany({where:{userId:req.user.id,status:'ACTIVE'},include:{organization:true},orderBy:{createdAt:'asc'}});return members.map(m=>({id:m.organizationId,slug:m.organization.slug,name:m.organization.name,logoUrl:m.organization.logoUrl,status:m.organization.status,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true'}));}
+ @Get()async list(@Req()req:AuthRequest){const members=await this.db.organizationMembership.findMany({where:{userId:req.user.id,status:'ACTIVE'},include:{organization:true},orderBy:{createdAt:'asc'}});return members.map(m=>({id:m.organizationId,slug:m.organization.slug,name:m.organization.name,logoUrl:m.organization.logoUrl,status:m.organization.status,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))}));}
  @Post()async create(@Req()req:AuthRequest,@Body()body:any){
   const name=String(body?.name||'').trim(),slug=normalizeSlug(String(body?.slug||name)),website=String(body?.website||'').trim();
   if(name.length<2||name.length>160||website&&(!/^https:\/\/[^\s/]+/i.test(website)||website.length>300))throw new BadRequestException('Valid company name and optional HTTPS website required.');
   const org=await this.db.organization.create({data:{slug,name,website:website||null,industry:String(body?.industry||'').slice(0,100),description:String(body?.description||'').slice(0,4000),country:String(body?.country||'').slice(0,2)||null,defaultCurrency:/^[A-Z]{3}$/.test(body?.defaultCurrency||'')?body.defaultCurrency:'USD',status:'SETUP',memberships:{create:{userId:req.user.id,role:'OWNER'}},workspaceSettings:{create:{plan:'ALL_FEATURES_UNLOCKED',setupComplete:false}}}});
-  return {id:org.id,name:org.name,slug:org.slug,status:org.status,crmEnabled:false,tenantCrmEnabled:process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true',notice:'Workspace profile created. Access to shared legacy CRM is disabled until all tenant boundaries pass security validation.'};
+  return {id:org.id,name:org.name,slug:org.slug,status:org.status,crmEnabled:false,tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true')),notice:'Workspace profile created. Access to shared legacy CRM is disabled until all tenant boundaries pass security validation.'};
  }
  private async authorized(req:AuthRequest,id:string,admin=false){
    const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
@@ -21,7 +21,7 @@ export class WorkspacesController{
    if(admin&&!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator required.');
    return member;
  }
- @Get(':id/profile') async profile(@Req()req:AuthRequest,@Param('id')id:string){const m=await this.authorized(req,id);const settings=await this.db.workspaceSettings.findUnique({where:{organizationId:id}});return {organization:m.organization,settings,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true'};}
+ @Get(':id/profile') async profile(@Req()req:AuthRequest,@Param('id')id:string){const m=await this.authorized(req,id);const settings=await this.db.workspaceSettings.findUnique({where:{organizationId:id}});return {organization:m.organization,settings,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))};}
  @Patch(':id/profile') async update(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:any){
    const member=await this.authorized(req,id,true);
    const updates:any={};for(const key of ['name','legalName','website','industry','description','idealCustomers','country','timezone','defaultCurrency','logoUrl','billingAddress','taxRegistrationNumber']){
@@ -58,6 +58,6 @@ export class WorkspacesController{
   const user=await this.db.user.findUnique({where:{id:req.user.id}});if(!user)throw new ForbiddenException('User unavailable.');
   const token=await this.jwt.signAsync({sub:user.id,pv:user.passwordVersion,wid:id});
   res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});
-  return {selected:id,slug:member.organization.slug,crmEnabled:member.organization.slug==='seebot',tenantCrmEnabled:process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true',notice:member.organization.slug==='seebot'?'Seebot SalesOS activated.':'Organization setup selected. CRM remains locked until tenant isolation is certified.'};
+  return {selected:id,slug:member.organization.slug,crmEnabled:member.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true')),notice:member.organization.slug==='seebot'?'Seebot SalesOS activated.':'Organization setup selected. CRM remains locked until tenant isolation is certified.'};
  }
 }

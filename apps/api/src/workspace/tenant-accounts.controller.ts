@@ -9,7 +9,9 @@ type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 export class TenantAccountsController {
  constructor(private db:PrismaService){}
  private async authorize(req:ScopedRequest,orgId:string,write=false){
-  if(process.env.NODE_ENV==='production'||process.env.TENANT_SCOPED_CRM_PREVIEW!=='true')throw new ForbiddenException('Tenant CRM remains in isolated fictional-data preview until all legacy CRUD and reporting paths pass cross-tenant penetration tests.');
+  const preview=process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true';
+  const live=process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true';
+  if(!preview&&!live)throw new ForbiddenException('Tenant CRM is disabled for this deployment.');
   if(req.selectedWorkspace!==orgId)throw new ForbiddenException('Select this workspace first.');
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}},include:{organization:true}});
   if(member?.status!=='ACTIVE'||member.organization.status!=='ACTIVE'&&member.organization.status!=='SETUP')throw new ForbiddenException('Active company membership required.');
@@ -23,13 +25,13 @@ export class TenantAccountsController {
   const name=String(body?.name||'').trim(),website=String(body?.website||'').trim(),industry=String(body?.industry||'Other').trim();
   if(name.length<2||name.length>150||industry.length>100)throw new BadRequestException('Company name and industry are required.');
   const domain=this.domain(website);
-  if(!domain.endsWith('.example')&&!domain.endsWith('.invalid'))throw new BadRequestException('Tenant CRM preview accepts fictional .example/.invalid prospects only.');
+  if(process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true'&&!domain.endsWith('.example')&&!domain.endsWith('.invalid'))throw new BadRequestException('Tenant CRM preview accepts fictional .example/.invalid prospects only.');
   const assigned=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}}});
   if(!assigned||assigned.status!=='ACTIVE')throw new ForbiddenException('Membership expired.');
   const existing=await this.db.account.findFirst({where:{organizationId:orgId,domain}});
   if(existing)throw new BadRequestException('This workspace already has that company domain.');
   return this.db.$transaction(async tx=>{
-   const account=await tx.account.create({data:{organizationId:orgId,name,domain,website,industry,hypothesis:String(body?.hypothesis||'').slice(0,2000),ownerId:req.user.id}});
+   const account=await tx.account.create({data:{organizationId:orgId,name,domain,website,industry,hypothesis:String(body?.hypothesis||'').slice(0,2000),ownerId:req.user.id,isDemo:process.env.NODE_ENV!=='production'}});
    await tx.opportunity.create({data:{accountId:account.id,title:`${name} — Initial Engagement`,ownerId:req.user.id,serviceLine:industry,stageVisits:{create:{stage:'ACCOUNT_RESEARCHED'}}}});
    await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_ACCOUNT_CREATED',entityType:'ACCOUNT',entityId:account.id,detail:{organizationId:orgId}}});
    return {id:account.id,name:account.name,domain:account.domain};
