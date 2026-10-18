@@ -52,7 +52,7 @@ async function main(){
   await page.goto('/workspaces');
   await page.getByRole('heading',{name:'Company Workspaces'}).waitFor();
   const name='CI Browser Organization '+unique;
-  await page.getByText('Create your team workspace').waitFor();
+  await page.getByText('Create another company workspace').click();
   await page.getByLabel('Company name').fill(name);
   await page.getByPlaceholder('https://example.com').fill('https://company-'+unique+'.example');
   await page.getByRole('button',{name:'Create workspace profile'}).click();
