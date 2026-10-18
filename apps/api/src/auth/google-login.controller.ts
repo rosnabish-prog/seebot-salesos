@@ -1,4 +1,6 @@
 import { Body, Controller, Post, Res, UnauthorizedException } from '@nestjs/common';
+import {randomBytes} from 'node:crypto';
+import argon2 from 'argon2';
 import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -10,7 +12,16 @@ export class GoogleLoginController {
   constructor(private db:PrismaService,private jwt:JwtService,private identity:GoogleIdentityService){}
   @Post('google') async googleLogin(@Body()body:{credential?:string},@Res({passthrough:true})res:Response){
     const verified=await this.identity.verify(body?.credential||'',process.env.GOOGLE_LOGIN_CLIENT_ID||'');
-    const user=await this.db.user.findUnique({where:{email:verified.email}});
+    let user=await this.db.user.findUnique({where:{email:verified.email}});
+    if(!user && process.env.GOOGLE_SELF_SIGNUP_ENABLED==='true'){
+      // A Google verified email proves control of the Google account only; it does not verify a company.
+      // No Seebot membership is granted. The user must explicitly create their company workspace.
+      user=await this.db.user.create({data:{
+       name:verified.name.slice(0,160),email:verified.email,googleSubject:verified.subject,
+       role:'SALES_REP',passwordHash:await argon2.hash(randomBytes(48).toString('base64url'))
+      }});
+      await this.db.auditEvent.create({data:{actorId:user.id,entityType:'USER',entityId:user.id,action:'GOOGLE_VERIFIED_SELF_REGISTRATION',detail:{email:user.email}}});
+    }
     if(!user||!user.active)throw new UnauthorizedException('Your Google address is not an active invited SalesOS user.');
     if(user.googleSubject&&user.googleSubject!==verified.subject)throw new UnauthorizedException('This employee is linked to another Google identity. Contact an administrator.');
     if(!user.googleSubject){
@@ -19,6 +30,8 @@ export class GoogleLoginController {
     }
     const token=await this.jwt.signAsync({sub:user.id,role:user.role,pv:user.passwordVersion});
     res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});
-    return {user:{id:user.id,email:user.email,name:user.name,role:user.role}};
+    const seebot=await this.db.organization.findUnique({where:{slug:'seebot'},select:{id:true}});
+    const member=seebot?await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:seebot.id,userId:user.id}},select:{status:true}}}):null;
+    return {user:{id:user.id,email:user.email,name:user.name,role:user.role},workspaceSelectionRequired:member?.status!=='ACTIVE'};
   }
 }
