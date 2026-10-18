@@ -25,12 +25,12 @@ export class WorkspaceInvitationsController{
   if(req.selectedWorkspace!==id)throw new ForbiddenException('Select this workspace first.');
   return member;
  }
- @UseGuards(IdentityGuard) @Get(':organizationId')
+ @UseGuards(IdentityGuard) @Get('organizations/:organizationId')
  async list(@Req()req:ScopedRequest,@Param('organizationId')id:string){
   await this.admin(req,id);
   return this.db.workspaceInvitation.findMany({where:{organizationId:id},select:{id:true,email:true,name:true,role:true,status:true,expiresAt:true,createdAt:true},take:100,orderBy:{createdAt:'desc'}});
  }
- @UseGuards(IdentityGuard) @Post(':organizationId')
+ @UseGuards(IdentityGuard) @Post('organizations/:organizationId')
  async create(@Req()req:ScopedRequest,@Param('organizationId')id:string,@Body()body:any){
   const member=await this.admin(req,id);
   const email=String(body?.email||'').trim().toLowerCase(),name=String(body?.name||'').trim(),role=String(body?.role||'MEMBER');
@@ -60,7 +60,7 @@ export class WorkspaceInvitationsController{
    delivery=(await this.outbox.send(message.id,req.user.id)).status;
   }catch{delivery='NOT_SENT';}
   return {id:invitation.id,recipientEmail:email,expiresAt,delivery,
-   ...delivery==='SENT'?{}:{inviteUrl:link},
+   ...(delivery==='SENT'?{}:{inviteUrl:link}),
    notice:delivery==='SENT'?'Invitation sent through connected Gmail.':'Invitation not emailed. Copy the one-time private invitation link and share it securely.'};
  }
  private async pending(raw:unknown,email:string){
