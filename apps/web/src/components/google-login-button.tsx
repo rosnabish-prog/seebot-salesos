@@ -17,8 +17,8 @@ export function GoogleLoginButton({onError}:{onError:(message:string)=>void}){
       if(!response.credential||!current)return;
       setBusy(true);
       try{
-        const {user}=await post<{user:User}>('/auth/google',{credential:response.credential});
-        await refresh();router.replace(executive(user.role)?'/executive':'/dashboard');
+        const {user,workspaceSelectionRequired}=await post<{user:User;workspaceSelectionRequired:boolean}>('/auth/google',{credential:response.credential});
+        await refresh();router.replace(workspaceSelectionRequired?'/workspaces':executive(user.role)?'/executive':'/dashboard');
       }catch(err){onError(err instanceof Error?err.message:'Google sign-in failed.');}
       finally{if(current)setBusy(false);}
     }});
