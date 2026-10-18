@@ -69,7 +69,7 @@ async function main(){
   await page.getByRole('link',{name:'Business preview'}).click();
   await page.getByText('Finance tax rules').first().waitFor({timeout:10000});
   // Exercise the visible commercial workflow, not just the existence of the page.
-  await page.getByLabel('Workspace prospect').selectOption({index:1});
+  await page.getByLabel('Workspace prospect').selectOption({index:0});
   await page.getByLabel('Opportunity title').fill('CI Browser Service Opportunity '+unique);
   await page.getByRole('button',{name:'Create opportunity',exact:true}).click();
   await page.getByText('Opportunity created in the selected workspace.').waitFor({timeout:10000});
@@ -87,7 +87,7 @@ async function main(){
   await page.getByRole('button',{name:'Save rule draft'}).click();
   await page.getByText('Finance record saved.').waitFor({timeout:10000});
   await page.getByRole('button',{name:'Approve',exact:true}).click();
-  await page.getByText('Finance record saved.').waitFor({timeout:10000});
+  await page.getByRole('button',{name:'Archive',exact:true}).waitFor({timeout:10000});
   await page.getByLabel('Invoice draft').selectOption({index:1});
   await page.getByLabel('Finance-approved tax rule').selectOption({index:1});
   await page.getByLabel('Document the tax basis').fill('Fictional CI browser-reviewed standard tax treatment.');
@@ -95,7 +95,7 @@ async function main(){
   await page.getByText('Tax review saved to invoice with locked rate and total.').waitFor({timeout:10000});
   await page.getByLabel('Invoice',{exact:true}).selectOption({index:1});
   await page.getByRole('button',{name:'Approve reviewed draft'}).click();
-  await page.getByText('APPROVED',{exact:true}).first().waitFor({timeout:10000});
+  await page.getByRole('status').getByText('APPROVED',{exact:true}).waitFor({timeout:10000});
   console.log('PASS: browser login, company onboarding, prospect, opportunity, contract, invoice draft, tax rule, tax review, finance approval.');
  }finally{await browser.close();}
 }
