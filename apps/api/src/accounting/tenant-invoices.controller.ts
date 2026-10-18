@@ -96,6 +96,14 @@ export class TenantInvoicesController{
   return this.db.$transaction(async tx=>{
    const current=await tx.invoice.findFirst({where:{id,account:{organizationId:orgId}},include:{payments:true,adjustments:true,document:true}});
    if(!current||!current.document||!['SENT','PARTIALLY_PAID'].includes(current.status))throw new BadRequestException('Invoice has not been issued or recorded as sent.');
+   // A bank transaction/reference must not be posted to two different invoices,
+   // or replayed on the same invoice. The serializable transaction also catches
+   // concurrent replays; finance must use a genuinely unique external reference.
+   const existing=await tx.paymentRecord.findFirst({
+    where:{reference:{equals:reference,mode:'insensitive'},invoice:{account:{organizationId:orgId}}},
+    select:{id:true}
+   });
+   if(existing)throw new BadRequestException('Payment reference already recorded for this organization.');
    const due=receivableMinor(current).due;
    if(cents>due)throw new BadRequestException('Payment cannot exceed outstanding balance.');
    const amount=(cents/100).toFixed(2);
