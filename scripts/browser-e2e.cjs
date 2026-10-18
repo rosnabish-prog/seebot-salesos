@@ -45,14 +45,14 @@ async function main(){
   const page=await browser.newPage({baseURL:'http://localhost:3000'});
   await page.goto('/login');
   await page.getByRole('heading',{name:'Welcome back'}).waitFor();
-  await page.getByPlaceholder('name@seebot.ai').fill(email);
+  await page.getByPlaceholder('name@company.com').fill(email);
   await page.getByPlaceholder('Your password').fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await page.waitForURL('**/dashboard',{timeout:15000});
   await page.goto('/workspaces');
   await page.getByRole('heading',{name:'Company Workspaces'}).waitFor();
   const name='CI Browser Organization '+unique;
-  await page.getByText('Create a company profile').click();
+  await page.getByText('Create your team workspace').waitFor();
   await page.getByLabel('Company name').fill(name);
   await page.getByPlaceholder('https://example.com').fill('https://company-'+unique+'.example');
   await page.getByRole('button',{name:'Create workspace profile'}).click();
