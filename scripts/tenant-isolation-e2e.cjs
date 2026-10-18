@@ -86,6 +86,14 @@ async function main(){
   check(selectedCheck,200,'Selected workspace is determined from the signed session');
   assert.equal(selectedCheck.body.legacyAllowed,false);
 
+  const removed=await hit('/workspaces/'+a.org.id+'/members/'+pendingUser.id,a.cookie,{method:'PATCH',body:JSON.stringify({role:'MEMBER',status:'DISABLED'})});
+  check(removed,200,'Workspace owner revokes a team membership');
+  const rejectedSelection=await hit('/workspaces/selected',memberCookie);
+  check(rejectedSelection,200,'Previously selected disabled membership is invalid');
+  assert.equal(rejectedSelection.body.selected,null);
+  check(await hit('/workspace-business/'+a.org.id+'/invoices',memberCookie),403,'Revoked member cannot access company data');
+
+
   check(await hit('/workspace-crm/'+a.org.id+'/accounts/'+b.account.id,a.cookie),400,'Foreign account hidden');
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+b.invoice.id,a.cookie),404,'Foreign invoice hidden');
   check(await hit('/workspace-business/'+a.org.id+'/dashboard',b.cookie),403,'Foreign dashboard forbidden');
