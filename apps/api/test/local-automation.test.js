@@ -1,0 +1,3 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),p=require('node:path');
+test('auto reminders never send email and only create approval tasks',()=>{const s=fs.readFileSync(p.join(__dirname,'../src/invoices/local-reminder-jobs.controller.ts'),'utf8');assert.match(s,/emailsSent:0/);assert.match(s,/PENDING_APPROVAL/);assert.match(s,/DRAFT_ONLY/);assert.ok(!s.includes('outgoing.send('));});
+test('unique idempotency record for reminders',()=>{const s=fs.readFileSync(p.join(__dirname,'../../../packages/database/prisma/schema.prisma'),'utf8');assert.match(s,/model LocalAutomationEvent/);assert.match(s,/key String @unique/);});
