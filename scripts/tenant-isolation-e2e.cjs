@@ -54,7 +54,17 @@ async function main(){
   check(await hit('/workspace-tax/'+b.org.id+'/rules',a.cookie),403,'Foreign tax rules forbidden');
   check(await hit('/accounts',b.cookie),403,'Non-Seebot membership cannot read legacy CRM');
   check(await hit('/workspace-tax/'+a.org.id+'/invoices/'+b.invoice.id+'/apply-rule',a.cookie,{method:'POST',body:JSON.stringify({ruleId:'none',rationale:'Cross organization access must never work'})}),400,'Foreign invoice tax review denied');
-  console.log('PASS: 10 cross-tenant and legacy-gate HTTP checks against disposable PostgreSQL.');
+  const draft=await hit('/workspace-tax/'+a.org.id+'/rules',a.cookie,{method:'POST',body:JSON.stringify({code:'CI_STANDARD_'+id.toUpperCase(),name:'Fictional CI Standard Rate',jurisdiction:'GB',treatment:'STANDARD',ratePercent:'20',invoiceNote:'Test data only'})});
+  check(draft,201,'Own finance rule draft created');
+  check(await hit('/workspace-tax/'+a.org.id+'/rules/'+draft.body.id+'/approve',a.cookie,{method:'POST',body:'{}'}),201,'Own finance approval');
+  const applied=await hit('/workspace-tax/'+a.org.id+'/invoices/'+a.invoice.id+'/apply-rule',a.cookie,{method:'POST',body:JSON.stringify({ruleId:draft.body.id,rationale:'Fictional tax treatment reviewed for CI testing'})});
+  check(applied,201,'Own finance tax invoice snapshot');
+  assert.equal(applied.body.tax,'2.00');assert.equal(applied.body.total,'12.00');
+  const invoice=await db.invoice.findUniqueOrThrow({where:{id:a.invoice.id},include:{taxReview:true}});
+  assert.equal(invoice.total.toFixed(2),'12.00');assert.equal(invoice.taxReview.ruleCodeSnapshot,draft.body.code);assert.equal(invoice.taxReview.ratePercentSnapshot.toString(),'20');
+  check(await hit('/workspace-tax/'+a.org.id+'/invoices/'+a.invoice.id+'/apply-rule',a.cookie,{method:'POST',body:JSON.stringify({ruleId:draft.body.id,rationale:'Repeated finance review must never override the stored snapshot'})}),400,'Second tax review rejected');
+  check(await hit('/workspace-tax/'+b.org.id+'/rules/'+draft.body.id+'/archive',b.cookie,{method:'POST',body:'{}'}),400,'Cross-company tax-rule archive denied');
+  console.log('PASS: cross-tenant HTTP isolation plus finance approval and immutable invoice-tax snapshot checks on disposable PostgreSQL.');
  }finally{api.kill('SIGTERM');await new Promise(r=>setTimeout(r,500));}
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{await db.$disconnect()});
