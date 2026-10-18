@@ -91,6 +91,16 @@ async function main(){
   const manager=await db.user.create({data:{email:'legacy-manager-'+id+'@example.invalid',name:'Legacy CI Manager',passwordHash:'NOT_REAL',role:'SALES_MANAGER'}});
   await db.organizationMembership.create({data:{organizationId:seebot.id,userId:manager.id,role:'ADMIN',status:'ACTIVE'}});
   const managerCookie=token(manager,seebot.id);
+  const foreignOpportunity=await db.opportunity.create({data:{accountId:b.account.id,ownerId:b.user.id,title:'Confidential foreign organization opportunity',serviceLine:'Fictional security review'}});
+  check(await hit('/accounts/'+b.account.id,managerCookie),400,'Seebot manager cannot open other company account by ID');
+  check(await hit('/opportunities/'+foreignOpportunity.id,managerCookie),400,'Seebot manager cannot open other company opportunity by ID');
+  check(await hit('/clients/'+b.account.id,managerCookie),400,'Seebot manager cannot view other company client by ID');
+  const legacyAccounts=await hit('/accounts',managerCookie);
+  check(legacyAccounts,200,'Seebot manager accounts list');
+  assert.ok(!legacyAccounts.body.some(a=>a.id===b.account.id),'Foreign company account must not appear in Seebot manager list');
+  const legacyOpportunities=await hit('/opportunities',managerCookie);
+  check(legacyOpportunities,200,'Seebot manager opportunities list');
+  assert.ok(!legacyOpportunities.body.some(o=>o.id===foreignOpportunity.id),'Foreign opportunity must not appear in legacy pipeline');
   const foreignTask=await db.task.create({data:{organizationId:b.org.id,title:'Other company confidential follow-up',assigneeId:b.user.id}});
   const foreignCampaign=await db.campaign.create({data:{organizationId:b.org.id,name:'Foreign confidential campaign',sector:'CI',ownerId:b.user.id}});
   const taskList=await hit('/tasks',managerCookie);check(taskList,200,'Seebot manager tasks');
