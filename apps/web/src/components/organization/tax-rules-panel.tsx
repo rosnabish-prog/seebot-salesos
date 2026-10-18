@@ -29,6 +29,15 @@ export function FinanceTaxRulesPanel({organizationId,invoices}:{organizationId:s
   </div>
   <p className="muted small-text">Tax treatment is chosen by Finance, not by AI. Drafts require approval before use. Approved rules are locked; create a new code for any updated rate. This panel is scoped to the selected organization.</p>
   <ErrorMessage message={error}/>{message&&<p role="status">{message}</p>}
+  <details><summary>Import edited CSV as draft rules</summary>
+   <p className="muted small-text">Download the current CSV, add new rate/version codes, enter rates confirmed by Finance, then upload the edited CSV. Existing codes cannot be replaced. All imported rules require approval.</p>
+   <Field label="CSV file"><input type="file" accept=".csv,text/csv" disabled={busy} onChange={e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    if(file.size>65000){setError('CSV must be under 65 KB.');return;}
+    void file.text().then(csv=>execute(()=>post(`${apiRoot(organizationId)}/rules/import-csv`,{csv}))).catch(err=>setError(err.message));
+    e.target.value='';
+   }}/></Field>
+  </details>
   <details open><summary>Tax catalog ({rules.length})</summary>
    <div className="table-scroll"><table className="data-table"><thead><tr><th>Code</th><th>Jurisdiction</th><th>Treatment</th><th>Rate</th><th>State</th><th>Finance action</th></tr></thead><tbody>{rules.map(rule=><tr key={rule.id}><td>{rule.code}<div className="muted small-text">{rule.name}</div></td><td>{rule.jurisdiction}</td><td>{rule.treatment}</td><td>{rule.ratePercent}%</td><td>{rule.status}</td><td>{rule.status==='DRAFT'?<Button variant="secondary" disabled={busy} onClick={()=>void execute(()=>post(`${apiRoot(organizationId)}/rules/${rule.id}/approve`,{}))}>Approve</Button>:rule.status==='APPROVED'?<Button variant="secondary" disabled={busy} onClick={()=>void execute(()=>post(`${apiRoot(organizationId)}/rules/${rule.id}/archive`,{}))}>Archive</Button>:null}</td></tr>)}</tbody></table></div>
    {!rules.length&&<p className="muted">No rules yet. Create a draft below; no tax rates are applied automatically.</p>}
