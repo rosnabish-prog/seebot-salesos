@@ -40,7 +40,7 @@ export class WorkspacesController{
  @Get(':id/members') async members(@Req()req:AuthRequest,@Param('id')id:string){await this.authorized(req,id,true);return this.db.organizationMembership.findMany({where:{organizationId:id},include:{user:{select:{id:true,name:true,email:true,active:true}}},orderBy:{createdAt:'asc'}});}
  @Post(':id/members/existing') async addExisting(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:any){await this.authorized(req,id,true);
   const address=String(body?.email||'').trim().toLowerCase(),role=String(body?.role||'MEMBER');
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)||!['ADMIN','MEMBER'].includes(role))throw new BadRequestException('Valid email and role required.');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)||!['ADMIN','MEMBER','FINANCE'].includes(role))throw new BadRequestException('Valid email and role required.');
   const user=await this.db.user.findUnique({where:{email:address}});
   if(!user?.active)throw new BadRequestException('This user must already have a verified platform account. Unverified email invites are not enabled without an email provider.');
   const member=await this.db.organizationMembership.upsert({where:{organizationId_userId:{organizationId:id,userId:user.id}},create:{organizationId:id,userId:user.id,role},update:{status:'ACTIVE',role}});
@@ -49,7 +49,7 @@ export class WorkspacesController{
  @Patch(':id/members/:userId') async updateMember(@Req()req:AuthRequest,@Param('id')id:string,@Param('userId')userId:string,@Body()body:any){await this.authorized(req,id,true);
   const target=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId}}});if(!target)throw new BadRequestException('Membership not found.');
   if(target.role==='OWNER')throw new ForbiddenException('Cannot change a workspace owner here.');
-  if(!['ACTIVE','DISABLED'].includes(body?.status)||!['MEMBER','ADMIN'].includes(body?.role))throw new BadRequestException('Invalid membership status or role.');
+  if(!['ACTIVE','DISABLED'].includes(body?.status)||!['MEMBER','ADMIN','FINANCE'].includes(body?.role))throw new BadRequestException('Invalid membership status or role.');
   return this.db.organizationMembership.update({where:{organizationId_userId:{organizationId:id,userId}},data:{role:body.role,status:body.status}});
  }
  @Post(':id/select')async select(@Req()req:AuthRequest,@Res({passthrough:true})res:Response,@Param('id')id:string){
