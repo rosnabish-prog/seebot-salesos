@@ -8,7 +8,14 @@ import {normalizeSlug} from './workspace-policy';
 @UseGuards(IdentityGuard) @Controller('workspaces')
 export class WorkspacesController{
  constructor(private db:PrismaService,private jwt:JwtService){}
- @Get()async list(@Req()req:AuthRequest){const members=await this.db.organizationMembership.findMany({where:{userId:req.user.id,status:'ACTIVE'},include:{organization:true},orderBy:{createdAt:'asc'}});return members.map(m=>({id:m.organizationId,slug:m.organization.slug,name:m.organization.name,logoUrl:m.organization.logoUrl,status:m.organization.status,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))}));}
+ @Get('selected')async selected(@Req()req:AuthRequest & {selectedWorkspace?:string|null}){
+  const id=req.selectedWorkspace;
+  if(!id)return {selected:null,legacyAllowed:false};
+  const membership=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
+  if(!membership||membership.status!=='ACTIVE'||!['ACTIVE','SETUP'].includes(membership.organization.status))return {selected:null,legacyAllowed:false};
+  return {selected:id,slug:membership.organization.slug,legacyAllowed:membership.organization.slug==='seebot'};
+ }
+ @Get()async list(@Req()req:AuthRequest){const members=await this.db.organizationMembership.findMany({where:{userId:req.user.id,status:'ACTIVE',organization:{status:{in:['ACTIVE','SETUP']}}},include:{organization:true},orderBy:{createdAt:'asc'}});return members.map(m=>({id:m.organizationId,slug:m.organization.slug,name:m.organization.name,logoUrl:m.organization.logoUrl,status:m.organization.status,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))}));}
  @Post()async create(@Req()req:AuthRequest,@Body()body:any){
   const name=String(body?.name||'').trim(),slug=normalizeSlug(String(body?.slug||name)),website=String(body?.website||'').trim();
   if(name.length<2||name.length>160||website&&(!/^https:\/\/[^\s/]+/i.test(website)||website.length>300))throw new BadRequestException('Valid company name and optional HTTPS website required.');
@@ -54,7 +61,7 @@ export class WorkspacesController{
  }
  @Post(':id/select')async select(@Req()req:AuthRequest,@Res({passthrough:true})res:Response,@Param('id')id:string){
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
-  if(!member||member.status!=='ACTIVE')throw new ForbiddenException('You are not an active member of this workspace.');
+  if(!member||member.status!=='ACTIVE'||!['ACTIVE','SETUP'].includes(member.organization.status))throw new ForbiddenException('You are not an active member of this workspace.');
   const user=await this.db.user.findUnique({where:{id:req.user.id}});if(!user)throw new ForbiddenException('User unavailable.');
   const token=await this.jwt.signAsync({sub:user.id,pv:user.passwordVersion,wid:id});
   res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});

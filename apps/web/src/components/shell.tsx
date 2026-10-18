@@ -6,10 +6,21 @@ import {usePathname,useRouter} from 'next/navigation';
 import { LayoutDashboard,KanbanSquare,Building2,ListTodo,Megaphone,Settings2,LogOut,Plus,Menu,X,Bell,ChevronDown,ChartNoAxesCombined,ContactRound,BriefcaseBusiness, FileSignature, LoaderCircle } from 'lucide-react';
 import { useAuth,executive,mayEdit } from '../context/auth';
 import {Button} from './ui';
+import {request} from '../lib/api';
 export function Shell({children}:{children:ReactNode}){
-  const {user,loading,logout}=useAuth(),router=useRouter(),path=usePathname(),[mobile,setMobile]=useState(false);
+  const {user,loading,logout}=useAuth(),router=useRouter(),path=usePathname(),[mobile,setMobile]=useState(false),[workspaceReady,setWorkspaceReady]=useState(false);
   useEffect(()=>{if(!loading&&!user)router.replace('/login');},[loading,user,router]);
-  if(loading||!user)return <div className="app-loading" role="status" aria-live="polite"><LoaderCircle size={29} className="spin"/><span className="sr-only">Loading your workspace</span></div>;
+  useEffect(()=>{
+    if(loading||!user){setWorkspaceReady(false);return;}
+    let active=true;setWorkspaceReady(false);
+    void request<{legacyAllowed:boolean}>('/workspaces/selected').then(result=>{
+      if(!active)return;
+      if(!result.legacyAllowed){router.replace('/entry');return;}
+      setWorkspaceReady(true);
+    }).catch(()=>{if(active)router.replace('/entry');});
+    return()=>{active=false;};
+  },[loading,user,router]);
+  if(loading||!user||!workspaceReady)return <div className="app-loading" role="status" aria-live="polite"><LoaderCircle size={29} className="spin"/><span className="sr-only">Loading your workspace</span></div>;
   const nav=[{href:'/workspaces',name:'Company Workspaces',icon:Building2},{href:'/dashboard',name:'My Dashboard',icon:LayoutDashboard},{href:'/executive',name:'Executive Overview',icon:ChartNoAxesCombined,hide:!executive(user.role)},{href:'/pipeline',name:'Kanban Pipeline',icon:KanbanSquare},{href:'/prospects',name:'Prospects & Accounts',icon:Building2},{href:'/clients',name:'Client Management',icon:BriefcaseBusiness},{href:'/tasks',name:'Tasks & Follow-ups',icon:ListTodo},{href:'/campaigns',name:'Campaigns',icon:Megaphone},{href:'/settings',name:'Team & Settings',icon:Settings2,hide:user.role!=='SUPER_ADMIN'},{href:'/profile',name:'My Profile',icon:ContactRound,hide:true}];
   return <div className="app-shell"><aside className={`sidebar ${mobile?'sidebar-open':''}`}>
     <div className="sidebar-head"><Link href="/dashboard" className="wordmark" onClick={()=>setMobile(false)}><span className="sidebar-wordmark"><Image src="/seebot-logo.png" width={1174} height={328} alt="Seebot" priority/><small>SalesOS</small></span></Link><button className="icon-button mobile-close" onClick={()=>setMobile(false)}><X/></button></div>

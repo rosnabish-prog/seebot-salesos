@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import { post } from '../lib/api';
-import { useAuth,executive,User } from '../context/auth';
+import { useAuth } from '../context/auth';
 import { useRouter } from 'next/navigation';
 
 /** Google Identity Services, distinct from Gmail inbox authorization. */
@@ -17,8 +17,8 @@ export function GoogleLoginButton({onError}:{onError:(message:string)=>void}){
       if(!response.credential||!current)return;
       setBusy(true);
       try{
-        const {user,workspaceSelectionRequired}=await post<{user:User;workspaceSelectionRequired:boolean}>('/auth/google',{credential:response.credential});
-        await refresh();router.replace(workspaceSelectionRequired?'/workspaces':executive(user.role)?'/executive':'/dashboard');
+        await post('/auth/google',{credential:response.credential});
+        await refresh();router.replace('/entry');
       }catch(err){onError(err instanceof Error?err.message:'Google sign-in failed.');}
       finally{if(current)setBusy(false);}
     }});

@@ -30,8 +30,6 @@ export class GoogleLoginController {
     }
     const token=await this.jwt.signAsync({sub:user.id,role:user.role,pv:user.passwordVersion});
     res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});
-    const seebot=await this.db.organization.findUnique({where:{slug:'seebot'},select:{id:true}});
-    const member=seebot?await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:seebot.id,userId:user.id}},select:{status:true}}):null;
-    return {user:{id:user.id,email:user.email,name:user.name,role:user.role},workspaceSelectionRequired:member?.status!=='ACTIVE'};
+    return {user:{id:user.id,email:user.email,name:user.name,role:user.role}};
   }
 }
