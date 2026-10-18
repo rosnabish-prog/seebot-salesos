@@ -64,7 +64,29 @@ async function main(){
   assert.equal(invoice.total.toFixed(2),'12.00');assert.equal(invoice.taxReview.ruleCodeSnapshot,draft.body.code);assert.equal(invoice.taxReview.ratePercentSnapshot.toString(),'20');
   check(await hit('/workspace-tax/'+a.org.id+'/invoices/'+a.invoice.id+'/apply-rule',a.cookie,{method:'POST',body:JSON.stringify({ruleId:draft.body.id,rationale:'Repeated finance review must never override the stored snapshot'})}),400,'Second tax review rejected');
   check(await hit('/workspace-tax/'+b.org.id+'/rules/'+draft.body.id+'/archive',b.cookie,{method:'POST',body:'{}'}),400,'Cross-company tax-rule archive denied');
-  console.log('PASS: cross-tenant HTTP isolation plus finance approval and immutable invoice-tax snapshot checks on disposable PostgreSQL.');
+  // CI-only fictional identity; non-demo flags exercise the legally restricted issuance code against disposable data.
+  await db.organization.update({where:{id:a.org.id},data:{legalName:'CI EXAMPLE ISSUER — NOT A REAL COMPANY',billingAddress:'1 Test Example Street, London'}});
+  await db.account.update({where:{id:a.account.id},data:{isDemo:false,billingAddress:'2 Test Recipient Street, London'}});
+  await db.invoice.update({where:{id:a.invoice.id},data:{isDemo:false}});
+  check(await hit('/workspace-finance/'+a.org.id+'/invoices/'+b.invoice.id+'/approve',a.cookie,{method:'POST',body:'{}'}),400,'Foreign invoice approval is denied');
+  check(await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/approve',a.cookie,{method:'POST',body:'{}'}),201,'Reviewed invoice approved');
+  const issuance=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/issue',a.cookie,{method:'POST',body:'{}'});
+  check(issuance,201,'Approved invoice issued with PDF and accounting journal');
+  assert.match(issuance.body.invoiceNumber,/^ORG-CI-1-/);
+  check(await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/pdf',a.cookie),200,'Issued PDF accessible to owning org');
+  check(await hit('/workspace-finance/'+b.org.id+'/invoices/'+a.invoice.id+'/pdf',b.cookie),400,'Issued PDF unavailable to another org');
+  check(await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/record-external-send',a.cookie,{method:'POST',body:JSON.stringify({reference:'CI-ONLY-MANUAL-TEST'})}),201,'Actual external-send reference stored (no mail sent by test)');
+  const partial=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payments',a.cookie,{method:'POST',body:JSON.stringify({amount:'3.50',paidAt:'2026-10-18',reference:'CI-TEST-PARTIAL'})});
+  check(partial,201,'Manually recorded partial payment with journal');assert.equal(partial.body.remainingMinor,850);
+  const final=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payments',a.cookie,{method:'POST',body:JSON.stringify({amount:'8.50',paidAt:'2026-10-18',reference:'CI-TEST-FINAL'})});
+  check(final,201,'Final payment closes receivable');assert.equal(final.body.status,'PAID');assert.equal(final.body.remainingMinor,0);
+  const history=await hit('/workspace-finance/'+a.org.id+'/invoices/'+a.invoice.id+'/payment-history',a.cookie);
+  check(history,200,'Owner payment history');assert.equal(history.body.payments.length,2);assert.equal(history.body.amountRemainingMinor,0);
+  const verified=await hit('/workspace-accounting/'+a.org.id+'/verify',a.cookie);
+  check(verified,200,'Double-entry accounting validation');assert.equal(verified.body.balanced,true);
+  const coverage=await hit('/workspace-accounting/'+a.org.id+'/coverage',a.cookie);
+  check(coverage,200,'Invoice and payment journal coverage');assert.equal(coverage.body.complete,true);
+  console.log('PASS: cross-tenant HTTP isolation, finance tax snapshots, invoice PDF, double-entry journal and manual payments on disposable PostgreSQL.');
  }finally{api.kill('SIGTERM');await new Promise(r=>setTimeout(r,500));}
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{await db.$disconnect()});
