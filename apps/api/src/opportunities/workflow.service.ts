@@ -85,7 +85,7 @@ export class OpportunityWorkflowService {
     await tx.task.updateMany({where:{opportunityId:opp.id,status:'OPEN',title:{startsWith:'Stage:'}},data:{status:'DONE',completedAt:new Date()}});
     if(stage!=='CLOSED_WON') {
       const stageName=STAGES.find(s=>s.id===stage)?.label||stage;
-      await tx.task.create({data:{opportunityId:opp.id,assigneeId:opp.ownerId,title:`Stage: Complete ${stageName}`,description:'Complete required evidence and activities to advance this opportunity.'}});
+      await tx.task.create({data:{organizationId:opp.account.organizationId,opportunityId:opp.id,assigneeId:opp.ownerId,title:`Stage: Complete ${stageName}`,description:'Complete required evidence and activities to advance this opportunity.'}});
     }
     await tx.stageTransition.create({data:{opportunityId:opp.id,fromStage:opp.stage,toStage:stage,actorId,reason,automated}});
     if(stage==='CLOSED_WON') {
