@@ -86,6 +86,21 @@ async function main(){
   check(verified,200,'Double-entry accounting validation');assert.equal(verified.body.balanced,true);
   const coverage=await hit('/workspace-accounting/'+a.org.id+'/coverage',a.cookie);
   check(coverage,200,'Invoice and payment journal coverage');assert.equal(coverage.body.complete,true);
+  // A legacy Seebot manager must not see or modify new-company tasks, campaigns or reports.
+  const seebot=await db.organization.upsert({where:{slug:'seebot'},create:{slug:'seebot',name:'CI legacy Seebot',status:'ACTIVE'},update:{}});
+  const manager=await db.user.create({data:{email:'legacy-manager-'+id+'@example.invalid',name:'Legacy CI Manager',passwordHash:'NOT_REAL',role:'SALES_MANAGER'}});
+  await db.organizationMembership.create({data:{organizationId:seebot.id,userId:manager.id,role:'ADMIN',status:'ACTIVE'}});
+  const managerCookie=token(manager,seebot.id);
+  const foreignTask=await db.task.create({data:{organizationId:b.org.id,title:'Other company confidential follow-up',assigneeId:b.user.id}});
+  const foreignCampaign=await db.campaign.create({data:{organizationId:b.org.id,name:'Foreign confidential campaign',sector:'CI',ownerId:b.user.id}});
+  const taskList=await hit('/tasks',managerCookie);check(taskList,200,'Seebot manager tasks');
+  assert.ok(!taskList.body.some(t=>t.id===foreignTask.id),'Foreign task must not be listed to Seebot manager');
+  check(await hit('/tasks/'+foreignTask.id,managerCookie,{method:'PATCH',body:JSON.stringify({status:'DONE'})}),400,'Foreign task mutation denied');
+  const campaigns=await hit('/campaigns',managerCookie);check(campaigns,200,'Seebot manager campaigns');
+  assert.ok(!campaigns.body.some(c=>c.id===foreignCampaign.id),'Foreign campaign must not be listed to Seebot manager');
+  check(await hit('/campaigns/'+foreignCampaign.id+'/accounts',managerCookie,{method:'POST',body:JSON.stringify({accountId:b.account.id})}),400,'Foreign campaign enrollment denied');
+  const reminders=await hit('/billing/reminders/due',managerCookie);check(reminders,200,'Seebot reminders due');
+  assert.ok(!reminders.body.some(i=>i.accountId===b.account.id),'Foreign company invoices must not appear in legacy reminder queue');
   console.log('PASS: cross-tenant HTTP isolation, finance tax snapshots, invoice PDF, double-entry journal and manual payments on disposable PostgreSQL.');
  }finally{api.kill('SIGTERM');await new Promise(r=>setTimeout(r,500));}
 }
