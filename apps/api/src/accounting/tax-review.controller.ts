@@ -10,7 +10,7 @@ export class TaxReviewController{
   if((req as any).selectedWorkspace!==orgId)throw new ForbiddenException('Select the company workspace.');
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}}});
   if(!member||member.status!=='ACTIVE'||!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Financial manager membership required.');
-  const invoice=await this.db.invoice.findFirst({where:{id:invoiceId,account:{organizationId:orgId}},include:{taxReview:true}});
+  const invoice=await this.db.invoice.findFirst({where:{id:invoiceId,account:{organizationId:orgId}},include:{taxReview:true,document:true}});
   if(!invoice||invoice.issuedAt||invoice.document||invoice.taxReview||!['DRAFT','APPROVED'].includes(invoice.status))throw new BadRequestException('Only unissued invoices can receive a tax review.');
   const jurisdiction=String(body?.jurisdiction||'').trim(),treatment=String(body?.treatment||'').trim(),rationale=String(body?.rationale||'').trim();
   if(!/^[A-Z]{2}$/.test(jurisdiction)||!['STANDARD','REDUCED','ZERO','EXEMPT','OUT_OF_SCOPE','REVERSE_CHARGE','OTHER_MANUAL'].includes(treatment)||rationale.length<15||rationale.length>4000)throw new BadRequestException('Jurisdiction, treatment and 15-character rationale required.');
