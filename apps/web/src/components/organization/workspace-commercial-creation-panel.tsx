@@ -5,11 +5,11 @@ import {post,request} from '@/lib/api';
 
 type Account={id:string;name:string;domain:string};
 type Opportunity={id:string;accountId:string;title:string;stage:string};
-type Contract={id:string;title:string;type:string};
+type Contract={id:string;opportunityId:string;title:string;type:string};
 type Draft={id:string;number:string;status:string};
 export function WorkspaceCommercialCreationPanel({orgId,onChanged}:{orgId:string;onChanged:()=>Promise<void>}){
- const [accounts,setAccounts]=useState<Account[]>([]),[opportunities,setOpportunities]=useState<Opportunity[]>([]);
- const [accountId,setAccountId]=useState(''),[opportunityId,setOpportunityId]=useState('');
+ const [accounts,setAccounts]=useState<Account[]>([]),[opportunities,setOpportunities]=useState<Opportunity[]>([]),[contracts,setContracts]=useState<Contract[]>([]);
+ const [accountId,setAccountId]=useState(''),[opportunityId,setOpportunityId]=useState(''),[contractId,setContractId]=useState('');
  const [opportunityTitle,setOpportunityTitle]=useState(''),[service,setService]=useState('Data annotation');
  const [contractTitle,setContractTitle]=useState(''),[contractType,setContractType]=useState('SOW');
  const [description,setDescription]=useState('Annotation services'),[quantity,setQuantity]=useState('1'),[unitPrice,setUnitPrice]=useState('100.00');
@@ -17,16 +17,19 @@ export function WorkspaceCommercialCreationPanel({orgId,onChanged}:{orgId:string
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [createdContract,setCreatedContract]=useState<Contract|null>(null),[createdDraft,setCreatedDraft]=useState<Draft|null>(null);
  async function refresh(){
-  const [a,o]=await Promise.all([
+  const [a,o,c]=await Promise.all([
    request<Account[]>(`/workspace-crm/${orgId}/accounts`),
-   request<Opportunity[]>(`/workspace-business/${orgId}/opportunities`)
+   request<Opportunity[]>(`/workspace-business/${orgId}/opportunities`),
+   request<Contract[]>(`/workspace-business/${orgId}/contracts`)
   ]);
-  setAccounts(a);setOpportunities(o);
+  setAccounts(a);setOpportunities(o);setContracts(c);
   setAccountId(prev=>a.some(x=>x.id===prev)?prev:(a[0]?.id||''));
  }
  useEffect(()=>{if(orgId)void refresh().catch(e=>setError(e.message));},[orgId]);
  const applicable=opportunities.filter(o=>o.accountId===accountId);
  const chosen=applicable.some(o=>o.id===opportunityId)?opportunityId:(applicable[0]?.id||'');
+ const relatedContracts=contracts.filter(c=>applicable.some(o=>o.id===c.opportunityId));
+ const selectedContract=relatedContracts.some(c=>c.id===contractId)?contractId:'';
  async function run(work:()=>Promise<any>,message:string){
   setError('');setNotice('');setBusy(true);
   try{await work();await refresh();await onChanged();setNotice(message);}
@@ -45,7 +48,7 @@ export function WorkspaceCommercialCreationPanel({orgId,onChanged}:{orgId:string
   e.preventDefault();if(!chosen||!contractTitle.trim())return;
   await run(async()=>{
    const result=await post<Contract>(`/workspace-business/${orgId}/opportunities/${chosen}/contracts`,{title:contractTitle.trim(),type:contractType});
-   setCreatedContract(result);setContractTitle('');
+   setCreatedContract(result);setContractId(result.id);setContractTitle('');
   },'Draft contract created under the selected opportunity.');
  }
  async function createInvoice(e:FormEvent){
@@ -57,7 +60,7 @@ export function WorkspaceCommercialCreationPanel({orgId,onChanged}:{orgId:string
   await run(async()=>{
    const result=await post<Draft>(`/workspace-business/${orgId}/accounts/${accountId}/invoices`,{
     lineItems:[{description:description.trim(),quantity:qty,unitPrice}],subtotal,tax:'0.00',total:subtotal,
-    currency:currency.toUpperCase(),billingEmail:billingEmail.trim(),dueAt
+    currency:currency.toUpperCase(),billingEmail:billingEmail.trim(),dueAt,contractId:selectedContract||undefined
    });
    setCreatedDraft(result);
   },'Invoice draft created. Finance must apply and approve a tax rule before it can be issued.');
@@ -66,7 +69,7 @@ export function WorkspaceCommercialCreationPanel({orgId,onChanged}:{orgId:string
   <h2>Prospect → opportunity → contract → invoice draft</h2>
   <p className="muted small-text">Choose an existing workspace prospect; no copying internal record IDs. Creating an opportunity starts at Account Researched. A contract and invoice are drafts until reviewed and approved. This developer preview uses fictional records.</p>
   <ErrorMessage message={error}/>{notice&&<p role="status">{notice}</p>}
-  <Field label="Workspace prospect"><select aria-label="Workspace prospect" value={accountId} onChange={e=>{setAccountId(e.target.value);setOpportunityId('');setCreatedContract(null);setCreatedDraft(null);}}>
+  <Field label="Workspace prospect"><select aria-label="Workspace prospect" value={accountId} onChange={e=>{setAccountId(e.target.value);setOpportunityId('');setCreatedContract(null);setContractId('');setCreatedDraft(null);}}>
    {!accounts.length&&<option value="">Add a prospect on the previous page first</option>}
    {accounts.map(a=><option key={a.id} value={a.id}>{a.name} ({a.domain})</option>)}
   </select></Field>
@@ -87,6 +90,7 @@ export function WorkspaceCommercialCreationPanel({orgId,onChanged}:{orgId:string
   <form className="stack-16" onSubmit={createInvoice} style={{marginTop:20}}>
    <h3>3. Create invoice draft</h3>
    <p className="muted small-text">Start with one line item. Finance will apply an approved organization tax rule and lock the reviewed totals below.</p>
+   <Field label="Contract (optional)"><select value={selectedContract} onChange={e=>setContractId(e.target.value)}><option value="">No contract linked yet</option>{relatedContracts.map(c=><option key={c.id} value={c.id}>{c.title} ({c.type})</option>)}</select></Field>
    <Field label="Invoice description"><input required value={description} onChange={e=>setDescription(e.target.value)}/></Field>
    <div className="field-grid">
     <Field label="Quantity"><input required type="number" min="1" max="1000000" step="1" value={quantity} onChange={e=>setQuantity(e.target.value)}/></Field>
