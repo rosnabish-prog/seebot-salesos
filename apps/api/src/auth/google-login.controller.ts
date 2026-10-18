@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { GoogleIdentityService } from '../integrations/google/google-identity.service';
 
-/** Existing accounts only. Google login does not create users or customer organizations. */
+/** Google login can optionally self-register a user, but never grants Seebot membership or company authority. */
 @Controller('auth')
 export class GoogleLoginController {
   constructor(private db:PrismaService,private jwt:JwtService,private identity:GoogleIdentityService){}
@@ -31,7 +31,7 @@ export class GoogleLoginController {
     const token=await this.jwt.signAsync({sub:user.id,role:user.role,pv:user.passwordVersion});
     res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});
     const seebot=await this.db.organization.findUnique({where:{slug:'seebot'},select:{id:true}});
-    const member=seebot?await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:seebot.id,userId:user.id}},select:{status:true}}}):null;
+    const member=seebot?await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:seebot.id,userId:user.id}},select:{status:true}}):null;
     return {user:{id:user.id,email:user.email,name:user.name,role:user.role},workspaceSelectionRequired:member?.status!=='ACTIVE'};
   }
 }
