@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {GetObjectCommand,PutObjectCommand,S3Client} from '@aws-sdk/client-s3';
+import {GetObjectCommand,GetObjectRetentionCommand,PutObjectCommand,S3Client} from '@aws-sdk/client-s3';
 import {ServiceUnavailableException,ForbiddenException} from '@nestjs/common';
 
 /**
@@ -54,6 +54,10 @@ export class ImmutableEvidenceStore{
   const expectedHash=createHash('sha256').update(data).digest('hex');
   const actualHash=createHash('sha256').update(actual).digest('hex');
   if(expectedHash!==actualHash)throw new ForbiddenException('Immutable offsite evidence does not match local receipt.');
-  return {enforced:true,sha256:actualHash};
+  const retention=await this.client.send(new GetObjectRetentionCommand({Bucket:config.bucket,Key:key}));
+  const lock=retention.Retention;
+  if(lock?.Mode!=='COMPLIANCE'||!lock.RetainUntilDate||lock.RetainUntilDate.getTime()<=Date.now())
+   throw new ForbiddenException('Immutable evidence must have active Object Lock COMPLIANCE retention.');
+  return {enforced:true,sha256:actualHash,lockedUntil:lock.RetainUntilDate};
  }
 }
