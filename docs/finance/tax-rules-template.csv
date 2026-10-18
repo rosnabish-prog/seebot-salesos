@@ -1,0 +1,8 @@
+rule_code,jurisdiction,tax_name,treatment,rate_percent,enabled,requires_vat_number,requires_reverse_charge_note,invoice_note,approval_required,effective_from,effective_to,reviewed_by_finance
+UK_STANDARD,GB,UK VAT - Standard,STANDARD,,false,false,false,Apply confirmed UK VAT rate when applicable,true,,,
+UK_REDUCED,GB,UK VAT - Reduced,REDUCED,,false,false,false,Finance must confirm applicable supplies and rate,true,,,
+UK_ZERO,GB,UK VAT - Zero Rated,ZERO,0,false,false,false,Finance must confirm eligibility for zero rating,true,,,
+UK_EXEMPT,GB,UK VAT - Exempt,EXEMPT,0,false,false,false,Confirm exempt supply category,true,,,
+UK_OUTSIDE,GB,Outside Scope,OUT_OF_SCOPE,0,false,false,false,Confirm supply is outside scope of UK VAT,true,,,
+UK_REVERSE,GB,Reverse Charge,REVERSE_CHARGE,0,false,true,true,Reverse charge applicability and invoice wording require finance review,true,,,
+INTL_MANUAL,XX,Other Jurisdiction - Finance Reviewed,OTHER_MANUAL,,false,false,false,Confirm local tax treatment and registration requirements,true,,,
