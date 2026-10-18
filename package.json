@@ -1,0 +1,28 @@
+{
+  "name": "seebot-salesos",
+  "private": true,
+  "version": "0.1.3",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @seebot/shared && dotenv -e .env -- concurrently -n api,web -c blue,green \"npm run dev -w @seebot/api\" \"npm run dev -w @seebot/web\"",
+    "build": "npm run build -w @seebot/shared && npm run build -w @seebot/api && npm run build -w @seebot/web",
+    "db:generate": "dotenv -e .env -- npm run generate -w @seebot/database",
+    "db:migrate": "dotenv -e .env -- npm run migrate -w @seebot/database",
+    "db:seed": "dotenv --no-expand -e .env -- npm run seed -w @seebot/database",
+    "db:studio": "dotenv -e .env -- npm run studio -w @seebot/database",
+    "typecheck": "npm run typecheck -w @seebot/api && npm run typecheck -w @seebot/web",
+    "test": "npm run test -w @seebot/api",
+    "lint": "npm run lint -w @seebot/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.7.3",
+    "dotenv-cli": "^7.4.2"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

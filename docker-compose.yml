@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: seebot
+      POSTGRES_PASSWORD: local_only_change_me
+      POSTGRES_DB: seebot_salesos
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - salesos_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seebot -d seebot_salesos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - salesos_redis:/data
+volumes:
+  salesos_postgres:
+  salesos_redis:
