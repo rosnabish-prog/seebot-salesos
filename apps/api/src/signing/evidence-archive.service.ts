@@ -36,7 +36,9 @@ export class EvidenceArchiveService {
   try{await writeFile(filename,JSON.stringify(receipt,null,2),{flag:'wx',mode:0o600});}
   catch(error:any){if(error?.code!=='EEXIST')throw error;
    const original=JSON.parse(await readFile(filename,'utf8'));
-   const publicKey=createPublicKey(privateKey);const valid=verify(null,Buffer.from(JSON.stringify(original.payload)),publicKey,Buffer.from(original.signature,'base64'));
+   const publicKey=createPublicKey(privateKey);const existingBytes=Buffer.from(JSON.stringify(original.payload));
+   const valid=original.sha256===createHash('sha256').update(existingBytes).digest('hex')&&verify(null,existingBytes,publicKey,Buffer.from(original.signature,'base64'));
+   if(original.payload?.finalHmacDigest!==receipt.payload.finalHmacDigest||original.payload?.eventCount!==receipt.payload.eventCount||original.payload?.sourceDocumentSha256!==receipt.payload.sourceDocumentSha256)throw new ForbiddenException('Existing evidence anchor differs from current signing events.');
    if(!valid||original.payload?.envelopeId!==envelopeId)throw new ForbiddenException('Existing external evidence checkpoint mismatch.');
    return {archived:true,reused:true,sha256:original.sha256,eventsAtAnchor:original.payload.eventCount};
   }
@@ -62,7 +64,13 @@ export class EvidenceArchiveService {
   const bytes=Buffer.from(JSON.stringify(receipt.payload));const key=createPublicKey(await readFile(publicKeyPath,'utf8'));
   if(key.asymmetricKeyType!=='ed25519')throw new ServiceUnavailableException('Ed25519 public verification key required.');
   const valid=receipt.payload?.envelopeId===envelopeId&&receipt.sha256===createHash('sha256').update(bytes).digest('hex')&&verify(null,bytes,key,Buffer.from(receipt.signature,'base64'));
-  return {envelopeId,valid,sha256:receipt.sha256,eventsAtAnchor:receipt.payload?.eventCount,warning:'Retain the pinned public key independently and copy receipts to offsite immutable storage.'};
+  const events=Array.isArray(receipt.payload?.events)?receipt.payload.events:[];
+  const auditEvents=await this.db.signingAuditEvent.findMany({where:{envelopeId},orderBy:{sequence:'asc'},take:events.length});
+  const matchingAudit=events.length>0&&auditEvents.length===events.length&&events.every((event:any,i:number)=>{
+   const stored=auditEvents[i];return stored.sequence===event.sequence&&stored.digest===event.digest&&stored.previousDigest===event.previousDigest&&stored.type===event.type&&stored.occurredAt.toISOString()===event.occurredAt;
+  });
+  const validReceipt=Boolean(valid&&matchingAudit&&receipt.payload.eventCount===events.length&&receipt.payload.finalHmacDigest===events[events.length-1]?.digest);
+  return {envelopeId,valid:validReceipt,sha256:receipt.sha256,eventsAtAnchor:receipt.payload?.eventCount,warning:'Retain the pinned public key independently and copy receipts to offsite immutable storage.'};
  }
  /** Authorized administrators can export the complete sealed receipt for independent offline verification. */
  async exportReceipt(envelopeId:string){
