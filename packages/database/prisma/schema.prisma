@@ -855,6 +855,7 @@ model InvoiceAdjustment {
  approvedById String?
  approvedAt DateTime?
  createdAt DateTime @default(now())
+ creditNoteDocument CreditNoteDocument?
  @@index([invoiceId,status])
 }
 model InvoiceRecipient {
