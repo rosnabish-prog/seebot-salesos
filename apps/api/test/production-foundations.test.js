@@ -1,5 +1,5 @@
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const Module=require('node:module');
-const ts=require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript');
+const ts=require('typescript');
 function load(file){const filename=path.join(__dirname,'../src',file);const js=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const m=new Module(filename,module);m.filename=filename;m.paths=module.paths;m._compile(js,filename);return m.exports;}
 const money=load('accounting/receivable-policy.ts'),signing=load('signing/signing-order.ts');
 test('customer credit reduces receivable; internal write-off does not erase debt',()=>{const i={total:'100.00',payments:[{amount:'20.00'}],adjustments:[{status:'APPROVED',kind:'CREDIT_NOTE',amount:'10.00'},{status:'APPROVED',kind:'WRITE_OFF',amount:'15.00'}]};assert.equal(money.receivableMinor(i).due,7000);assert.equal(money.canApproveCustomerCredit(i,'70.00'),true);assert.equal(money.canApproveCustomerCredit(i,'70.01'),false);});
