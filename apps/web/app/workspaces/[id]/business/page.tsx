@@ -5,6 +5,7 @@ import {useParams} from 'next/navigation';
 import {post,request} from '@/lib/api';
 import {Button,ErrorMessage,Field} from '@/components/ui';
 import {FinanceTaxRulesPanel} from '@/components/organization/tax-rules-panel';
+import {TenantFinanceInvoicePanel} from '@/components/organization/tenant-finance-invoice-panel';
 type Opportunity={id:string;accountId:string;title:string;stage:string;status:string};
 type Client={id:string;name:string;domain:string};
 type Contract={id:string;title:string;type:string;status:string};
@@ -29,6 +30,7 @@ export default function WorkspaceBusinessPreview(){
  <section className="panel" style={{padding:18,marginBottom:18}}><h2>Contracts ({contracts.length})</h2>{contracts.map(c=><p key={c.id}>{c.title} — {c.type} / {c.status}</p>)}{!contracts.length&&<p className="muted">No fictional contracts.</p>}</section>
  <section className="panel" style={{padding:18,marginBottom:18}}><h2>Invoices ({invoices.length})</h2>{invoices.map(i=><p key={i.id}>{i.number} — {i.currency} {String(i.total)} ({i.status})</p>)}{!invoices.length&&<p className="muted">No fictional invoices.</p>}</section>
  <FinanceTaxRulesPanel organizationId={orgId} invoices={invoices}/>
+ <TenantFinanceInvoicePanel orgId={orgId} invoices={invoices}/>
  <section className="panel" style={{padding:18}}><h2>Client accounts ({clients.length})</h2>{clients.map(c=><p key={c.id}>{c.name} — {c.domain}</p>)}</section>
  </section></main>;
 }
