@@ -91,6 +91,13 @@ async function main(){
   const rejectedSelection=await hit('/workspaces/selected',memberCookie);
   check(rejectedSelection,200,'Previously selected disabled membership is invalid');
   assert.equal(rejectedSelection.body.selected,null);
+
+  const another=await hit('/workspace-invitations/organizations/'+a.org.id,a.cookie,{method:'POST',body:JSON.stringify({name:'CI Revoked Invitee',email:'ci-revoked-'+id+'@example.invalid',role:'FINANCE'})});
+  check(another,201,'Owner creates revocable pending invitation');
+  const revoke=await hit('/workspace-invitations/organizations/'+a.org.id+'/'+another.body.id+'/revoke',a.cookie,{method:'POST',body:'{}'});
+  check(revoke,201,'Owner revokes unused invitation');
+  check(await hit('/workspace-invitations/organizations/'+a.org.id+'/'+another.body.id+'/revoke',a.cookie,{method:'POST',body:'{}'}),400,'Revoked invitation cannot be revoked twice');
+
   check(await hit('/workspace-business/'+a.org.id+'/invoices',memberCookie),403,'Revoked member cannot access company data');
 
 
