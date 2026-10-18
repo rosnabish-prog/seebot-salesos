@@ -76,6 +76,10 @@ jobs:
         run: node scripts/test-signing-evidence.cjs
       - name: Cross-tenant API isolation over HTTP
         run: node scripts/tenant-isolation-e2e.cjs
+      - name: Install browser for end-to-end checks
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E for company onboarding and finance
+        run: node scripts/browser-e2e.cjs
       - name: Confirm pending real-world security gates
         run: |
           test "$SIGNING_ENABLED" = false
