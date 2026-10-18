@@ -30,6 +30,16 @@ export class WorkspaceInvitationsController{
   await this.admin(req,id);
   return this.db.workspaceInvitation.findMany({where:{organizationId:id},select:{id:true,email:true,name:true,role:true,status:true,expiresAt:true,createdAt:true},take:100,orderBy:{createdAt:'desc'}});
  }
+ @UseGuards(IdentityGuard) @Post('organizations/:organizationId/:invitationId/revoke')
+ async revoke(@Req()req:ScopedRequest,@Param('organizationId')id:string,@Param('invitationId')invitationId:string){
+  await this.admin(req,id);
+  return this.db.$transaction(async tx=>{
+   const changed=await tx.workspaceInvitation.updateMany({where:{id:invitationId,organizationId:id,status:'PENDING'},data:{status:'REVOKED'}});
+   if(changed.count!==1)throw new BadRequestException('Only a pending team invitation can be revoked.');
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'WORKSPACE_INVITATION_REVOKED',entityType:'WORKSPACE_INVITATION',entityId:invitationId,detail:{organizationId:id}}});
+   return {revoked:true};
+  },{isolationLevel:'Serializable'});
+ }
  @UseGuards(IdentityGuard) @Post('organizations/:organizationId')
  async create(@Req()req:ScopedRequest,@Param('organizationId')id:string,@Body()body:any){
   const member=await this.admin(req,id);
