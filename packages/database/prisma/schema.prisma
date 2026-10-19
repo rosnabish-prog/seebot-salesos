@@ -539,6 +539,8 @@ model ClientIssue {
 // have been changed to enforce membership + organization ownership.
 model Organization {
   id String @id @default(cuid())
+  createdById String?
+  @@index([createdById])
   slug String @unique
   name String
   legalName String?
