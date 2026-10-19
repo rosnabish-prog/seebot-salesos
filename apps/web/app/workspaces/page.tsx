@@ -187,7 +187,7 @@ export default function WorkspacesPage(){
     {admin&&<div className="ws-form-actions"><Button type="submit" loading={busy}>Save company settings <Check size={16}/></Button></div>}
    </form>
    {admin&&<div className="ws-team"><div className="ws-section-heading"><UsersRound size={18}/><h2>Team access</h2></div>
-    <div className="ws-members">{members.map(m=><div className="ws-member-row" key={m.userId}><span><strong>{m.user.name}</strong><small>{m.user.email}</small></span><span className="ws-role-badge">{m.userId===selected.id?'Administrator':m.role==='OWNER'?'Administrator (Owner)':m.role==='ADMIN'?'Administrator':m.role}</span>
+    <div className="ws-members">{members.map(m=><div className="ws-member-row" key={m.userId}><span><strong>{m.user.name}</strong><small>{m.user.email}</small></span><span className="ws-role-badge">{m.role==='OWNER'?'Administrator (Owner)':m.role==='ADMIN'?'Administrator':m.role}</span>
      <span className="ws-status">{m.status}</span>
     </div>)}</div>
     <button type="button" className="ws-disclosure" aria-expanded={teamExpanded} onClick={()=>setTeamExpanded(x=>!x)}><Plus size={17}/> {teamExpanded?'Close invitations':'Invite more teammates'}</button>
