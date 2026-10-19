@@ -303,3 +303,9 @@ input:-webkit-autofill:focus {
 
 /* v1.6.2 Accessible KPI metric definitions */
 .metric-info{display:inline-flex;vertical-align:middle;margin-left:5px;cursor:help;color:#9A5A3A;outline-offset:3px}.metric-info:focus-visible{outline:2px solid #FF7A3D;border-radius:50%}
+
+/* Self-service authentication: readable navigation and honest integration status. */
+.auth-text-link{color:var(--orange-deep);font-weight:700;text-decoration:underline;text-decoration-color:#ffc09b;text-underline-offset:3px}
+.auth-text-link:hover{text-decoration-color:var(--orange-deep)}
+.auth-preview-note{border:1px solid #ffe0c7;border-radius:10px;padding:12px 14px;background:#fff8f2;color:#764125;font-size:12px;line-height:1.65}
+.google-config-note{background:#f7f8fa;border:1px solid #e7e9ee;padding:12px;border-radius:9px;color:#646f7b;font-size:12px;line-height:1.5}
