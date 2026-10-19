@@ -34,7 +34,7 @@ async function main(){
   const invoice=await db.invoice.create({data:{accountId:account.id,number:'DEMO-CI-'+n+'-'+id,status:'DRAFT',currency:'USD',lineItems:[{description:'Test service',quantity:1,unitPrice:10}],subtotal:'10',tax:'0',total:'10',billingEmail:'billing'+n+'@example.invalid',dueAt:new Date('2030-01-01'),isDemo:true,createdById:user.id}});
   return {user,org,account,invoice,cookie:token(user,org.id)};
  }));
- const api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:process.cwd(),env:{...process.env,API_PORT:String(port),TENANT_SCOPED_CRM_PREVIEW:'true',SIGNING_ENABLED:'false',GMAIL_SENDING_ENABLED:'false'},stdio:['ignore','pipe','pipe']});
+ const api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:process.cwd(),env:{...process.env,API_PORT:String(port),TENANT_SCOPED_CRM_PREVIEW:'true',DEV_EMAIL_SIGNUP_ENABLED:'true',SIGNING_ENABLED:'false',GMAIL_SENDING_ENABLED:'false'},stdio:['ignore','pipe','pipe']});
  let output='';api.stdout.on('data',b=>{output+=b.toString();});api.stderr.on('data',b=>{output+=b.toString();});
  try{
   let ready=false;
@@ -47,6 +47,24 @@ async function main(){
   check(await hit('/workspace-crm/'+a.org.id+'/accounts',a.cookie),200,'Own account list');
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+a.invoice.id,a.cookie),200,'Own invoice');
   check(await hit('/workspace-tax/'+a.org.id+'/rules',a.cookie),200,'Own finance rules');
+
+
+  // Authentication regression coverage: invalid credentials must reach auth, not fail origin checks.
+  const capabilities=await hit('/auth/capabilities','');
+  check(capabilities,200,'Public authentication feature flags');
+  assert.equal(capabilities.body.emailSignupEnabled,true);
+  assert.equal(capabilities.body.developerSignup,true);
+  assert.equal(capabilities.body.passwordResetEnabled,false);
+  const signupEmail='ci-self-register-'+id+'@example.invalid';
+  const joined=await hit('/auth/register','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({name:'Standalone Email Signup',email:signupEmail,password:'CI_Only_12_Password_One!'})});
+  check(joined,201,'Private preview email registration succeeds');
+  assert.equal(joined.body.user.email,signupEmail);
+  const independent=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
+  assert.equal(independent.organizationMemberships.length,0,'Self signup never grants Seebot membership');
+  check(await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'incorrect-password'})}),401,'Wrong password returns authentication error');
+  check(await hit('/auth/login','',{method:'POST',headers:{Origin:'https://malicious.example'},body:JSON.stringify({email:signupEmail,password:'CI_Only_12_Password_One!'})}),403,'Untrusted origin is rejected');
+  check(await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'CI_Only_12_Password_One!'})}),201,'Correct credentials from trusted app origin work');
+  check(await hit('/auth/forgot-password','',{method:'POST',body:JSON.stringify({email:signupEmail})}),503,'Recovery requires working SMTP, not fake success');
 
   // A valid login must not require Seebot membership. Zero memberships enters setup.
   const standalone=await db.user.create({data:{email:'ci-unassigned-'+id+'@example.invalid',name:'Unassigned CI User',passwordHash:'NOT_REAL',role:'SALES_REP'}});
