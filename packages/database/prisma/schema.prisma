@@ -95,6 +95,8 @@ model User {
   createdInvitations EmployeeInvitation[]
   issuedSurveys ClientSurveyInvitation[]
   passwordResetRequests PasswordResetRequest[]
+  loginChallenges LoginChallenge[]
+  surveyTemplates ClientSurveyTemplate[] @relation("SurveyTemplateCreator")
 }
 model Account {
   id String @id @default(cuid())
@@ -572,6 +574,7 @@ model Organization {
   tasks Task[]
   campaigns Campaign[]
   employeeInvitations EmployeeInvitation[]
+  surveyTemplates ClientSurveyTemplate[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -755,9 +758,13 @@ model ClientSurveyInvitation {
   createdById String
   createdBy User @relation(fields:[createdById],references:[id])
   recipientEmail String
-  type String // NPS | CSAT
+  type String // NPS | CSAT | CUSTOM
   title String
   question String @db.Text
+  templateId String?
+  template ClientSurveyTemplate? @relation(fields:[templateId],references:[id],onDelete:SetNull)
+  questionnaire Json @default("[]")
+  answers Json?
   tokenHash String @unique
   status String @default("DRAFT") // DRAFT | SENT | ANSWERED | EXPIRED | REVOKED
   isDemo Boolean @default(false)
@@ -769,8 +776,26 @@ model ClientSurveyInvitation {
   createdAt DateTime @default(now())
   @@index([accountId,createdAt])
   @@index([status,expiresAt])
+  @@index([templateId])
 }
 
+model ClientSurveyTemplate {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  name String
+  description String? @db.Text
+  type String @default("CUSTOM") // CUSTOM | NPS | CSAT
+  questions Json @default("[]")
+  active Boolean @default(true)
+  createdById String
+  createdBy User @relation("SurveyTemplateCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  invitations ClientSurveyInvitation[]
+  @@unique([organizationId,name])
+  @@index([organizationId,active])
+}
 
 // v1.6.3 — internal client success reporting, no outside API required.
 // Reports capture an immutable data snapshot at generation time.
@@ -933,6 +958,7 @@ model WorkspaceSettings {
  targetIndustries Json @default("[]")
  plan String @default("ALL_FEATURES_UNLOCKED")
  setupComplete Boolean @default(false)
+ pipelineConfig Json @default("{}")
  updatedAt DateTime @updatedAt
 }
 model WorkspaceInvitation {
@@ -1090,3 +1116,18 @@ model PasswordResetRequest {
  createdAt DateTime @default(now())
  @@index([userId,expiresAt])
 }
+
+
+model LoginChallenge {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ codeHash String
+ method String @default("EMAIL")
+ expiresAt DateTime
+ attempts Int @default(0)
+ consumedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([userId,expiresAt])
+}
+
