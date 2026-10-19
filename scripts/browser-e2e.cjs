@@ -86,10 +86,10 @@ async function main(){
   await page.getByRole('link',{name:'Campaigns'}).click();
   await page.getByRole('heading',{name:'Campaigns',exact:true}).waitFor();
   await page.getByRole('link',{name:/Prospects & Accounts/i}).click();
-  await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
+  await page.getByRole('heading',{name:'Prospects & Accounts',exact:true}).waitFor();
 
   await page.getByRole('link',{name:/Prospects & Accounts/i}).click();
-  await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
+  await page.getByRole('heading',{name:'Prospects & Accounts',exact:true}).waitFor();
   await page.getByRole('button',{name:'Skip — return to company home'}).waitFor();
   const prospect='Browser Fictional Prospect '+unique;
   await page.getByLabel('Prospect company name').fill(prospect);
