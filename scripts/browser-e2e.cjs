@@ -98,7 +98,7 @@ async function main(){
   await db.opportunity.update({where:{id:relationshipOpportunity.id},data:{stage:'PILOT_CONTRACTED'}});
   await db.account.update({where:{id:relationshipAccount.id},data:{status:'Contracting'}});
   await page.getByRole('link',{name:'Client Satisfaction'}).click();
-  await page.getByRole('heading',{name:'Client Satisfaction'}).waitFor();
+  await page.getByRole('heading',{name:'Client Satisfaction',exact:true}).waitFor();
   const questionnaireName='CI Relationship Questionnaire '+unique;
   await page.getByLabel('Questionnaire name').fill(questionnaireName);
   await page.getByRole('button',{name:'Create questionnaire'}).click();
