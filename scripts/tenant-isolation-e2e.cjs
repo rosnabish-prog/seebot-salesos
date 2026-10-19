@@ -68,6 +68,47 @@ async function main(){
   check(await hit('/workspace-business/'+b.org.id+'/opportunities/'+newOpportunity.body.id+'/transition',a.cookie,{method:'POST',body:JSON.stringify({targetStage:'DECISION_MAKER_IDENTIFIED',override:true,reason:'Forbidden'})}),403,'Cross-tenant Kanban move denied');
   check(await hit('/workspace-business/'+a.org.id+'/opportunities/'+newOpportunity.body.id+'/transition',a.cookie,{method:'POST',body:JSON.stringify({targetStage:'DECISION_MAKER_IDENTIFIED',override:true,reason:'CI-only stage transition check'})}),201,'Administrator override of own fictional opportunity requires recorded reason');
 
+  const pipelineConfig=await hit('/workspace-pipeline/'+a.org.id,a.cookie);
+  check(pipelineConfig,200,'Own pipeline configuration');
+  assert.equal(pipelineConfig.body.stages.length,11);
+  pipelineConfig.body.stages[0].label='CI Qualified Research';
+  pipelineConfig.body.stages[1].fields.push({key:'ci_research_source',label:'Research source carried forward',type:'text',required:false,autoFill:'stage.ACCOUNT_RESEARCHED.researchSource'});
+  check(await hit('/workspace-pipeline/'+a.org.id,a.cookie,{method:'PATCH',body:JSON.stringify(pipelineConfig.body)}),200,'Administrator customizes own pipeline labels and prior-stage auto-pull');
+  check(await hit('/workspace-pipeline/'+b.org.id,a.cookie),403,'Foreign pipeline configuration denied');
+
+  // Client Management starts at contracting without duplicating Account records.
+  await db.opportunity.update({where:{id:newOpportunity.body.id},data:{stage:'PILOT_CONTRACTED'}});
+  const contractingClients=await hit('/workspace-business/'+a.org.id+'/clients',a.cookie);
+  check(contractingClients,200,'Contracting relationships visible in Client Management');
+  const relationship=contractingClients.body.find(x=>x.id===a.account.id);
+  assert.equal(relationship?.relationshipStatus,'CONTRACTING');
+  assert.equal(await db.account.count({where:{id:a.account.id}}),1,'Client lifecycle must reuse the original Account record');
+
+  const template=await hit('/workspace-surveys/'+a.org.id+'/templates',a.cookie,{method:'POST',body:JSON.stringify({
+   name:'CI Quarterly Relationship Review',
+   description:'Fictional tenant-isolated satisfaction questionnaire',
+   questions:[
+    {id:'overall',label:'Overall experience',type:'RATING',required:true,min:1,max:5},
+    {id:'quality',label:'How was quality?',type:'SINGLE',required:true,options:['Excellent','Good','Needs work']},
+    {id:'again',label:'Would you work with us again?',type:'YES_NO',required:true},
+    {id:'notes',label:'Additional comments',type:'TEXT',required:false}
+   ]
+  })});
+  check(template,201,'Create custom client questionnaire');
+  check(await hit('/workspace-surveys/'+b.org.id+'/templates',a.cookie),403,'Foreign survey templates denied');
+  const survey=await hit('/workspace-surveys/'+a.org.id+'/clients/'+a.account.id,a.cookie,{method:'POST',body:JSON.stringify({email:'fictional-client@example.invalid',templateId:template.body.id})});
+  check(survey,201,'Create custom questionnaire for contracting client');
+  assert.equal(survey.body.status,'DEMO_READY');
+  const surveyToken=new URL(survey.body.previewUrl).pathname.split('/').pop();
+  const publicSurvey=await hit('/surveys/'+surveyToken,'');
+  check(publicSurvey,200,'Public one-time questionnaire can be opened from its token');
+  assert.equal(publicSurvey.body.questionnaire.length,4);
+  check(await hit('/surveys/'+surveyToken+'/respond','',{method:'POST',body:JSON.stringify({answers:{overall:5,quality:'Excellent',again:true,notes:'Fictional CI response'}})}),201,'Custom questionnaire accepts validated ratings and answers');
+  const surveyHistory=await hit('/workspace-surveys/'+a.org.id+'/clients/'+a.account.id,a.cookie);
+  check(surveyHistory,200,'Survey response history remains tenant scoped');
+  assert.equal(surveyHistory.body.aggregates.customResponses,1);
+
+
 
 
   // Authentication regression coverage: invalid credentials must reach auth, not fail origin checks.
