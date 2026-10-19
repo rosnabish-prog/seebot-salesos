@@ -33,6 +33,7 @@ set('CORS_ORIGIN',origin);
 set('NEXT_PUBLIC_API_URL','');
 set('TENANT_SCOPED_CRM_PREVIEW','true');
 set('GOOGLE_SELF_SIGNUP_ENABLED','false');
+set('DEV_EMAIL_SIGNUP_ENABLED','true');
 set('GMAIL_SENDING_ENABLED','false');
 set('SIGNING_ENABLED','false');
 set('SEED_DEMO_DATA','false');
