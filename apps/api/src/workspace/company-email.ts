@@ -9,7 +9,7 @@ export const PERSONAL_MAIL_DOMAINS=new Set([
 ]);
 export function companyDomain(email:string):string{
  const normalized=String(email||'').trim().toLowerCase();
- if(!/^[^\\s@]+@([a-z0-9-]+\\.)+[a-z]{2,}$/i.test(normalized)||normalized.length>254)throw new BadRequestException('Enter a valid work email address.');
+ if(!/^[^\s@]+@([a-z0-9-]+\.)+[a-z]{2,}$/i.test(normalized)||normalized.length>254)throw new BadRequestException('Enter a valid work email address.');
  const domain=normalized.split('@')[1];
  if(PERSONAL_MAIL_DOMAINS.has(domain))throw new BadRequestException('Use your company work email. Personal email providers cannot create a company workspace.');
  return domain;
@@ -18,7 +18,7 @@ export function assertWebsiteEmailMatch(email:string,website:string){
  const domain=companyDomain(email);
  if(!website)return domain;
  let host='';
- try{const parsed=new URL(website);if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.port)throw Error('invalid');host=parsed.hostname.toLowerCase().replace(/\\.$/,'').replace(/^www\\./,'');}
+ try{const parsed=new URL(website);if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.port)throw Error('invalid');host=parsed.hostname.toLowerCase().replace(/\.$/,'').replace(/^www\./,'');}
  catch{throw new BadRequestException('Enter a valid HTTPS company website.');}
  if(host!==domain&&!host.endsWith('.'+domain)&&!domain.endsWith('.'+host))
   throw new BadRequestException('The website domain must match your company email domain. Use your company website or leave it empty for now.');
