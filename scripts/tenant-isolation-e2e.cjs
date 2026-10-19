@@ -146,8 +146,12 @@ async function main(){
   const mfaLogin=await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'CI_Only_12_Password_One!'})});
   check(mfaLogin,201,'Correct first-factor credentials start MFA');
   assert.equal(mfaLogin.body.mfaRequired,true);assert.match(mfaLogin.body.testCode,/^\d{6}$/);
-  check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId,code:mfaLogin.body.testCode})}),201,'Correct MFA code completes sign-in');
-  check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId,code:mfaLogin.body.testCode})}),401,'MFA code is single use');
+  await db.loginChallenge.update({where:{id:mfaLogin.body.challengeId},data:{createdAt:new Date(Date.now()-31_000)}});
+  const resent=await hit('/auth/mfa/resend','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId})});
+  check(resent,201,'MFA code can be securely resent after cooldown');assert.match(resent.body.testCode,/^\d{6}$/);
+  check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId,code:mfaLogin.body.testCode})}),401,'Replaced MFA code is invalidated');
+  check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:resent.body.challengeId,code:resent.body.testCode})}),201,'Correct MFA code completes sign-in');
+  check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:resent.body.challengeId,code:resent.body.testCode})}),401,'MFA code is single use');
   check(await hit('/auth/forgot-password','',{method:'POST',body:JSON.stringify({email:signupEmail})}),503,'Recovery requires working SMTP, not fake success');
 
   // A valid login must not require Seebot membership. Zero memberships enters setup.
