@@ -35,7 +35,7 @@ async function main(){
  const user=await db.user.create({data:{name:'CI Browser Reviewer',email,passwordHash:await argon2.hash(password),role:'SALES_REP'}});
  const org=await db.organization.upsert({where:{slug:'seebot'},create:{slug:'seebot',name:'CI Seebot',status:'ACTIVE'},update:{}});
  await db.organizationMembership.upsert({where:{organizationId_userId:{organizationId:org.id,userId:user.id}},create:{organizationId:org.id,userId:user.id,role:'MEMBER'},update:{status:'ACTIVE'}});
- const api=launch(process.execPath,['apps/api/dist/main.js'],{API_PORT:'4000',TENANT_SCOPED_CRM_PREVIEW:'true'});
+ const api=launch(process.execPath,['apps/api/dist/main.js'],{API_PORT:'4000',TENANT_SCOPED_CRM_PREVIEW:'true',DEV_EMAIL_SIGNUP_ENABLED:'true'});
  const nextBin=require.resolve('next/dist/bin/next',{paths:[require('node:path').resolve('apps/web')]});
  const web=launch(process.execPath,[nextBin,'start','-p','3000','-H','127.0.0.1'],{NEXT_PUBLIC_API_URL:'http://localhost:4000'},path.resolve('apps/web'));
  await ready('http://127.0.0.1:4000/health',api);
@@ -45,6 +45,14 @@ async function main(){
   const page=await browser.newPage({baseURL:'http://localhost:3000'});
   await page.goto('/login');
   await page.getByRole('heading',{name:'Welcome back'}).waitFor();
+  await page.getByRole('link',{name:'Create an account'}).waitFor();
+  await page.getByRole('link',{name:'Forgot password?'}).click();
+  await page.getByRole('heading',{name:'Forgot your password?'}).waitFor();
+  await page.getByText(/Password recovery email is not configured/).waitFor();
+  await page.getByRole('link',{name:'Return to sign in'}).click();
+  await page.getByRole('heading',{name:'Welcome back'}).waitFor();
+  await page.getByText(/Google sign-in will appear when the administrator configures Google OAuth/).waitFor();
+
   await page.getByPlaceholder('name@company.com').fill(email);
   await page.getByPlaceholder('Your password').fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
@@ -136,6 +144,25 @@ async function main(){
    const storedInvite=await db.workspaceInvitation.findFirst({where:{organizationId:ownerMembership.organizationId}});
    assert.equal(storedInvite?.status,'PENDING');
   }finally{await newContext.close();}
+
+  // UI self-registration must create a standalone identity and route to company setup.
+  const signupContext=await browser.newContext(),signupPage=await signupContext.newPage();
+  try{
+   await signupPage.goto('http://localhost:3000/login');
+   await signupPage.getByRole('link',{name:'Create an account'}).click();
+   await signupPage.getByRole('heading',{name:'Get started with SalesOS'}).waitFor();
+   await signupPage.getByText(/Private development preview/).waitFor();
+   await signupPage.getByPlaceholder('Full name').fill('CI Signup User');
+   const signupEmail='ci-signup-ui-'+unique+'@example.invalid';
+   await signupPage.getByPlaceholder('name@company.com').fill(signupEmail);
+   await signupPage.getByPlaceholder('At least 12 characters').fill(password);
+   await signupPage.getByRole('button',{name:'Create account',exact:true}).click();
+   await signupPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
+   const newSignup=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
+   assert.equal(newSignup.organizationMemberships.length,0,'UI signup must not grant Seebot membership');
+  }finally{await signupContext.close();}
+  console.log('PASS: signup, forgot-password configuration and Google OAuth states visible in UI.');
+
   // Multiple memberships require an explicit workspace choice on the next login.
   await db.organization.create({data:{slug:'ci-second-'+unique,name:'CI Second Team '+unique,status:'SETUP',memberships:{create:{userId:guest.id,role:'MEMBER',status:'ACTIVE'}}}});
   const multiContext=await browser.newContext(),multiPage=await multiContext.newPage();
