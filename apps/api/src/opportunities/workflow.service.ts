@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, ConflictException } from '@nestjs/comm
 import { Prisma, Opportunity } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { STAGES, STAGE_INDEX, StageId } from '@seebot/shared';
-import {defaultPipelineConfig,parsePipelineConfig,stageConfig,type PipelineConfig} from '../workspace/pipeline-config';
+import {defaultPipelineConfig,parsePipelineConfig,parsePriorStageSource,stageConfig,type PipelineConfig} from '../workspace/pipeline-config';
 @Injectable()
 export class OpportunityWorkflowService {
   constructor(private db:PrismaService) {}
@@ -29,6 +29,14 @@ export class OpportunityWorkflowService {
       'primaryContact.name':contact?.name,'primaryContact.email':contact?.email,'primaryContact.title':contact?.title,
       'latestContract.title':contract?.title,'latestContract.status':contract?.status
     };
+    const priorSources=wanted.map(field=>field.autoFill?parsePriorStageSource(field.autoFill):null).filter(Boolean) as {stageId:string;fieldKey:string}[];
+    if(priorSources.length){
+      const visits=await tx.stageVisit.findMany({where:{opportunityId:opp.id,stage:{in:[...new Set(priorSources.map(source=>source.stageId))]}},orderBy:{enteredAt:'desc'},select:{stage:true,evidence:true}});
+      for(const source of priorSources){
+       const visit=visits.find(v=>v.stage===source.stageId),priorEvidence=(visit?.evidence&&typeof visit.evidence==='object'&&!Array.isArray(visit.evidence)?visit.evidence:{}) as Record<string,unknown>;
+       values[`stage.${source.stageId}.${source.fieldKey}`]=priorEvidence[source.fieldKey];
+      }
+    }
     const out:Record<string,string>={};
     for(const field of wanted){const value=field.autoFill?values[field.autoFill]:undefined;if(value!==undefined&&value!==null&&String(value).trim())out[field.key]=String(value);}
     return out;
