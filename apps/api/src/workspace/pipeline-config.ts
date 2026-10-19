@@ -7,8 +7,10 @@ export const AUTOFILL_SOURCES=[
  'primaryContact.name','primaryContact.email','primaryContact.title',
  'latestContract.title','latestContract.status'
 ] as const;
-export type AutoFillSource=typeof AUTOFILL_SOURCES[number];
+export type AutoFillSource=typeof AUTOFILL_SOURCES[number]|string;
 export type ConfiguredStageField=StageField&{autoFill?:AutoFillSource};
+export const priorStageSource=(stageId:string,fieldKey:string)=>`stage.${stageId}.${fieldKey}`;
+export function parsePriorStageSource(value:string){const match=/^stage\.([A-Z0-9_]+)\.([a-zA-Z][a-zA-Z0-9_]{0,59})$/.exec(value);return match?{stageId:match[1],fieldKey:match[2]}:null;}
 export type PipelineStageConfig={id:StageId;label:string;short:string;fields:ConfiguredStageField[]};
 export type PipelineConfig={version:1;stages:PipelineStageConfig[]};
 
@@ -46,12 +48,24 @@ export function validatePipelineConfig(raw:unknown):PipelineConfig{
     if(options.length!==rawField.options.length||new Set(options).size!==options.length||options.some((v:string)=>v.length>120))throw new BadRequestException('Select options must be unique short labels.');
     field.options=options;
    }
-   if(rawField?.autoFill){const autoFill=String(rawField.autoFill) as AutoFillSource;if(!AUTOFILL_SOURCES.includes(autoFill))throw new BadRequestException('Unknown auto-fill source.');field.autoFill=autoFill;}
+   if(rawField?.autoFill){field.autoFill=String(rawField.autoFill) as AutoFillSource;}
    fields.push(field);
   }
   stages.push({id,label,short,fields});
  }
  // Preserve canonical order even when the editor sends rows out of order.
- return {version:1,stages:STAGES.map(base=>stages.find(s=>s.id===base.id)!)};
+ const ordered=STAGES.map(base=>stages.find(s=>s.id===base.id)!);
+ for(let targetIndex=0;targetIndex<ordered.length;targetIndex++){
+  for(const field of ordered[targetIndex].fields){
+   if(!field.autoFill)continue;
+   if((AUTOFILL_SOURCES as readonly string[]).includes(field.autoFill))continue;
+   const prior=parsePriorStageSource(field.autoFill);
+   if(!prior)throw new BadRequestException('Unknown auto-fill source.');
+   const sourceIndex=ordered.findIndex(s=>s.id===prior.stageId);
+   if(sourceIndex<0||sourceIndex>=targetIndex)throw new BadRequestException('A stage may auto-pull evidence only from an earlier stage.');
+   if(!ordered[sourceIndex].fields.some(source=>source.key===prior.fieldKey))throw new BadRequestException('The selected earlier-stage evidence field no longer exists.');
+  }
+ }
+ return {version:1,stages:ordered};
 }
 export function stageConfig(config:PipelineConfig,id:string){return config.stages.find(stage=>stage.id===id as StageId);}
