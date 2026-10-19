@@ -151,7 +151,14 @@ async function main(){
    await newPage.getByRole('button',{name:'Review optional company settings'}).click();
    await newPage.getByRole('heading',{name:ownName}).waitFor({timeout:10000});
    await newPage.getByRole('button',{name:'Save & continue'}).click();
-   await newPage.waitForURL(new RegExp('/workspaces/'+ownerMembership.organizationId+'
+   await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:15000});
+   await newPage.getByRole('heading',{name:ownName}).waitFor();
+   await newPage.getByRole('link',{name:/Prospects & accounts/}).click();
+   await newPage.getByRole('button',{name:'Skip — return to company home'}).click();
+   await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:10000});
+   await newPage.getByRole('button',{name:'Sign out'}).click();
+   await newPage.waitForURL('**/login',{timeout:10000});
+   await newPage.getByRole('heading',{name:'Welcome back'}).waitFor();
   }finally{await newContext.close();}
 
   // UI self-registration must create a standalone identity and route to company setup.
