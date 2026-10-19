@@ -61,6 +61,45 @@ export class TenantSurveysController{
   return this.db.clientSurveyTemplate.update({where:{id:existing.id},data});
  }
 
+ @Get(':orgId/overview') async overview(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
+  await this.scope.membership(req,orgId);
+  const entries=await this.db.clientSurveyInvitation.findMany({
+   where:{account:{organizationId:orgId}},
+   select:{id:true,type:true,title:true,status:true,score:true,feedback:true,questionnaire:true,answers:true,createdAt:true,respondedAt:true,recipientEmail:true,
+    account:{select:{id:true,name:true}}},
+   orderBy:{createdAt:'desc'},take:1000
+  });
+  const completed=entries.filter(x=>x.status==='ANSWERED'),sent=entries.filter(x=>['SENT','ANSWERED'].includes(x.status));
+  const npsScores=completed.filter(x=>x.type==='NPS'&&typeof x.score==='number').map(x=>x.score!);
+  const csatScores=completed.filter(x=>x.type==='CSAT'&&typeof x.score==='number').map(x=>x.score!);
+  const nps=npsScores.length?Math.round(100*(npsScores.filter(x=>x>=9).length-npsScores.filter(x=>x<=6).length)/npsScores.length):null;
+  const csat=csatScores.length?Math.round(100*csatScores.filter(x=>x>=4).length/csatScores.length):null;
+  const ratingBuckets=new Map<string,{label:string;sum:number;count:number;min:number;max:number}>();
+  for(const entry of completed){
+   let questions:SurveyQuestion[]=[];try{questions=validateQuestionnaire(entry.questionnaire);}catch{}
+   const answers=(entry.answers&&typeof entry.answers==='object'&&!Array.isArray(entry.answers)?entry.answers:{}) as Record<string,unknown>;
+   for(const question of questions.filter(q=>q.type==='RATING')){
+    const value=Number(answers[question.id]);if(!Number.isFinite(value))continue;
+    const key=question.label.trim().toLowerCase();
+    const prior=ratingBuckets.get(key)||{label:question.label,sum:0,count:0,min:question.min??0,max:question.max??10};
+    prior.sum+=value;prior.count++;ratingBuckets.set(key,prior);
+   }
+  }
+  const ratings=[...ratingBuckets.values()].map(x=>({label:x.label,average:Math.round((x.sum/x.count)*10)/10,responses:x.count,min:x.min,max:x.max})).sort((a,b)=>b.responses-a.responses).slice(0,20);
+  const clientMap=new Map<string,{accountId:string;name:string;responses:number;nps:number|null;csat:number|null;lastResponseAt:string|null}>();
+  for(const entry of completed){
+   const row=clientMap.get(entry.account.id)||{accountId:entry.account.id,name:entry.account.name,responses:0,nps:null,csat:null,lastResponseAt:null};
+   row.responses++;
+   if(entry.type==='NPS'&&typeof entry.score==='number'&&row.nps===null)row.nps=entry.score;
+   if(entry.type==='CSAT'&&typeof entry.score==='number'&&row.csat===null)row.csat=entry.score;
+   if(!row.lastResponseAt&&entry.respondedAt)row.lastResponseAt=entry.respondedAt.toISOString();
+   clientMap.set(entry.account.id,row);
+  }
+  const templates=await this.db.clientSurveyTemplate.count({where:{organizationId:orgId,active:true}});
+  return {summary:{sent:sent.length,responses:completed.length,responseRate:sent.length?Math.round(100*completed.length/sent.length):null,nps,csat,activeTemplates:templates},
+   ratings,clients:[...clientMap.values()].sort((a,b)=>b.responses-a.responses),recent:entries.slice(0,20)};
+ }
+
  @Get(':orgId/clients/:accountId') async list(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string){
   await this.clientAccount(req,orgId,accountId);
   const entries=await this.db.clientSurveyInvitation.findMany({where:{accountId},select:{id:true,type:true,title:true,recipientEmail:true,status:true,score:true,feedback:true,questionnaire:true,answers:true,createdAt:true,sentAt:true,respondedAt:true,expiresAt:true,isDemo:true,templateId:true},orderBy:{createdAt:'desc'},take:200});
