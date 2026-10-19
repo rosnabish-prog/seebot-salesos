@@ -34,13 +34,21 @@ export class TenantBusinessController{
   for(const value of Object.values(body.fields))if(typeof value!=='string'||value.length>5000)throw new BadRequestException('Evidence values must be text under 5000 characters.');
   return this.workflow.saveEvidence(id,req.user.id,body.fields);
  }
- @Get(':orgId/clients')async clients(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);return this.db.account.findMany({where:{organizationId:orgId,status:'Customer'},select:{id:true,name:true,domain:true,contacts:{select:{id:true,name:true,title:true,email:true}},invoices:{select:{id:true,number:true,status:true,total:true,currency:true,dueAt:true}}},take:100,orderBy:{updatedAt:'desc'}});}
+ @Get(':orgId/clients')async clients(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
+  await this.scope.membership(req,orgId);
+  const relationshipStages=['PILOT_CONTRACTED','PILOT_DELIVERED','PRODUCTION_NEGOTIATED','CLOSED_WON'];
+  const rows=await this.db.account.findMany({where:{organizationId:orgId,OR:[{status:'Customer'},{opportunities:{some:{stage:{in:relationshipStages}}}}]},select:{id:true,name:true,domain:true,status:true,clientSince:true,contacts:{select:{id:true,name:true,title:true,email:true}},opportunities:{select:{id:true,title:true,stage:true,status:true},orderBy:{updatedAt:'desc'}},invoices:{select:{id:true,number:true,status:true,total:true,currency:true,dueAt:true}}},take:100,orderBy:{updatedAt:'desc'}});
+  return rows.map(account=>{const highest=account.opportunities.reduce((best,o)=>Math.max(best,STAGE_INDEX[o.stage as keyof typeof STAGE_INDEX]??-1),-1);return {...account,relationshipStatus:account.status==='Customer'?'ACTIVE_CLIENT':highest>=STAGE_INDEX.PILOT_CONTRACTED?'CONTRACTING':'PROSPECT'};});
+ }
  @Get(':orgId/clients/:id')async client(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
   await this.scope.membership(req,orgId);await this.scope.account(orgId,id);
   return this.db.account.findUnique({where:{id},include:{
    contacts:true,
-   opportunities:{select:{id:true,title:true,stage:true,status:true,contracts:{select:{id:true,title:true,status:true}}}},
-   invoices:{select:{id:true,number:true,status:true,currency:true,total:true,dueAt:true}}
+   opportunities:{select:{id:true,title:true,stage:true,status:true,contracts:{select:{id:true,title:true,status:true,signedAt:true,expiresAt:true,committedAmount:true,currency:true}}},orderBy:{updatedAt:'desc'}},
+   invoices:{select:{id:true,number:true,status:true,currency:true,total:true,dueAt:true,issuedAt:true}},
+   clientReviews:{orderBy:{occurredAt:'desc'},take:20},
+   clientIssues:{orderBy:{createdAt:'desc'},take:20},
+   milestones:{orderBy:{createdAt:'desc'},take:20}
   }});
  }
  @Get(':orgId/contracts')async contracts(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);return this.db.contract.findMany({where:{opportunity:{account:{organizationId:orgId}}},select:{id:true,title:true,type:true,status:true,opportunityId:true,committedAmount:true,currency:true,createdAt:true},take:150,orderBy:{createdAt:'desc'}});}
