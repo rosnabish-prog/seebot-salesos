@@ -6,6 +6,7 @@ import {Activity,AlertTriangle,Building2,CalendarClock,CheckCircle2,FileSignatur
 import {Badge,BrandSelect,Button,ErrorMessage,Field,Modal,PageTop,Panel} from '@/components/ui';
 import {fmtDate,patch,post,request} from '@/lib/api';
 import {TenantClientSurveys} from '@/components/client/tenant-surveys-panel';
+import {TenantClientReports} from '@/components/client/tenant-client-reports';
 
 type Client={
  id:string;name:string;domain:string;status:string;clientSince:string|null;
@@ -75,6 +76,7 @@ export default function TenantClientDetail(){
     {editable&&contracts.filter(c=>c.status==='SIGNED'&&c.expiresAt).map(c=><div className="record-row" key={'renew-'+c.id}><div><strong>{c.title}</strong><p>Signed contract · expires {fmtDate(c.expiresAt)}</p></div><Button variant="secondary" disabled={saving} onClick={()=>void run(()=>post('/workspace-business/'+orgId+'/contracts/'+c.id+'/renewal',{daysBefore:60}),'Renewal review scheduled and follow-up task created.')}>Plan renewal</Button></div>)}
    </Panel>
 
+   <TenantClientReports orgId={orgId} accountId={clientId} canAdmin={admin}/>
    <TenantClientSurveys orgId={orgId} accountId={clientId}/>
   </>}
 
