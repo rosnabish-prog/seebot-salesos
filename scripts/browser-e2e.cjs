@@ -213,9 +213,8 @@ async function main(){
    await newPage.getByRole('heading',{name:/Good morning/}).waitFor();
    await newPage.getByRole('link',{name:'Team & Settings'}).click();
    await newPage.getByRole('heading',{name:'Pipeline configuration'}).waitFor({timeout:10000});
-   const pipelinePanel=newPage.getByRole('heading',{name:'Pipeline configuration'}).locator('..');
-   await pipelinePanel.getByLabel('Stage name').fill('CI Qualified Research');
-   await pipelinePanel.getByRole('button',{name:'Save pipeline settings'}).click();
+   await newPage.getByLabel('Stage name').fill('CI Qualified Research');
+   await newPage.getByRole('button',{name:'Save pipeline settings'}).click();
    await newPage.getByText('Pipeline settings saved.').waitFor({timeout:10000});
    await newPage.getByRole('link',{name:'Kanban Pipeline',exact:true}).click();
    await newPage.getByText('CI Qualified Research',{exact:true}).waitFor({timeout:10000});
