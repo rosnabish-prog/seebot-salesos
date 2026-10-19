@@ -52,7 +52,7 @@ export class TenantBusinessController{
 
  @Get(':orgId/tasks')async tasks(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.scope.membership(req,orgId);
-  return this.db.task.findMany({where:{OR:[{organizationId:orgId},{opportunity:{account:{organizationId:orgId}}}]},
+  return this.db.task.findMany({where:{OR:[{organizationId:orgId},{opportunity:{account:{organizationId:orgId}}}]}},
    select:{id:true,title:true,status:true,description:true,dueAt:true,assignee:{select:{id:true,name:true}},opportunity:{select:{id:true,title:true}}},
    createdAt:true},orderBy:{createdAt:'desc'},take:200});
  }
