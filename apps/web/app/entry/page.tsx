@@ -21,7 +21,7 @@ export default function WorkspaceEntry(){
     const selected=await post<Selection>(`/workspaces/${workspace.id}/select`,{});
     if(cancelled)return;
     if(selected.crmEnabled)router.replace(executive(user.role)?'/executive':'/dashboard');
-    else if(selected.tenantCrmEnabled)router.replace(`/workspaces/${workspace.id}/accounts`);
+    else if(selected.tenantCrmEnabled)router.replace(`/workspaces/${workspace.id}`);
     else router.replace(`/workspaces?manage=${encodeURIComponent(workspace.id)}`);
    }catch(e){if(!cancelled)setError(e instanceof Error?e.message:'Could not load workspaces.');}
   })();
