@@ -48,6 +48,15 @@ async function main(){
   check(await hit('/auth/me',token(a.user,a.org.id,Date.now()-8*24*60*60*1000)),401,'Sessions older than seven days require fresh sign-in and MFA');
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+a.invoice.id,a.cookie),200,'Own invoice');
   check(await hit('/workspace-tax/'+a.org.id+'/rules',a.cookie),200,'Own finance rules');
+  check(await hit('/workspace-accounting/'+a.org.id+'/reconciliation',a.cookie),200,'Own accounting reconciliation');
+  check(await hit('/workspace-accounting/'+b.org.id+'/reconciliation',a.cookie),403,'Foreign accounting reconciliation denied');
+  check(await hit('/workspace-finance-automation/'+a.org.id+'/reminders',a.cookie),200,'Own finance automation review queue');
+  check(await hit('/workspace-finance-automation/'+b.org.id+'/reminders',a.cookie),403,'Foreign finance automation denied');
+  const audit=await hit('/workspaces/'+a.org.id+'/security-audit',a.cookie);
+  check(audit,200,'Own administrator security audit');
+  assert.equal(audit.body.policy.mfaRequiredEverySignIn,true);
+  assert.equal(audit.body.policy.sessionMaxAgeDays,7);
+  check(await hit('/workspaces/'+b.org.id+'/security-audit',a.cookie),403,'Foreign workspace security audit denied');
 
   // All restored navigation pages use selected-tenant APIs, not the legacy global controllers.
   check(await hit('/workspace-business/'+a.org.id+'/tasks',a.cookie),200,'Own workspace tasks');
@@ -60,6 +69,13 @@ async function main(){
   check(await hit('/workspace-business/'+b.org.id+'/campaigns',a.cookie),403,'Foreign company campaigns denied');
   const campaign=await hit('/workspace-business/'+a.org.id+'/campaigns',a.cookie,{method:'POST',body:JSON.stringify({name:'Fictional CI campaign',sector:'Sports'})});
   check(campaign,201,'Create scoped campaign');
+  check(await hit('/workspace-business/'+a.org.id+'/campaigns/'+campaign.body.id+'/accounts',a.cookie,{method:'POST',body:JSON.stringify({accountId:a.account.id})}),201,'Enroll own account in campaign');
+  check(await hit('/workspace-business/'+b.org.id+'/campaigns/'+campaign.body.id+'/accounts',a.cookie,{method:'POST',body:JSON.stringify({accountId:a.account.id})}),403,'Cross-tenant campaign enrollment denied');
+  check(await hit('/workspace-business/'+a.org.id+'/campaigns/'+campaign.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'ACTIVE'})}),200,'Activate own campaign');
+  check(await hit('/workspace-intelligence/'+a.org.id+'/accounts/'+a.account.id+'/research',a.cookie,{method:'POST',body:'{}'}),201,'Run tenant-scoped demo research');
+  check(await hit('/workspace-intelligence/'+b.org.id+'/accounts/'+a.account.id+'/research',a.cookie,{method:'POST',body:'{}'}),403,'Foreign intelligence run denied');
+  check(await hit('/workspace-integrations/'+a.org.id+'/gmail/status',a.cookie),200,'Read own Gmail connection readiness');
+  check(await hit('/workspace-integrations/'+b.org.id+'/gmail/status',a.cookie),403,'Foreign Gmail readiness denied');
   const newOpportunity=await hit('/workspace-business/'+a.org.id+'/accounts/'+a.account.id+'/opportunities',a.cookie,{method:'POST',body:JSON.stringify({title:'CI Pipeline Deal',serviceLine:'Computer vision'})});
   check(newOpportunity,201,'Create tenant pipeline opportunity');
   check(await hit('/workspace-business/'+a.org.id+'/opportunities',a.cookie),200,'Read tenant Kanban');
