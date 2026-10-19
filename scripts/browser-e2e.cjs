@@ -59,7 +59,7 @@ async function main(){
   await page.waitForURL('**/dashboard',{timeout:15000});
   // Existing Seebot staff cannot create a second company. Simulate receiving another team's invitation.
   const name='CI Browser Organization '+unique;
-  await db.organization.create({data:{slug:'ci-browser-'+unique,name,status:'SETUP',memberships:{create:{userId:user.id,role:'MEMBER',status:'ACTIVE'}}}});
+  await db.organization.create({data:{slug:'ci-browser-'+unique,name,status:'SETUP',memberships:{create:{userId:user.id,role:'ADMIN',status:'ACTIVE'}}}});
   await page.goto('/workspaces');
   await page.getByRole('heading',{name:'Company workspaces'}).waitFor();
   await page.getByText('Creating another company is not available.').waitFor();
