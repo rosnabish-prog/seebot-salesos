@@ -13,7 +13,7 @@ if(process.env.CI!=='true'||!process.env.DATABASE_URL?.includes('ci_only_passwor
  throw Error('Cross-tenant tests require the isolated disposable CI database and test environment.');
 function token(user,orgId){
  const s=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
- const body=s({sub:user.id,pv:user.passwordVersion,wid:orgId,mfa:true,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
+ const body=s({sub:user.id,pv:user.passwordVersion,wid:orgId,mfa:true,authAt:Date.now(),iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
  const head=s({typ:'JWT',alg:'HS256'});
  return head+'.'+body+'.'+createHmac('sha256',jwtSecret).update(head+'.'+body).digest('base64url');
 }
