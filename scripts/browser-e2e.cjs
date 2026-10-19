@@ -73,9 +73,9 @@ async function main(){
   await page.getByRole('link',{name:'Executive Overview'}).click();
   await page.getByRole('heading',{name:'Executive Overview'}).waitFor();
   await page.getByRole('link',{name:'Tasks & Follow-ups'}).click();
-  await page.getByRole('heading',{name:'Tasks & Follow-ups'}).waitFor();
+  await page.getByRole('heading',{name:'Tasks & Follow-ups',exact:true}).waitFor();
   await page.getByRole('link',{name:'Campaigns'}).click();
-  await page.getByRole('heading',{name:'Campaigns'}).waitFor();
+  await page.getByRole('heading',{name:'Campaigns',exact:true}).waitFor();
   await page.getByRole('link',{name:/Prospects & Accounts/i}).click();
   await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
 
