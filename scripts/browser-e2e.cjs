@@ -103,7 +103,7 @@ async function main(){
   await page.getByLabel('Questionnaire name').fill(questionnaireName);
   await page.getByRole('button',{name:'Create questionnaire'}).click();
   await page.getByText('Questionnaire created.').waitFor({timeout:10000});
-  await page.getByRole('link',{name:'Client Management'}).click();
+  await page.getByRole('navigation',{name:'Company navigation'}).getByRole('link',{name:'Client Management'}).click();
   await page.getByText(prospect,{exact:true}).waitFor({timeout:10000});
   await page.getByRole('link',{name:'Open '+prospect}).click();
   await page.getByRole('heading',{name:prospect}).waitFor({timeout:10000});
