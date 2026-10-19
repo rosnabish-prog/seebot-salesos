@@ -3,6 +3,7 @@ import {PrismaService} from '../prisma/prisma.service';
 import {createHash,randomBytes} from 'node:crypto';
 import argon2 from 'argon2';
 import nodemailer from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 const sha=(v:string)=>createHash('sha256').update(v).digest('hex');
 const validEmail=(s:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)&&s.length<=254;
@@ -29,13 +30,14 @@ export class AccountRecoveryService{
  }
  private async send(to:string,subject:string,body:string){
   if(!this.smtpReady())throw new ServiceUnavailableException('Email delivery is not configured.');
-  const transport=nodemailer.createTransport({
+  const options:SMTPTransport.Options={
    host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT||587),
    secure:Number(process.env.SMTP_PORT||587)===465,
    auth:{user:process.env.SMTP_USER,password:process.env.SMTP_PASSWORD},
    requireTLS:Number(process.env.SMTP_PORT||587)!==465,
    connectionTimeout:10000,socketTimeout:12000
-  });
+  };
+  const transport=nodemailer.createTransport(options);
   try{await transport.sendMail({from:process.env.SMTP_FROM,to,subject,text:body});}
   finally{transport.close();}
  }
