@@ -5,13 +5,14 @@ import {useParams} from 'next/navigation';
 import type {StageId} from '@seebot/shared';
 import {request,post} from '@/lib/api';
 import {Badge,BrandSelect,Button,ErrorMessage,Field,PageTop,Panel} from '@/components/ui';
+import {OpportunityIntelligence} from '@/components/opportunity-intelligence';
 type Opportunity={id:string;title:string;stage:StageId;status:string;serviceLine:string;account:{name:string;domain:string};stageVisits:{id:string;stage:string;evidence:Record<string,string>}[];contracts:{id:string;title:string;status:string}[]};
 type StageField={key:string;label:string;type:'text'|'textarea'|'date'|'select'|'checkbox';required?:boolean;options?:string[];help?:string;autoFill?:string};
 type StageConfig={id:StageId;label:string;short:string;fields:StageField[]};
 type StageState={missing:string[];ready:boolean;evidence:Record<string,string>;prefill:Record<string,string>;visitId:string;stage:StageConfig};
 export default function TenantOpportunity(){
  const params=useParams(),org=String(params.id||''),id=String(params.opportunityId||'');
- const [deal,setDeal]=useState<Opportunity|null>(null),[state,setState]=useState<StageState|null>(null),[fields,setFields]=useState<Record<string,string>>({}),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [deal,setDeal]=useState<Opportunity|null>(null),[state,setState]=useState<StageState|null>(null),[fields,setFields]=useState<Record<string,string>>({}),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[intelligence,setIntelligence]=useState<'research'|'contacts'|'outreach'>('research');
  async function refresh(){
   const [record,stage]=await Promise.all([request<Opportunity>('/workspace-business/'+org+'/opportunities/'+id),request<StageState>('/workspace-business/'+org+'/opportunities/'+id+'/stage-state')]);
   setDeal(record);setState(stage);
@@ -41,6 +42,7 @@ export default function TenantOpportunity(){
    :field.type==='checkbox'?<label className="checkbox-line"><input type="checkbox" checked={fields[field.key]==='true'} onChange={e=>setFields(x=>({...x,[field.key]:e.target.checked?'true':'false'}))}/>Confirmed</label>
    :<input type={field.type==='date'?'date':'text'} maxLength={5000} value={fields[field.key]||''} onChange={e=>setFields(x=>({...x,[field.key]:e.target.value}))}/>}
   </Field>)}<Button loading={saving} type="submit">Save & validate stage</Button></form></Panel>}
+  {deal&&<Panel title="Sales intelligence & outreach"><div className="segmented-control" role="tablist" aria-label="Sales intelligence section"><button type="button" role="tab" aria-selected={intelligence==='research'} className={intelligence==='research'?'selected':''} onClick={()=>setIntelligence('research')}>Research</button><button type="button" role="tab" aria-selected={intelligence==='contacts'} className={intelligence==='contacts'?'selected':''} onClick={()=>setIntelligence('contacts')}>Contacts</button><button type="button" role="tab" aria-selected={intelligence==='outreach'} className={intelligence==='outreach'?'selected':''} onClick={()=>setIntelligence('outreach')}>Outreach</button></div><OpportunityIntelligence accountId={deal.account.id} orgId={org} section={intelligence} editable={deal.status==='OPEN'}/></Panel>}
   {deal&&<Panel title="Contracts">{deal.contracts.length?deal.contracts.map(c=><div className="record-row" key={c.id}><strong>{c.title}</strong><Badge>{c.status}</Badge></div>):<p className="muted small-text">No contracts yet. Create a draft only when the opportunity reaches a contracting step.</p>}<Link className="text-link" href={'/workspaces/'+org+'/business'}>Go to contracts & finance</Link></Panel>}
  </section>;
 }
