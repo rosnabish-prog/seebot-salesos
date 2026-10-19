@@ -43,6 +43,8 @@ set('SMTP_FROM','SalesOS Preview <no-reply@seebot.example>');
 set('EMAIL_SIGNUP_ENABLED','false');
 set('GMAIL_SENDING_ENABLED','false');
 set('SIGNING_ENABLED','false');
+if(!/^.{32,}$/.test((body.match(/^MFA_CODE_SECRET=(.*)$/m)||[])[1]?.replace(/^["']|["']$/g,'')||''))set('MFA_CODE_SECRET',crypto.randomBytes(32).toString('hex'));
+if(!/^.{43,}$/.test((body.match(/^APP_ENCRYPTION_KEY=(.*)$/m)||[])[1]?.replace(/^["']|["']$/g,'')||''))set('APP_ENCRYPTION_KEY',crypto.randomBytes(32).toString('base64'));
 set('SEED_DEMO_DATA','false');
 if(fresh){
  const password=crypto.randomBytes(24).toString('base64url');
