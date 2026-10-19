@@ -77,7 +77,7 @@ async function main(){
   await row.getByRole('button',{name:'Open'}).click();
   await page.waitForURL(/\/workspaces\/[^/]+$/,{timeout:15000});
   await page.getByRole('heading',{name:/Good morning/}).waitFor();
-  await page.getByRole('link',{name:'Kanban Pipeline'}).click();
+  await page.getByRole('link',{name:'Kanban Pipeline',exact:true}).click();
   await page.getByRole('heading',{name:'Kanban Pipeline'}).waitFor();
   await page.getByRole('link',{name:'Executive Overview'}).click();
   await page.getByRole('heading',{name:'Executive Overview'}).waitFor();
@@ -208,7 +208,7 @@ async function main(){
    await pipelinePanel.getByLabel('Stage name').fill('CI Qualified Research');
    await pipelinePanel.getByRole('button',{name:'Save pipeline settings'}).click();
    await newPage.getByText('Pipeline settings saved.').waitFor({timeout:10000});
-   await newPage.getByRole('link',{name:'Kanban Pipeline'}).click();
+   await newPage.getByRole('link',{name:'Kanban Pipeline',exact:true}).click();
    await newPage.getByText('CI Qualified Research',{exact:true}).waitFor({timeout:10000});
    await newPage.getByRole('link',{name:/Prospects & Accounts/i}).click();
    await newPage.getByRole('button',{name:'Skip — return to company home'}).click();
