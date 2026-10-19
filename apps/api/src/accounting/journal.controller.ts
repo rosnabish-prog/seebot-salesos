@@ -15,6 +15,7 @@ export class JournalController{
  @Get(':orgId/verify')async check(@Req()req:AuthRequest,@Param('orgId')orgId:string){await this.verify(req,orgId);return this.journal.verify(orgId);}
  @Get(':orgId/coverage')async coverage(@Req()req:AuthRequest,@Param('orgId')orgId:string){await this.verify(req,orgId);return this.journal.coverage(orgId);}
  @Post(':orgId/journals/:journalId/reverse')async reverse(@Req()req:AuthRequest,@Param('orgId')orgId:string,@Param('journalId')journalId:string,@Body()body:any){await this.verify(req,orgId);return this.journal.reverse(orgId,journalId,req.user.id,String(body?.reason||''));}
- @Post(':orgId/bank-rows')async bank(@Req()req:AuthRequest,@Param('orgId')orgId:string,@Body()body:any){await this.verify(req,orgId);return this.journal.importBankRow(orgId,req.user.id,body);}
+ @Get(':orgId/reconciliation')async reconciliation(@Req()req:AuthRequest,@Param('orgId')orgId:string){await this.verify(req,orgId);return this.journal.reconciliation(orgId);}
+  @Post(':orgId/bank-rows')async bank(@Req()req:AuthRequest,@Param('orgId')orgId:string,@Body()body:any){await this.verify(req,orgId);return this.journal.importBankRow(orgId,req.user.id,body);}
  @Post(':orgId/bank-rows/:rowId/match')async match(@Req()req:AuthRequest,@Param('orgId')orgId:string,@Param('rowId')rowId:string,@Body()body:any){await this.verify(req,orgId);if(!body?.paymentId)throw new BadRequestException('Payment ID required.');return this.journal.match(orgId,rowId,String(body.paymentId),req.user.id);}
 }
