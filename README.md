@@ -10,6 +10,21 @@
 
 # Seebot SalesOS — First Working Development Milestone
 
+## Run in GitHub Codespaces (private development preview)
+
+1. Open the repository's **Code → Codespaces** tab, start a Codespace from `feature/ci-isolation-finance-audit`, and open a new Bash terminal.
+2. If the Codespace is on `main`, switch to the feature branch first. Untracked generated `package-lock.json` is harmless.
+3. In the repository root, run `git pull --ff-only` and then `bash scripts/start-codespaces.sh`.
+4. The helper creates a private `.env` on first use, generates random test credentials, starts Docker PostgreSQL/Redis, applies the schema to the disposable preview database, seeds the admin and starts both servers.
+5. In the **Ports** tab, ensure port **3000** has **Private** visibility and open its forwarded HTTPS URL. The API is proxied on the same origin under `/api` and does not need a public port 4000.
+6. Log in with the local admin email/password shown by the script. Do not paste that password into a chat, issue or commit. The environment and credentials are for a development preview, not a production deployment.
+
+**Prerequisites:** Codespace must support `docker info` (Docker daemon and Compose). The helper refuses to continue if Docker is unavailable, to avoid a partial database setup. Existing `.env` admin credentials are preserved. The script always keeps Google self-registration, external signing, and Gmail delivery disabled. Creating a new Google-only user requires a separately configured Google OAuth client and an explicit, audited opt-in; it is not enabled by this helper.
+
+**Security:** Codespaces forwarding is an authenticated development preview. Keep forwarded ports private and do not put real customer, payment or signing data in this deployment. The local `prisma db push` is only for a disposable PostgreSQL database, never production.
+
+
+
 A **real full-stack implementation scaffold and vertical slice** for Seebot's private B2B sales operations app. It uses the user's approved light-theme screenshot layout, Seebot orange (`#FF7A3D`), a Kanban-first pipeline, comments, evidence-based automatic stage advancement, and dashboards with smooth cubic Bézier trends.
 
 > **Status: development milestone, NOT a production release.** The source code was created in a restricted environment with no network access to npm and no Docker runtime. Dependencies could not be installed, the database migration could not be executed here, and live end-to-end testing has **not** been completed. See `docs/BUILD_STATUS.md` for what is functional in source versus incomplete.
