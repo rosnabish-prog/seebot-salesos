@@ -1,7 +1,7 @@
 'use client';
 import {useParams} from 'next/navigation';
-import WorkspacesPage from '../../page';
+import {WorkspaceManagement} from '@/components/organization/workspace-management';
 export default function TenantSettings(){
  const params=useParams();
- return <WorkspacesPage embeddedWorkspaceId={String(params.id||'')}/>;
+ return <WorkspaceManagement embeddedWorkspaceId={String(params.id||'')}/>;
 }
