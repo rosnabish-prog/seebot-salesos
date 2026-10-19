@@ -40,6 +40,16 @@ export class JournalService{
   const missing={invoices:docs.filter(x=>!keys.has(`invoice:${x.invoiceId}:issued`)).map(x=>x.invoiceId),payments:payments.filter(x=>!keys.has(`payment:${x.id}`)).map(x=>x.id),credits:credits.filter(x=>!keys.has(`credit:${x.adjustmentId}:issued`)).map(x=>x.adjustmentId)};
   return {organizationId,missing,complete:Object.values(missing).every(a=>a.length===0),truncated:docs.length===3000||payments.length===3000||credits.length===3000||journals.length===15000,notice:'Legacy records without journals require finance-approved opening postings; never silently fabricate historical ledger entries.'};
  }
+ async reconciliation(organizationId:string){
+  const [rows,payments]=await Promise.all([
+   this.db.bankStatementRow.findMany({where:{organizationId},include:{paymentRecord:{select:{id:true,reference:true,amount:true,paidAt:true,invoice:{select:{id:true,number:true,currency:true,account:{select:{name:true}}}}}}},orderBy:{valueDate:'desc'},take:300}),
+   this.db.paymentRecord.findMany({where:{invoice:{account:{organizationId}}},include:{invoice:{select:{id:true,number:true,currency:true,account:{select:{name:true}}}},statementMatch:{select:{id:true}}},orderBy:{paidAt:'desc'},take:500})
+  ]);
+  return {
+   rows:rows.map(r=>({...r,amountMinor:r.amountMinor.toString()})),
+   payments:payments.map(p=>({id:p.id,reference:p.reference,amount:p.amount.toString(),paidAt:p.paidAt,invoice:p.invoice,matched:Boolean(p.statementMatch)}))
+  };
+ }
  async importBankRow(orgId:string,actorId:string,body:any){
   const bankAccountReference=String(body?.bankAccountReference||'').trim(),statementReference=String(body?.statementReference||'').trim();
   if(!bankAccountReference||bankAccountReference.length>100||!statementReference||statementReference.length>150)throw new BadRequestException('Bank account and statement references required.');
