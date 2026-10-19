@@ -2,7 +2,8 @@
 import {useEffect,useState,FormEvent,KeyboardEvent} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
-import {Building2,Check,ChevronLeft,ChevronRight,Mail,Plus,ShieldCheck,UsersRound,X} from 'lucide-react';
+import {useAuth} from '@/context/auth';
+import {Building2,Check,ChevronLeft,ChevronRight,Mail,Plus,ShieldCheck,UsersRound,X,LogOut} from 'lucide-react';
 import {request,post,patch} from '@/lib/api';
 import {Button,ErrorMessage,Field,BrandSelect} from '@/components/ui';
 
@@ -14,7 +15,7 @@ const industries=['Technology & Software','AI & Data','Computer Vision','Sports 
 const countries=[['GB','United Kingdom'],['NP','Nepal'],['US','United States'],['IN','India'],['CA','Canada'],['AU','Australia'],['DE','Germany'],['FR','France'],['SG','Singapore'],['AE','United Arab Emirates'],['IL','Israel']];
 const currencies=['GBP','USD','NPR','INR','EUR','CAD','AUD','SGD','AED','ILS'];
 const zones=['Europe/London','Asia/Kathmandu','America/New_York','America/Los_Angeles','Asia/Kolkata','Europe/Berlin','Asia/Singapore','Asia/Dubai','Australia/Sydney','UTC'];
-const companyDefaults={name:'',website:'',industry:'Technology & Software',country:'GB',timezone:'Europe/London',defaultCurrency:'GBP',legalName:'',description:'',idealCustomers:'',services:'',targetIndustries:'',billingAddress:'',logoUrl:'',taxRegistrationNumber:''};
+const companyDefaults={name:'',website:'',industry:'',country:'',timezone:'',defaultCurrency:'',legalName:'',description:'',idealCustomers:'',services:'',targetIndustries:'',billingAddress:'',logoUrl:'',taxRegistrationNumber:''};
 const emailPattern=/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 function EmailChips({emails,setEmails,disabled=false}:{emails:string[];setEmails:(xs:string[])=>void;disabled?:boolean}){
  const [draft,setDraft]=useState(''),[error,setError]=useState('');
@@ -47,7 +48,7 @@ function SelectField({label,value,onChange,options,disabled=false}:{label:string
 }
 const optionize=(list:string[])=>list.map(value=>({value,label:value}));
 export default function WorkspacesPage(){
- const router=useRouter();
+ const router=useRouter(),{logout}=useAuth();
  const [items,setItems]=useState<Workspace[]>([]),[loaded,setLoaded]=useState(false),[selected,setSelected]=useState<Workspace|null>(null);
  const [profile,setProfile]=useState(companyDefaults),[createForm,setCreateForm]=useState(companyDefaults),[stage,setStage]=useState<'company'|'invite'|'complete'>('company');
  const [emails,setEmails]=useState<string[]>([]),[inviteRole,setInviteRole]=useState('MEMBER'),[results,setResults]=useState<SendResult[]>([]),[members,setMembers]=useState<any[]>([]),[invitations,setInvitations]=useState<Invitation[]>([]);
@@ -72,7 +73,7 @@ export default function WorkspacesPage(){
   try{
    const w=await post<Workspace>('/workspaces',{
     name:createForm.name.trim(),website:createForm.website.trim(),industry:createForm.industry,
-    country:createForm.country,timezone:createForm.timezone,defaultCurrency:createForm.defaultCurrency
+    ...(createForm.country?{country:createForm.country}:{}),...(createForm.timezone?{timezone:createForm.timezone}:{}),...(createForm.defaultCurrency?{defaultCurrency:createForm.defaultCurrency}:{})
    });
    await post('/workspaces/'+w.id+'/select',{});
    setItems([w]);setSelected(w);setProfile({...companyDefaults,...createForm});setStage('invite');
@@ -100,10 +101,9 @@ export default function WorkspacesPage(){
   e.preventDefault();if(!selected)return;setBusy(true);setError('');setNotice('');
   try{
    await patch('/workspaces/'+selected.id+'/profile',{
-    ...profile,services:profile.services.split(',').map(x=>x.trim()).filter(Boolean),
-    targetIndustries:profile.targetIndustries.split(',').map(x=>x.trim()).filter(Boolean)
+    ...profile,services:profile.services.split(',').map(x=>x.trim()).filter(Boolean)
    });
-   setNotice('Company settings saved successfully.');
+   router.push('/workspaces/'+selected.id);
   }catch(e){setError(e instanceof Error?e.message:'Could not save company settings.');}
   finally{setBusy(false);}
  }
@@ -112,7 +112,7 @@ export default function WorkspacesPage(){
   try{
    const selection=await post<{crmEnabled:boolean;tenantCrmEnabled:boolean}>('/workspaces/'+w.id+'/select',{});
    if(selection.crmEnabled)router.push('/dashboard');
-   else if(selection.tenantCrmEnabled)router.push('/workspaces/'+w.id+'/accounts');
+   else if(selection.tenantCrmEnabled)router.push('/workspaces/'+w.id);
    else await open(w);
   }catch(e){setError(e instanceof Error?e.message:'Could not select the workspace.');}
   finally{setBusy(false);}
@@ -137,18 +137,18 @@ export default function WorkspacesPage(){
    <div className="ws-two"><Field label="Company name *"><input required disabled={disabled} value={form.name} onChange={e=>set('name')(e.target.value)} maxLength={160} placeholder="Acme Technologies"/></Field>
     <Field label="Company website"><input type="url" disabled={disabled} value={form.website} onChange={e=>set('website')(e.target.value)} placeholder="https://company.com"/></Field></div>
    <div className="ws-two">
-    <SelectField label="Industry" value={form.industry} onChange={set('industry')} options={optionize(industries)} disabled={disabled}/>
-    <SelectField label="Country" value={form.country} onChange={set('country')} options={countries.map(([value,label])=>({value,label}))} disabled={disabled}/>
+    <SelectField label="Industry (optional)" value={form.industry} onChange={set('industry')} options={[{value:'',label:'Select an industry (optional)'},...optionize(industries)]} disabled={disabled}/>
+    <SelectField label="Country (optional)" value={form.country} onChange={set('country')} options={[{value:'',label:'Select a country'},...countries.map(([value,label])=>({value,label}))]} disabled={disabled}/>
    </div>
    <div className="ws-two">
-    <SelectField label="Currency" value={form.defaultCurrency} onChange={set('defaultCurrency')} options={optionize(currencies)} disabled={disabled}/>
-    <SelectField label="Time zone" value={form.timezone} onChange={set('timezone')} options={optionize(zones)} disabled={disabled}/>
+    <SelectField label="Currency (optional)" value={form.defaultCurrency} onChange={set('defaultCurrency')} options={[{value:'',label:'Choose currency later'},...optionize(currencies)]} disabled={disabled}/>
+    <SelectField label="Time zone (optional)" value={form.timezone} onChange={set('timezone')} options={[{value:'',label:'Choose time zone later'},...optionize(zones)]} disabled={disabled}/>
    </div>
   </div>;
  }
  const admin=selected&&['ADMIN','OWNER'].includes(selected.role);
  return <main className="ws-page"><div className="ws-container">
-  <header className="ws-top"><Link href="/entry" className="ws-back"><ChevronLeft size={16}/> Workspace entry</Link><span className="ws-kicker"><ShieldCheck size={14}/> PRIVATE COMPANY WORKSPACES</span></header>
+  <header className="ws-top"><div className="ws-nav-buttons"><Link href={selected?'/workspaces/'+selected.id:'/login'} className="ws-back"><ChevronLeft size={16}/> {selected?'Company home':'Back to login'}</Link><span className="ws-kicker"><ShieldCheck size={14}/> PRIVATE COMPANY WORKSPACES</span></div><Button variant="secondary" type="button" onClick={async()=>{await logout();router.replace('/login');}}><LogOut size={15}/> Sign out</Button></header>
   <ErrorMessage message={error}/>{notice&&<div role="status" className="ws-notice"><Check size={16}/>{notice}</div>}
   {!loaded?<div className="ws-card ws-centered"><h2>Loading company workspace…</h2></div>:!items.length&&!selected?
   <section className="ws-card ws-centered">
@@ -157,7 +157,7 @@ export default function WorkspacesPage(){
    <p className="ws-intro">Set up the workspace for your team. Your work email must use a company domain, and the company website must match that domain.</p>
    <form onSubmit={create} className="ws-form">
     {fieldGroup(createForm,'create')}
-    <p className="ws-field-note">You will be assigned the <strong>Administrator</strong> role. Each account may create only one company workspace.</p>
+    <p className="ws-field-note">Only the company name is required. The other details are optional and can be configured in Settings later. You'll be the Administrator of your company workspace.</p>
     <Button className="full-width ws-main-cta" type="submit" loading={busy}>Create workspace <ChevronRight size={17}/></Button>
    </form>
   </section>:stage==='invite'&&selected?
@@ -168,7 +168,8 @@ export default function WorkspacesPage(){
    <Field label="Team email addresses"><EmailChips emails={emails} setEmails={setEmails} disabled={busy}/></Field>
    <SelectField label="Invited teammates' role" value={inviteRole} onChange={setInviteRole} options={[{value:'MEMBER',label:'Member'},{value:'ADMIN',label:'Administrator'},{value:'FINANCE',label:'Finance'}]}/>
    <div className="ws-actions"><Button className="full-width ws-main-cta" type="button" onClick={()=>void sendInvitations()} disabled={!emails.length} loading={busy}><Mail size={17}/> Send team invitations</Button>
-    <Button variant="secondary" className="full-width" type="button" onClick={()=>void open(selected)}>Continue to workspace settings <ChevronRight size={16}/></Button></div>
+    <Button variant="secondary" className="full-width" type="button" onClick={()=>router.push('/workspaces/'+selected.id)}>Skip for now — go to company home <ChevronRight size={16}/></Button>
+    <Button variant="ghost" className="full-width" type="button" onClick={()=>void open(selected)}>Review optional company settings</Button></div>
    <p className="ws-field-note">Emails are sent through the connected provider. In a private Codespace, test emails go to the private inbox on port 8025. Unsent invitations have a secure manual link below.</p>
    {results.map((r,i)=><div className="ws-delivery" key={r.recipientEmail+'-'+i}><strong>{r.recipientEmail}</strong><small>{r.delivery==='SENT'?'Sent by email':r.delivery==='SENT_PREVIEW'?'Delivered to private test inbox':'Not emailed'}</small>{r.inviteUrl&&<div className="ws-copy-row"><input value={r.inviteUrl} readOnly aria-label={'Invite link '+r.recipientEmail}/><Button variant="secondary" type="button" onClick={()=>void navigator.clipboard.writeText(r.inviteUrl!)}>Copy link</Button></div>}</div>)}
   </section>:selected?
@@ -179,12 +180,12 @@ export default function WorkspacesPage(){
     <div className="ws-two"><Field label="Registered legal name"><input disabled={!admin} value={profile.legalName} onChange={e=>change('legalName',e.target.value,'profile')}/></Field>
       <Field label="Company logo URL (HTTPS)"><input type="url" disabled={!admin} value={profile.logoUrl} onChange={e=>change('logoUrl',e.target.value,'profile')}/></Field></div>
     <div className="ws-two"><Field label="Services (comma separated)"><input disabled={!admin} value={profile.services} onChange={e=>change('services',e.target.value,'profile')} placeholder="Data annotation, AI services"/></Field>
-      <Field label="Target industries (comma separated)"><input disabled={!admin} value={profile.targetIndustries} onChange={e=>change('targetIndustries',e.target.value,'profile')}/></Field></div>
+      <Field label="Target customers (optional)"><input disabled={!admin} value={profile.idealCustomers} onChange={e=>change('idealCustomers',e.target.value,'profile')} placeholder="Who do you sell to?"/></Field></div>
     <Field label="Company description"><textarea rows={3} disabled={!admin} value={profile.description} onChange={e=>change('description',e.target.value,'profile')}/></Field>
-    <Field label="Ideal customers"><textarea rows={2} disabled={!admin} value={profile.idealCustomers} onChange={e=>change('idealCustomers',e.target.value,'profile')}/></Field>
-    <Field label="Invoice issuing address"><textarea rows={2} disabled={!admin} value={profile.billingAddress} onChange={e=>change('billingAddress',e.target.value,'profile')}/></Field>
-    <div className="ws-two"><Field label="Tax registration ID"><input disabled={!admin} value={profile.taxRegistrationNumber} onChange={e=>change('taxRegistrationNumber',e.target.value,'profile')}/></Field>{admin&&<Field label="Upload logo (PNG or JPEG)"><input type="file" accept="image/png,image/jpeg" onChange={e=>{const file=e.target.files?.[0];if(file)void uploadLogo(file)}}/></Field>}</div>
-    {admin&&<div className="ws-form-actions"><Button type="submit" loading={busy}>Save company settings <Check size={16}/></Button></div>}
+
+    <Field label="Billing address (optional — add before invoicing)"><input type="text" disabled={!admin} value={profile.billingAddress} onChange={e=>change('billingAddress',e.target.value,'profile')} placeholder="Address for invoices"/></Field>
+    <div className="ws-two"><Field label="Tax registration number (optional)"><input type="text" disabled={!admin} value={profile.taxRegistrationNumber} onChange={e=>change('taxRegistrationNumber',e.target.value,'profile')} placeholder="Company VAT / tax number"/></Field>{admin&&<Field label="Upload logo (PNG or JPEG)"><input type="file" accept="image/png,image/jpeg" onChange={e=>{const file=e.target.files?.[0];if(file)void uploadLogo(file)}}/></Field>}</div>
+    {admin&&<div className="ws-form-actions"><Button type="button" variant="secondary" onClick={()=>router.push('/workspaces/'+selected.id)}>Skip remaining details</Button><Button type="submit" loading={busy}>Save & continue <ChevronRight size={16}/></Button></div>}
    </form>
    {admin&&<div className="ws-team"><div className="ws-section-heading"><UsersRound size={18}/><h2>Team access</h2></div>
     <div className="ws-members">{members.map(m=><div className="ws-member-row" key={m.userId}><span><strong>{m.user.name}</strong><small>{m.user.email}</small></span><span className="ws-role-badge">{m.role==='OWNER'?'Administrator (Owner)':m.role==='ADMIN'?'Administrator':m.role}</span>
