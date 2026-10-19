@@ -6,7 +6,7 @@ import type {StageId} from '@seebot/shared';
 import {request,post} from '@/lib/api';
 import {Badge,BrandSelect,Button,ErrorMessage,Field,PageTop,Panel} from '@/components/ui';
 import {OpportunityIntelligence} from '@/components/opportunity-intelligence';
-type Opportunity={id:string;title:string;stage:StageId;status:string;serviceLine:string;account:{name:string;domain:string};stageVisits:{id:string;stage:string;evidence:Record<string,string>}[];contracts:{id:string;title:string;status:string}[]};
+type Opportunity={id:string;title:string;stage:StageId;status:string;serviceLine:string;account:{id:string;name:string;domain:string};stageVisits:{id:string;stage:string;evidence:Record<string,string>}[];contracts:{id:string;title:string;status:string}[]};
 type StageField={key:string;label:string;type:'text'|'textarea'|'date'|'select'|'checkbox';required?:boolean;options?:string[];help?:string;autoFill?:string};
 type StageConfig={id:StageId;label:string;short:string;fields:StageField[]};
 type StageState={missing:string[];ready:boolean;evidence:Record<string,string>;prefill:Record<string,string>;visitId:string;stage:StageConfig};
