@@ -7,6 +7,7 @@ import { BadRequestException } from '@nestjs/common';
 import { AppModule } from './app.module';
 async function bootstrap(){
   if(!process.env.JWT_SECRET||process.env.JWT_SECRET.length<32||process.env.JWT_SECRET.includes('REPLACE_'))throw Error('Set a strong JWT_SECRET (32+ chars).');
+  if(process.env.NODE_ENV==='production'&&(!process.env.MFA_CODE_SECRET||process.env.MFA_CODE_SECRET.length<32))throw Error('Set a separate strong MFA_CODE_SECRET (32+ chars) before production start.');
   const app=await NestFactory.create(AppModule);
   app.use(helmet());app.use(cookieParser());
   const allowedOrigin=process.env.CORS_ORIGIN||'http://localhost:3000';
