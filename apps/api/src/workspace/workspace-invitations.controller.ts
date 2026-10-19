@@ -9,6 +9,7 @@ import {IdentityGuard} from './identity.guard';
 import type {AuthRequest} from '../common/auth.guard';
 import {GoogleIdentityService} from '../integrations/google/google-identity.service';
 import {OutgoingMessageService} from '../communications/outgoing-message.service';
+import {companyDomain} from './company-email';
 
 type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 type GoogleInvite={token?:string;googleCredential?:string};
@@ -46,6 +47,7 @@ export class WorkspaceInvitationsController{
   const member=await this.admin(req,id);
   const email=String(body?.email||'').trim().toLowerCase(),name=String(body?.name||'').trim(),role=String(body?.role||'MEMBER');
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)||email.length>254||name.length<2||name.length>160||!validRoles.includes(role))throw new BadRequestException('Valid name, email and team role are required.');
+  companyDomain(email);
   const already=await this.db.user.findUnique({where:{email},select:{id:true}});
   if(already){
    const membership=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:already.id}}});
