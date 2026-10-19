@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState,type FormEvent} from 'react';
-import {Badge,BrandSelect,Button,ErrorMessage,Field,Panel} from '@/components/ui';
+import {BrandSelect,Button,ErrorMessage,Field,Panel} from '@/components/ui';
 import {post,patch,request} from '@/lib/api';
 
 type TaxRule={id:string;code:string;name:string;jurisdiction:string;treatment:string;ratePercent:string;status:string;invoiceNote:string|null;approvedAt:string|null};
