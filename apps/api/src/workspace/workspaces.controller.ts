@@ -6,6 +6,7 @@ import type {AuthRequest} from '../common/auth.guard';
 import {IdentityGuard} from './identity.guard';
 import {generateCompanySlug} from './workspace-policy';
 import {randomBytes} from 'node:crypto';
+import {providerReadiness} from '../integrations/status/provider-status';
 import {assertWebsiteEmailMatch} from './company-email';
 import {setWorkspaceCookie} from '../auth/session';
 @UseGuards(IdentityGuard) @Controller('workspaces')
@@ -54,7 +55,8 @@ export class WorkspacesController{
    if(admin&&!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator required.');
    return member;
  }
- @Get(':id/profile') async profile(@Req()req:AuthRequest,@Param('id')id:string){const m=await this.authorized(req,id);const settings=await this.db.workspaceSettings.findUnique({where:{organizationId:id}});return {organization:m.organization,settings,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))};}
+ @Get(':id/integration-status') async integrations(@Req()req:AuthRequest,@Param('id')id:string){await this.authorized(req,id);return providerReadiness(process.env);}
+  @Get(':id/profile') async profile(@Req()req:AuthRequest,@Param('id')id:string){const m=await this.authorized(req,id);const settings=await this.db.workspaceSettings.findUnique({where:{organizationId:id}});return {organization:m.organization,settings,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))};}
  @Patch(':id/profile') async update(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:any){
    const member=await this.authorized(req,id,true);
    const updates:any={};for(const key of ['name','legalName','website','industry','description','idealCustomers','country','timezone','defaultCurrency','logoUrl','billingAddress','taxRegistrationNumber']){
