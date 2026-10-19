@@ -8,6 +8,7 @@ import {WorkspaceCommercialCreationPanel} from '@/components/organization/worksp
 import {FinanceTaxRulesPanel} from '@/components/organization/tax-rules-panel';
 import {TenantFinanceInvoicePanel} from '@/components/organization/tenant-finance-invoice-panel';
 import {TenantAccountingPanel} from '@/components/organization/tenant-accounting-panel';
+import {TenantFinanceAutomationPanel} from '@/components/organization/tenant-finance-automation-panel';
 import {FileSignature,ReceiptText,ShieldCheck,WalletCards} from 'lucide-react';
 
 type Opportunity={id:string;accountId:string;title:string;stage:string;status:string};
@@ -49,6 +50,7 @@ export default function ContractsFinance(){
    </div>
    <TenantFinanceInvoicePanel orgId={orgId} invoices={invoices}/>
    <FinanceTaxRulesPanel organizationId={orgId} invoices={invoices}/>
+   <TenantFinanceAutomationPanel orgId={orgId} onChanged={refresh}/>
    <TenantAccountingPanel orgId={orgId}/>
   </>}
  </section>;
