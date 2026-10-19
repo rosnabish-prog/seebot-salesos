@@ -57,16 +57,14 @@ async function main(){
   await page.getByPlaceholder('Your password').fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await page.waitForURL('**/dashboard',{timeout:15000});
-  await page.goto('/workspaces');
-  await page.getByRole('heading',{name:'Company Workspaces'}).waitFor();
+  // Existing Seebot staff cannot create a second company. Simulate receiving another team's invitation.
   const name='CI Browser Organization '+unique;
-  await page.getByText('Create another company workspace').click();
-  await page.getByLabel('Company name').fill(name);
-  await page.getByPlaceholder('https://example.com').fill('https://company-'+unique+'.example');
-  await page.getByRole('button',{name:'Create workspace profile'}).click();
-  await page.getByText(name,{exact:true}).first().waitFor({timeout:10000});
-  const row=page.locator('.record-row').filter({hasText:name});
-  await row.getByRole('button',{name:'Open workspace'}).click();
+  await db.organization.create({data:{slug:'ci-browser-'+unique,name,status:'SETUP',memberships:{create:{userId:user.id,role:'MEMBER',status:'ACTIVE'}}}});
+  await page.goto('/workspaces');
+  await page.getByRole('heading',{name:'Company workspaces'}).waitFor();
+  await page.getByText('Creating another company is not available.').waitFor();
+  const row=page.locator('.ws-choice').filter({hasText:name});
+  await row.getByRole('button',{name:'Open'}).click();
   await page.waitForURL(/\/workspaces\/[^/]+\/accounts/,{timeout:15000});
   await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
   const prospect='Browser Fictional Prospect '+unique;
@@ -117,7 +115,7 @@ async function main(){
   console.log('PASS: browser login, company onboarding, prospect, opportunity, contract, invoice draft, tax rule, tax review, finance approval.');
 
   // A freshly authenticated account without a company must reach setup, not legacy CRM.
-  const guestEmail='ci-new-user-'+unique+'@example.invalid';
+  const guestEmail='ci-new-user-'+unique+'@fresh-'+unique+'.example';
   const guest=await db.user.create({data:{email:guestEmail,name:'CI New Workspace User',passwordHash:await argon2.hash(password),role:'SALES_REP'}});
   const newContext=await browser.newContext(),newPage=await newContext.newPage();
   try{
@@ -126,20 +124,22 @@ async function main(){
    await newPage.getByPlaceholder('Your password').fill(password);
    await newPage.getByRole('button',{name:'Sign in',exact:true}).click();
    await newPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
-   await newPage.getByText('Create your team workspace').waitFor();
+   await newPage.getByRole('heading',{name:'Create your company workspace'}).waitFor();
    const ownName='CI Fresh Team '+unique;
    await newPage.getByLabel('Company name').fill(ownName);
-   await newPage.getByPlaceholder('https://example.com').fill('https://fresh-'+unique+'.example');
-   await newPage.getByRole('button',{name:'Create workspace profile'}).click();
-   await newPage.getByRole('heading',{name:ownName+' · Organization Profile'}).waitFor({timeout:15000});
-   const ownerMembership=await db.organizationMembership.findFirst({where:{userId:guest.id,role:'OWNER'},include:{organization:true}});
-   assert.ok(ownerMembership,'New user becomes workspace owner.');
+   await newPage.getByPlaceholder('https://company.com').fill('https://fresh-'+unique+'.example');
+   await newPage.getByRole('button',{name:'Create workspace'}).click();
+   await newPage.getByRole('heading',{name:'Bring your team to '+ownName}).waitFor({timeout:15000});
+   const ownerMembership=await db.organizationMembership.findFirst({where:{userId:guest.id,role:'ADMIN'},include:{organization:true}});
+   assert.ok(ownerMembership,'New creator becomes the workspace administrator.');
    assert.equal(ownerMembership.organization.name,ownName);
-   await newPage.getByLabel('Team member name').fill('CI Invited Colleague');
-   await newPage.getByLabel('Invite email address').fill('ci-invite-browser-'+unique+'@example.invalid');
-   await newPage.getByRole('button',{name:'Create team invitation'}).click();
-   await newPage.getByLabel('One-time invitation URL').waitFor({timeout:10000});
-   const link=await newPage.getByLabel('One-time invitation URL').inputValue();
+   const invitedEmail='ci-invite-browser-'+unique+'@example.invalid';
+   const chips=newPage.getByLabel('Invite team email addresses');
+   await chips.fill(invitedEmail);
+   await chips.press('Enter');
+   await newPage.getByRole('button',{name:'Remove '+invitedEmail}).waitFor();
+   await newPage.getByRole('button',{name:'Send team invitations'}).click();
+   const link=await newPage.getByLabel('Invite link '+invitedEmail).inputValue({timeout:10000});
    assert.ok(new URL(link).searchParams.get('token'));
    const storedInvite=await db.workspaceInvitation.findFirst({where:{organizationId:ownerMembership.organizationId}});
    assert.equal(storedInvite?.status,'PENDING');
