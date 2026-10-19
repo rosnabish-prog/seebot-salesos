@@ -43,7 +43,8 @@ async function main(){
  const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  try{
   const page=await browser.newPage({baseURL:'http://localhost:3000'});
-  await page.goto('/login');
+  await page.goto('/');
+  await page.waitForURL('**/login');
   await page.getByRole('heading',{name:'Welcome back'}).waitFor();
   await page.getByRole('link',{name:'Create an account'}).waitFor();
   await page.getByRole('link',{name:'Forgot password?'}).click();
@@ -65,8 +66,11 @@ async function main(){
   await page.getByText('Creating another company is not available.').waitFor();
   const row=page.locator('.ws-choice').filter({hasText:name});
   await row.getByRole('button',{name:'Open'}).click();
-  await page.waitForURL(/\/workspaces\/[^/]+\/accounts/,{timeout:15000});
+  await page.waitForURL(/\/workspaces\/[^/]+$/,{timeout:15000});
+  await page.getByRole('heading',{name}).waitFor();
+  await page.getByRole('link',{name:/Prospects & accounts/}).click();
   await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
+  await page.getByRole('button',{name:'Skip — return to company home'}).waitFor();
   const prospect='Browser Fictional Prospect '+unique;
   await page.getByLabel('Company name').fill(prospect);
   await page.getByPlaceholder('https://example.com').fill('https://prospect-'+unique+'.example');
@@ -143,6 +147,99 @@ async function main(){
    assert.ok(new URL(link).searchParams.get('token'));
    const storedInvite=await db.workspaceInvitation.findFirst({where:{organizationId:ownerMembership.organizationId}});
    assert.equal(storedInvite?.status,'PENDING');
+   // Optional settings should not require invoice details and must return to company home.
+   await newPage.getByRole('button',{name:'Review optional company settings'}).click();
+   await newPage.getByRole('heading',{name:ownName}).waitFor({timeout:10000});
+   await newPage.getByRole('button',{name:'Save & continue'}).click();
+   await newPage.waitForURL(new RegExp('/workspaces/'+ownerMembership.organizationId+'
+  }finally{await newContext.close();}
+
+  // UI self-registration must create a standalone identity and route to company setup.
+  const signupContext=await browser.newContext(),signupPage=await signupContext.newPage();
+  try{
+   await signupPage.goto('http://localhost:3000/login');
+   await signupPage.getByRole('link',{name:'Create an account'}).click();
+   await signupPage.getByRole('heading',{name:'Get started with SalesOS'}).waitFor();
+   await signupPage.getByText(/Private development preview/).waitFor();
+   await signupPage.getByPlaceholder('Full name').fill('CI Signup User');
+   const signupEmail='ci-signup-ui-'+unique+'@example.invalid';
+   await signupPage.getByPlaceholder('name@company.com').fill(signupEmail);
+   await signupPage.getByPlaceholder('At least 12 characters').fill(password);
+   await signupPage.getByRole('button',{name:'Create account',exact:true}).click();
+   await signupPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
+   const newSignup=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
+   assert.equal(newSignup.organizationMemberships.length,0,'UI signup must not grant Seebot membership');
+  }finally{await signupContext.close();}
+  console.log('PASS: signup, forgot-password configuration and Google OAuth states visible in UI.');
+
+  // Multiple memberships require an explicit workspace choice on the next login.
+  await db.organization.create({data:{slug:'ci-second-'+unique,name:'CI Second Team '+unique,status:'SETUP',memberships:{create:{userId:guest.id,role:'MEMBER',status:'ACTIVE'}}}});
+  const multiContext=await browser.newContext(),multiPage=await multiContext.newPage();
+  try{
+   await multiPage.goto('http://localhost:3000/login');
+   await multiPage.getByPlaceholder('name@company.com').fill(guestEmail);
+   await multiPage.getByPlaceholder('Your password').fill(password);
+   await multiPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await multiPage.waitForURL(/\/workspaces(?:\?.*)?$/,{timeout:15000});
+   await multiPage.getByText('CI Second Team '+unique).waitFor({timeout:10000});
+  }finally{await multiContext.close();}
+  console.log('PASS: new-user workspace setup, team invitation link and multi-workspace selection.');
+
+ }finally{await browser.close();}
+}
+main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{
+ for(const cp of children)cp.kill('SIGTERM');
+ await db.$disconnect();
+});
+),{timeout:15000});
+   await newPage.getByRole('heading',{name:ownName}).waitFor();
+   await newPage.getByRole('link',{name:/Prospects & accounts/}).click();
+   await newPage.getByRole('button',{name:'Skip — return to company home'}).click();
+   await newPage.waitForURL(new RegExp('/workspaces/'+ownerMembership.organizationId+'
+  }finally{await newContext.close();}
+
+  // UI self-registration must create a standalone identity and route to company setup.
+  const signupContext=await browser.newContext(),signupPage=await signupContext.newPage();
+  try{
+   await signupPage.goto('http://localhost:3000/login');
+   await signupPage.getByRole('link',{name:'Create an account'}).click();
+   await signupPage.getByRole('heading',{name:'Get started with SalesOS'}).waitFor();
+   await signupPage.getByText(/Private development preview/).waitFor();
+   await signupPage.getByPlaceholder('Full name').fill('CI Signup User');
+   const signupEmail='ci-signup-ui-'+unique+'@example.invalid';
+   await signupPage.getByPlaceholder('name@company.com').fill(signupEmail);
+   await signupPage.getByPlaceholder('At least 12 characters').fill(password);
+   await signupPage.getByRole('button',{name:'Create account',exact:true}).click();
+   await signupPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
+   const newSignup=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
+   assert.equal(newSignup.organizationMemberships.length,0,'UI signup must not grant Seebot membership');
+  }finally{await signupContext.close();}
+  console.log('PASS: signup, forgot-password configuration and Google OAuth states visible in UI.');
+
+  // Multiple memberships require an explicit workspace choice on the next login.
+  await db.organization.create({data:{slug:'ci-second-'+unique,name:'CI Second Team '+unique,status:'SETUP',memberships:{create:{userId:guest.id,role:'MEMBER',status:'ACTIVE'}}}});
+  const multiContext=await browser.newContext(),multiPage=await multiContext.newPage();
+  try{
+   await multiPage.goto('http://localhost:3000/login');
+   await multiPage.getByPlaceholder('name@company.com').fill(guestEmail);
+   await multiPage.getByPlaceholder('Your password').fill(password);
+   await multiPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await multiPage.waitForURL(/\/workspaces(?:\?.*)?$/,{timeout:15000});
+   await multiPage.getByText('CI Second Team '+unique).waitFor({timeout:10000});
+  }finally{await multiContext.close();}
+  console.log('PASS: new-user workspace setup, team invitation link and multi-workspace selection.');
+
+ }finally{await browser.close();}
+}
+main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{
+ for(const cp of children)cp.kill('SIGTERM');
+ await db.$disconnect();
+});
+),{timeout:10000});
+   await newPage.getByRole('button',{name:'Sign out'}).click();
+   await newPage.waitForURL(/\/login$/,{timeout:10000});
+   await newPage.getByRole('heading',{name:'Welcome back'}).waitFor();
+
   }finally{await newContext.close();}
 
   // UI self-registration must create a standalone identity and route to company setup.
