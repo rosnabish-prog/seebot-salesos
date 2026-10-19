@@ -20,6 +20,14 @@ function launch(command,args,env,cwd=process.cwd()){
  children.push(cp);
  return {cp,logs:()=>output};
 }
+async function completeMfa(page){
+ await page.waitForURL('**/two-factor',{timeout:15000});
+ await page.getByRole('heading',{name:'Enter your verification code'}).waitFor();
+ const code=await page.evaluate(()=>{const raw=sessionStorage.getItem('salesos_mfa');return raw?JSON.parse(raw).testCode:'';});
+ assert.match(String(code),/^\d{6}$/,'CI MFA test code must be available only in test mode.');
+ await page.getByPlaceholder('000000').fill(String(code));
+ await page.getByRole('button',{name:'Verify & continue'}).click();
+}
 async function ready(url,processHandle){
  for(let attempt=0;attempt<90;attempt++){
   if(processHandle.cp.exitCode!==null)throw Error('Server terminated: '+processHandle.logs());
@@ -35,7 +43,7 @@ async function main(){
  const user=await db.user.create({data:{name:'CI Browser Reviewer',email,passwordHash:await argon2.hash(password),role:'SALES_REP'}});
  const org=await db.organization.upsert({where:{slug:'seebot'},create:{slug:'seebot',name:'CI Seebot',status:'ACTIVE'},update:{}});
  await db.organizationMembership.upsert({where:{organizationId_userId:{organizationId:org.id,userId:user.id}},create:{organizationId:org.id,userId:user.id,role:'MEMBER'},update:{status:'ACTIVE'}});
- const api=launch(process.execPath,['apps/api/dist/main.js'],{API_PORT:'4000',TENANT_SCOPED_CRM_PREVIEW:'true',DEV_EMAIL_SIGNUP_ENABLED:'true'});
+ const api=launch(process.execPath,['apps/api/dist/main.js'],{API_PORT:'4000',TENANT_SCOPED_CRM_PREVIEW:'true',DEV_EMAIL_SIGNUP_ENABLED:'true',MFA_TEST_MODE:'true'});
  const nextBin=require.resolve('next/dist/bin/next',{paths:[require('node:path').resolve('apps/web')]});
  const web=launch(process.execPath,[nextBin,'start','-p','3000','-H','127.0.0.1'],{NEXT_PUBLIC_API_URL:'http://localhost:4000'},path.resolve('apps/web'));
  await ready('http://127.0.0.1:4000/health',api);
@@ -57,6 +65,7 @@ async function main(){
   await page.getByPlaceholder('name@company.com').fill(email);
   await page.getByPlaceholder('Your password').fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  await completeMfa(page);
   await page.waitForURL('**/dashboard',{timeout:15000});
   // Existing Seebot staff cannot create a second company. Simulate receiving another team's invitation.
   const name='CI Browser Organization '+unique;
@@ -138,6 +147,7 @@ async function main(){
    await newPage.getByPlaceholder('name@company.com').fill(guestEmail);
    await newPage.getByPlaceholder('Your password').fill(password);
    await newPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await completeMfa(newPage);
    await newPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
    await newPage.getByRole('heading',{name:'Create your company workspace'}).waitFor();
    const ownName='CI Fresh Team '+unique;
@@ -198,6 +208,7 @@ async function main(){
    await multiPage.getByPlaceholder('name@company.com').fill(guestEmail);
    await multiPage.getByPlaceholder('Your password').fill(password);
    await multiPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await completeMfa(multiPage);
    await multiPage.waitForURL(/\/workspaces(?:\?.*)?$/,{timeout:15000});
    await multiPage.getByText('CI Second Team '+unique).waitFor({timeout:10000});
   }finally{await multiContext.close();}
