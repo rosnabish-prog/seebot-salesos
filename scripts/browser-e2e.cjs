@@ -125,7 +125,7 @@ async function main(){
    await surveyPage.getByRole('heading',{name:'Thank you for your feedback.'}).waitFor({timeout:10000});
   }finally{await surveyPage.close();}
   await page.getByRole('link',{name:'Client Satisfaction'}).click();
-  await page.getByRole('heading',{name:questionnaireName,exact:true}).waitFor({timeout:10000});
+  await page.locator('table.data-table tbody tr').filter({hasText:questionnaireName}).waitFor({timeout:10000});
   await page.getByRole('link',{name:'Contracts & Finance'}).click();
   await page.getByText('Finance tax rules').first().waitFor({timeout:10000});
   // Commercial actions are optional, not an artificial mandatory three-step wizard.
