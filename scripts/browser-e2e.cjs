@@ -96,6 +96,34 @@ async function main(){
   await page.getByPlaceholder('https://example.com').fill('https://prospect-'+unique+'.example');
   await page.getByRole('button',{name:'Create prospect'}).click();
   await page.getByText(prospect,{exact:true}).waitFor({timeout:10000});
+  const relationshipAccount=await db.account.findFirstOrThrow({where:{name:prospect}});
+  const relationshipOpportunity=await db.opportunity.findFirstOrThrow({where:{accountId:relationshipAccount.id},orderBy:{createdAt:'asc'}});
+  await db.opportunity.update({where:{id:relationshipOpportunity.id},data:{stage:'PILOT_CONTRACTED'}});
+  await page.getByRole('link',{name:'Client Management'}).click();
+  await page.getByText(prospect,{exact:true}).waitFor({timeout:10000});
+  await page.getByRole('link',{name:'Open '+prospect}).click();
+  await page.getByRole('heading',{name:prospect}).waitFor({timeout:10000});
+  await page.getByRole('heading',{name:'Send satisfaction survey'}).waitFor();
+  await page.getByRole('button',{name:'New questionnaire'}).click();
+  await page.getByLabel('Template name').fill('CI Relationship Questionnaire '+unique);
+  await page.getByRole('button',{name:'Save questionnaire'}).click();
+  await page.getByText('Questionnaire template created.').waitFor({timeout:10000});
+  await page.getByLabel('Recipient email').fill('fictional-client-'+unique+'@example.invalid');
+  await page.getByRole('button',{name:'Send survey'}).click();
+  const previewLink=page.getByRole('link',{name:'Open private preview questionnaire'});
+  await previewLink.waitFor({timeout:10000});
+  const previewUrl=await previewLink.getAttribute('href');assert.ok(previewUrl);
+  const surveyPage=await browser.newPage();
+  try{
+   await surveyPage.goto(previewUrl);
+   await surveyPage.getByRole('heading',{name:'CI Relationship Questionnaire '+unique}).waitFor({timeout:10000});
+   await surveyPage.getByRole('group',{name:'How would you rate your overall experience?'}).getByRole('button',{name:'5'}).click();
+   await surveyPage.getByRole('button',{name:'Submit feedback'}).click();
+   await surveyPage.getByRole('heading',{name:'Thank you for your feedback.'}).waitFor({timeout:10000});
+  }finally{await surveyPage.close();}
+  await page.reload();
+  await page.getByText('1').first().waitFor({timeout:10000});
+  await page.getByRole('link',{name:/Prospects & Accounts/i}).click();
   await page.getByRole('link',{name:'Business preview'}).click();
   await page.getByText('Finance tax rules').first().waitFor({timeout:10000});
   // Exercise the visible commercial workflow, not just the existence of the page.
@@ -174,6 +202,14 @@ async function main(){
    await newPage.getByRole('button',{name:'Save & continue'}).click();
    await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:15000});
    await newPage.getByRole('heading',{name:/Good morning/}).waitFor();
+   await newPage.getByRole('link',{name:'Team & Settings'}).click();
+   await newPage.getByRole('heading',{name:'Pipeline configuration'}).waitFor({timeout:10000});
+   const pipelinePanel=newPage.getByRole('heading',{name:'Pipeline configuration'}).locator('..');
+   await pipelinePanel.getByLabel('Stage name').fill('CI Qualified Research');
+   await pipelinePanel.getByRole('button',{name:'Save pipeline settings'}).click();
+   await newPage.getByText('Pipeline settings saved.').waitFor({timeout:10000});
+   await newPage.getByRole('link',{name:'Kanban Pipeline'}).click();
+   await newPage.getByText('CI Qualified Research',{exact:true}).waitFor({timeout:10000});
    await newPage.getByRole('link',{name:/Prospects & Accounts/i}).click();
    await newPage.getByRole('button',{name:'Skip — return to company home'}).click();
    await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:10000});
