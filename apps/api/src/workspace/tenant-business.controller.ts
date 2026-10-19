@@ -37,8 +37,8 @@ export class TenantBusinessController{
  @Get(':orgId/clients')async clients(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.scope.membership(req,orgId);
   const relationshipStages=['PILOT_CONTRACTED','PILOT_DELIVERED','PRODUCTION_NEGOTIATED','CLOSED_WON'];
-  const rows=await this.db.account.findMany({where:{organizationId:orgId,OR:[{status:'Customer'},{opportunities:{some:{stage:{in:relationshipStages}}}}]},select:{id:true,name:true,domain:true,status:true,clientSince:true,contacts:{select:{id:true,name:true,title:true,email:true}},opportunities:{select:{id:true,title:true,stage:true,status:true},orderBy:{updatedAt:'desc'}},invoices:{select:{id:true,number:true,status:true,total:true,currency:true,dueAt:true}}},take:100,orderBy:{updatedAt:'desc'}});
-  return rows.map(account=>{const highest=account.opportunities.reduce((best,o)=>Math.max(best,STAGE_INDEX[o.stage as keyof typeof STAGE_INDEX]??-1),-1);return {...account,relationshipStatus:account.status==='Customer'?'ACTIVE_CLIENT':highest>=STAGE_INDEX.PILOT_CONTRACTED?'CONTRACTING':'PROSPECT'};});
+  const rows=await this.db.account.findMany({where:{organizationId:orgId,OR:[{status:{in:['Contracting','Customer']}},{opportunities:{some:{stage:{in:relationshipStages}}}}]},select:{id:true,name:true,domain:true,status:true,clientSince:true,contacts:{select:{id:true,name:true,title:true,email:true}},opportunities:{select:{id:true,title:true,stage:true,status:true},orderBy:{updatedAt:'desc'}},invoices:{select:{id:true,number:true,status:true,total:true,currency:true,dueAt:true}}},take:100,orderBy:{updatedAt:'desc'}});
+  return rows.map(account=>{const highest=account.opportunities.reduce((best,o)=>Math.max(best,STAGE_INDEX[o.stage as keyof typeof STAGE_INDEX]??-1),-1);return {...account,relationshipStatus:account.status==='Customer'?'ACTIVE_CLIENT':account.status==='Contracting'||highest>=STAGE_INDEX.PILOT_CONTRACTED?'CONTRACTING':'PROSPECT'};});
  }
  @Get(':orgId/clients/:id')async client(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
   await this.scope.membership(req,orgId);await this.scope.account(orgId,id);
