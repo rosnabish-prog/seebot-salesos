@@ -18,6 +18,7 @@ export class MfaService{
   return Boolean(process.env.SMTP_HOST&&process.env.SMTP_FROM&&process.env.SMTP_USER&&process.env.SMTP_PASSWORD&&Number(process.env.SMTP_PORT||587)>0);
  }
  private async send(to:string,code:string){
+  if(process.env.NODE_ENV==='test'&&process.env.MFA_TEST_MODE==='true')return;
   if(!this.mailReady())throw new ServiceUnavailableException('Two-factor email delivery is not configured. Contact your administrator.');
   const port=Number(process.env.SMTP_PORT||587);
   const options:SMTPTransport.Options={host:process.env.SMTP_HOST,port,secure:port===465,
