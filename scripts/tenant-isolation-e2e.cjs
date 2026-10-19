@@ -11,9 +11,9 @@ const base='http://127.0.0.1:'+port+'/api';
 const jwtSecret=process.env.JWT_SECRET;
 if(process.env.CI!=='true'||!process.env.DATABASE_URL?.includes('ci_only_password')||!jwtSecret||process.env.NODE_ENV!=='test')
  throw Error('Cross-tenant tests require the isolated disposable CI database and test environment.');
-function token(user,orgId){
+function token(user,orgId,authAt=Date.now()){
  const s=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
- const body=s({sub:user.id,pv:user.passwordVersion,wid:orgId,mfa:true,authAt:Date.now(),iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
+ const body=s({sub:user.id,pv:user.passwordVersion,wid:orgId,mfa:true,authAt,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
  const head=s({typ:'JWT',alg:'HS256'});
  return head+'.'+body+'.'+createHmac('sha256',jwtSecret).update(head+'.'+body).digest('base64url');
 }
@@ -45,6 +45,7 @@ async function main(){
   }
   if(!ready)throw Error('API never became ready: '+output);
   check(await hit('/workspace-crm/'+a.org.id+'/accounts',a.cookie),200,'Own account list');
+  check(await hit('/auth/me',token(a.user,a.org.id,Date.now()-8*24*60*60*1000)),401,'Sessions older than seven days require fresh sign-in and MFA');
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+a.invoice.id,a.cookie),200,'Own invoice');
   check(await hit('/workspace-tax/'+a.org.id+'/rules',a.cookie),200,'Own finance rules');
 
@@ -107,6 +108,23 @@ async function main(){
   const surveyHistory=await hit('/workspace-surveys/'+a.org.id+'/clients/'+a.account.id,a.cookie);
   check(surveyHistory,200,'Survey response history remains tenant scoped');
   assert.equal(surveyHistory.body.aggregates.customResponses,1);
+  const satisfactionOverview=await hit('/workspace-surveys/'+a.org.id+'/overview',a.cookie);
+  check(satisfactionOverview,200,'Company satisfaction overview');
+  assert.equal(satisfactionOverview.body.summary.responses,1);
+  assert.ok(satisfactionOverview.body.ratings.some(r=>r.label==='Overall experience'&&r.average===5));
+  check(await hit('/workspace-surveys/'+b.org.id+'/overview',a.cookie),403,'Foreign satisfaction overview denied');
+
+  const health=await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/health',a.cookie);
+  check(health,200,'Own client health');
+  check(await hit('/workspace-business/'+b.org.id+'/clients/'+a.account.id+'/health',a.cookie),403,'Foreign client health denied');
+  const issue=await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/issues',a.cookie,{method:'POST',body:JSON.stringify({title:'Fictional delivery concern',details:'CI-only issue',severity:'HIGH'})});
+  check(issue,201,'Create own client issue');
+  check(await hit('/workspace-business/'+b.org.id+'/clients/'+a.account.id+'/issues',a.cookie,{method:'POST',body:JSON.stringify({title:'Forbidden',severity:'HIGH'})}),403,'Cross-tenant issue creation denied');
+  check(await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/issues/'+issue.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'RESOLVED'})}),200,'Resolve own client issue');
+  const milestone=await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones',a.cookie,{method:'POST',body:JSON.stringify({title:'Fictional acceptance milestone',acceptanceCriteria:'Written CI-only acceptance criteria'})});
+  check(milestone,201,'Create tenant delivery milestone');
+  check(await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones/'+milestone.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'ACCEPTED'})}),400,'Milestone acceptance requires evidence');
+  check(await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones/'+milestone.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'ACCEPTED',evidenceReference:'CI-EVIDENCE-123'})}),200,'Accept milestone with evidence');
 
 
 
