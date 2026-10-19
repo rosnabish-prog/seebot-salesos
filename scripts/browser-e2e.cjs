@@ -219,7 +219,8 @@ async function main(){
    await newPage.getByRole('link',{name:'Kanban Pipeline',exact:true}).click();
    await newPage.getByText('CI Qualified Research',{exact:true}).waitFor({timeout:10000});
    await newPage.getByRole('link',{name:/Prospects & Accounts/i}).click();
-   await newPage.getByRole('button',{name:'Skip — return to company home'}).click();
+   await newPage.getByRole('heading',{name:'Prospects & Accounts',exact:true}).waitFor();
+   await newPage.getByRole('link',{name:'My Dashboard'}).click();
    await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:10000});
    await newPage.getByRole('button',{name:'Sign out'}).click();
    await newPage.waitForURL('**/login',{timeout:10000});
