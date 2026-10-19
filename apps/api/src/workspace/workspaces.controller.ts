@@ -7,6 +7,7 @@ import {IdentityGuard} from './identity.guard';
 import {generateCompanySlug} from './workspace-policy';
 import {randomBytes} from 'node:crypto';
 import {assertWebsiteEmailMatch} from './company-email';
+import {setWorkspaceCookie} from '../auth/session';
 @UseGuards(IdentityGuard) @Controller('workspaces')
 export class WorkspacesController{
  constructor(private db:PrismaService,private jwt:JwtService){}
@@ -88,8 +89,9 @@ export class WorkspacesController{
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
   if(!member||member.status!=='ACTIVE'||!['ACTIVE','SETUP'].includes(member.organization.status))throw new ForbiddenException('You are not an active member of this workspace.');
   const user=await this.db.user.findUnique({where:{id:req.user.id}});if(!user)throw new ForbiddenException('User unavailable.');
-  const token=await this.jwt.signAsync({sub:user.id,pv:user.passwordVersion,wid:id});
-  res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});
+  // Workspace selection must never extend the seven-day authentication lifetime.
+  const token=await this.jwt.signAsync({kind:'workspace',sub:user.id,wid:id});
+  setWorkspaceCookie(res,token);
   return {selected:id,slug:member.organization.slug,crmEnabled:member.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true')),notice:member.organization.slug==='seebot'?'Seebot SalesOS activated.':'Organization setup selected. CRM remains locked until tenant isolation is certified.'};
  }
 }
