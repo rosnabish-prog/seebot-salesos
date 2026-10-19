@@ -3,13 +3,14 @@ import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from '../workspace/identity.guard';
 import {TenantScopeService,type ScopedRequest} from '../workspace/tenant-scope.service';
 import {DemoIntelligenceProvider} from './demo-provider';
+import {OutgoingMessageService} from '../communications/outgoing-message.service';
 
 const nonempty=(value:unknown,max:number)=>typeof value==='string'&&value.trim().length>0&&value.length<=max;
 
 @UseGuards(IdentityGuard)
 @Controller('workspace-intelligence')
 export class TenantIntelligenceController{
- constructor(private db:PrismaService,private scope:TenantScopeService,private demo:DemoIntelligenceProvider){}
+ constructor(private db:PrismaService,private scope:TenantScopeService,private demo:DemoIntelligenceProvider,private outgoing:OutgoingMessageService){}
  private async account(req:ScopedRequest,orgId:string,id:string,write=false){
   await this.scope.membership(req,orgId,write);
   const account=await this.db.account.findFirst({where:{id,organizationId:orgId},include:{contacts:true}});
@@ -72,6 +73,23 @@ export class TenantIntelligenceController{
    await tx.outreachRevision.create({data:{draftId:id,instruction:'DEMO: '+body.instruction.trim(),beforeSubject:draft.subject,beforeBody:draft.body,afterSubject:result.subject,afterBody:result.body}});
    return tx.outreachDraft.update({where:{id},data:{subject:result.subject,body:result.body,version:{increment:1}}});
   });
+ }
+ @Post(':orgId/drafts/:id/send')async sendReal(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
+  const draft=await this.draft(req,orgId,id,true);
+  if(draft.status!=='DRAFT')throw new BadRequestException('Only an unsent draft can be delivered.');
+  if(!draft.contact?.email||draft.contact.optedOut)throw new BadRequestException('Contact email missing or opted out.');
+  const message=await this.outgoing.draft(req.user.id,{
+   recipientEmail:draft.contact.email,subject:draft.subject,bodyText:draft.body,category:'SALES_OUTREACH',entityType:'OUTREACH_DRAFT',entityId:draft.id,organizationId:orgId,
+   idempotencyKey:'sales-outreach:'+draft.id+':v'+draft.version
+  });
+  const sent=await this.outgoing.send(message.id,req.user.id);
+  await this.db.$transaction(async tx=>{
+   await tx.outreachDraft.updateMany({where:{id:draft.id,status:'DRAFT'},data:{status:'SENT'}});
+   const existing=await tx.outreachMessage.findFirst({where:{draftId:draft.id,mode:'GMAIL',direction:'OUTBOUND'}});
+   if(!existing)await tx.outreachMessage.create({data:{accountId:draft.accountId,draftId:draft.id,contactId:draft.contactId,direction:'OUTBOUND',mode:'GMAIL',subject:draft.subject,body:draft.body}});
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_SALES_OUTREACH_SENT',entityType:'OUTREACH_DRAFT',entityId:draft.id,detail:{organizationId:orgId,outgoingMessageId:message.id,recipientEmail:draft.contact!.email}}});
+  });
+  return sent;
  }
  @Post(':orgId/drafts/:id/simulate-send')async simulateSend(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
   const draft=await this.draft(req,orgId,id,true);
