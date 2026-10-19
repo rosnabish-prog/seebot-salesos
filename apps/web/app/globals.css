@@ -372,3 +372,14 @@ input:-webkit-autofill:focus {
 .ws-workspace-list{display:flex;flex-direction:column;gap:11px;margin-top:17px}
 .ws-choice{display:flex;gap:11px;align-items:center;border:1px solid #eaedf0;border-radius:12px;padding:15px}.ws-choice>div{flex:1}.ws-choice strong,.ws-choice small{display:block}.ws-choice small{margin-top:5px;color:#929aa2}
 @media(max-width:650px){.ws-page{padding:16px 12px 45px}.ws-container{gap:14px}.ws-card{padding:22px 18px;border-radius:16px}.ws-two{grid-template-columns:1fr;gap:15px}.ws-heading{flex-direction:column}.ws-top .ws-kicker{font-size:9px;letter-spacing:.6px}.ws-member-row{flex-wrap:wrap}.ws-copy-row{flex-wrap:wrap}}
+
+
+/* Consistent vertical rhythm and select controls on the existing Seebot Settings screen. */
+.ws-legacy-settings-form{max-width:100%;gap:19px}
+.ws-legacy-settings-form .field-grid{gap:18px}
+.ws-legacy-settings-form .field{min-width:0;gap:8px}
+.ws-legacy-settings-form .field-label{font-weight:700;color:#424a57}
+.ws-legacy-settings-form input,.ws-legacy-settings-form textarea{min-height:43px;border-radius:10px}
+.ws-legacy-settings-form .brand-select{position:relative;width:100%}
+.ws-legacy-settings-form .brand-select-trigger{min-height:43px;border:1px solid #dfe4e9;border-radius:10px}
+.ws-legacy-settings-form .brand-select-menu{max-height:280px;overflow:auto;z-index:70}
