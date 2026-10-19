@@ -100,8 +100,11 @@ export default function WorkspacesPage(){
  async function save(e:FormEvent){
   e.preventDefault();if(!selected)return;setBusy(true);setError('');setNotice('');
   try{
+   // The optional legacy targetIndustries setting is no longer a user-facing field.
+   // Do not send its UI display string to an API expecting string[].
+   const {targetIndustries:unusedTargets,...fields}=profile;
    await patch('/workspaces/'+selected.id+'/profile',{
-    ...profile,services:profile.services.split(',').map(x=>x.trim()).filter(Boolean)
+    ...fields,services:profile.services.split(',').map(x=>x.trim()).filter(Boolean)
    });
    router.push('/workspaces/'+selected.id);
   }catch(e){setError(e instanceof Error?e.message:'Could not save company settings.');}
@@ -177,11 +180,11 @@ export default function WorkspacesPage(){
    <div className="ws-heading"><div><span className="ws-step-label">COMPANY SETTINGS</span><h1>{selected.name}</h1><p className="ws-intro">Manage your business identity, members and workspace configuration.</p></div><span className="ws-role-badge"><ShieldCheck size={15}/> {selected.role==='OWNER'?'Administrator (Owner)':selected.role==='ADMIN'?'Administrator':selected.role}</span></div>
    <div className="ws-section-heading"><Building2 size={18}/><h2>Business profile</h2></div>
    <form onSubmit={save} className="ws-form">{fieldGroup(profile,'profile',!admin)}
-    <div className="ws-two"><Field label="Registered legal name"><input disabled={!admin} value={profile.legalName} onChange={e=>change('legalName',e.target.value,'profile')}/></Field>
-      <Field label="Company logo URL (HTTPS)"><input type="url" disabled={!admin} value={profile.logoUrl} onChange={e=>change('logoUrl',e.target.value,'profile')}/></Field></div>
-    <div className="ws-two"><Field label="Services (comma separated)"><input disabled={!admin} value={profile.services} onChange={e=>change('services',e.target.value,'profile')} placeholder="Data annotation, AI services"/></Field>
+    <div className="ws-two"><Field label="Registered legal name (optional)"><input disabled={!admin} value={profile.legalName} onChange={e=>change('legalName',e.target.value,'profile')}/></Field>
+      <Field label="Company logo URL (optional)"><input type="url" disabled={!admin} value={profile.logoUrl} onChange={e=>change('logoUrl',e.target.value,'profile')}/></Field></div>
+    <div className="ws-two"><Field label="Services (optional)"><input disabled={!admin} value={profile.services} onChange={e=>change('services',e.target.value,'profile')} placeholder="Data annotation, AI services"/></Field>
       <Field label="Target customers (optional)"><input disabled={!admin} value={profile.idealCustomers} onChange={e=>change('idealCustomers',e.target.value,'profile')} placeholder="Who do you sell to?"/></Field></div>
-    <Field label="Company description"><textarea rows={3} disabled={!admin} value={profile.description} onChange={e=>change('description',e.target.value,'profile')}/></Field>
+    <Field label="Company description (optional)"><textarea rows={2} disabled={!admin} value={profile.description} onChange={e=>change('description',e.target.value,'profile')}/></Field>
 
     <Field label="Billing address (optional — add before invoicing)"><input type="text" disabled={!admin} value={profile.billingAddress} onChange={e=>change('billingAddress',e.target.value,'profile')} placeholder="Address for invoices"/></Field>
     <div className="ws-two"><Field label="Tax registration number (optional)"><input type="text" disabled={!admin} value={profile.taxRegistrationNumber} onChange={e=>change('taxRegistrationNumber',e.target.value,'profile')} placeholder="Company VAT / tax number"/></Field>{admin&&<Field label="Upload logo (PNG or JPEG)"><input type="file" accept="image/png,image/jpeg" onChange={e=>{const file=e.target.files?.[0];if(file)void uploadLogo(file)}}/></Field>}</div>
