@@ -37,7 +37,7 @@ export function TenantDashboard({executiveView=false}:{executiveView?:boolean}){
     <MetricCard label="Active Opportunities" value={open} icon={<BriefcaseBusiness size={21}/>} sub="Open deals in this workspace"/>
     <MetricCard label="New Prospects" value={data.accounts} icon={<Building2 size={21}/>} sub="Total recorded company prospects"/>
     <MetricCard label="Deals Won" value={won} icon={<Trophy size={21}/>} sub="Closed Won opportunities"/>
-    <MetricCard label="Signed Contracts" value={data.contracts} icon={<FileSignature size={21}/>} sub="Total contracts (all statuses)"/>
+    <MetricCard label="Contracts" value={data.contracts} icon={<FileSignature size={21}/>} sub="Total contracts (all statuses)"/>
    </div>
    <div className="tenant-dashboard-grid">
     <Panel title="Pipeline by stage"><Bars data={counts} labels="stage" values="count" maxItems={STAGES.length}/><div className="tenant-panel-action"><Link href={home+'/pipeline'} className="text-link">Open Kanban Pipeline <ArrowUpRight size={14}/></Link></div></Panel>
