@@ -4,14 +4,36 @@ import {IdentityGuard} from './identity.guard';
 import {TenantScopeService,type ScopedRequest} from './tenant-scope.service';
 import {validateInvoiceTotals} from '../accounting/receivable-policy';
 import {randomUUID} from 'node:crypto';
+import {OpportunityWorkflowService} from '../opportunities/workflow.service';
+import {STAGE_INDEX} from '@seebot/shared';
 const txt=(s:any,max=160)=>String(s??'').trim().slice(0,max);
 /** Tenant-specific business routes. The legacy global CRM is never opened to other companies. */
 @UseGuards(IdentityGuard) @Controller('workspace-business')
 export class TenantBusinessController{
- constructor(private db:PrismaService,private scope:TenantScopeService){}
- @Get(':orgId/opportunities')async opportunities(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);return this.db.opportunity.findMany({where:{account:{organizationId:orgId}},select:{id:true,accountId:true,title:true,stage:true,status:true,estimatedAmount:true,currency:true,updatedAt:true},take:150,orderBy:{updatedAt:'desc'}});}
+ constructor(private db:PrismaService,private scope:TenantScopeService,private workflow:OpportunityWorkflowService){}
+ @Get(':orgId/opportunities')async opportunities(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);return this.db.opportunity.findMany({where:{account:{organizationId:orgId}},select:{id:true,accountId:true,title:true,stage:true,status:true,estimatedAmount:true,currency:true,updatedAt:true,owner:{select:{id:true,name:true}},account:{select:{id:true,name:true,industry:true,priority:true}},stageVisits:{where:{exitedAt:null},select:{stage:true,evidence:true}}},take:150,orderBy:{updatedAt:'desc'}});}
  @Post(':orgId/accounts/:accountId/opportunities')async addOpportunity(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Body()body:any){await this.scope.membership(req,orgId,true);const account=await this.scope.account(orgId,accountId);this.scope.assertFictional(account.domain);const title=txt(body?.title,200),serviceLine=txt(body?.serviceLine,120);if(!title||!serviceLine)throw new BadRequestException('Opportunity title and service required.');return this.db.opportunity.create({data:{accountId,title,serviceLine,ownerId:req.user.id,stageVisits:{create:{stage:'ACCOUNT_RESEARCHED'}}}});}
  @Get(':orgId/opportunities/:id')async opportunity(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){await this.scope.membership(req,orgId);await this.scope.opportunity(orgId,id);return this.db.opportunity.findUnique({where:{id},include:{account:{select:{id:true,name:true,domain:true}},stageVisits:{orderBy:{enteredAt:'desc'}},contracts:{select:{id:true,title:true,status:true,committedAmount:true,currency:true}},invoices:{select:{id:true,number:true,status:true,total:true}}}});}
+ /** Tenant-specific Kanban transitions use the SAME evidence and contract gates as legacy CRM. */
+ @Post(':orgId/opportunities/:id/transition')async transition(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:{targetStage:string;reason?:string;override?:boolean}){
+  const member=await this.scope.membership(req,orgId,true);
+  await this.scope.opportunity(orgId,id);
+  const destination=String(body?.targetStage||'');
+  if(!Object.prototype.hasOwnProperty.call(STAGE_INDEX,destination))throw new BadRequestException('Unknown pipeline stage.');
+  return this.workflow.manualTransition(id,req.user.id,{targetStage:destination,reason:body?.reason,override:body?.override},['OWNER','ADMIN'].includes(member.role));
+ }
+ @Get(':orgId/opportunities/:id/stage-state')async stageState(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
+  await this.scope.membership(req,orgId);
+  await this.scope.opportunity(orgId,id);
+  return this.workflow.stageState(id);
+ }
+ @Post(':orgId/opportunities/:id/evidence')async evidence(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:{fields:Record<string,unknown>}){
+  await this.scope.membership(req,orgId,true);
+  await this.scope.opportunity(orgId,id);
+  if(!body?.fields||typeof body.fields!=='object'||Array.isArray(body.fields))throw new BadRequestException('Evidence fields required.');
+  for(const value of Object.values(body.fields))if(typeof value!=='string'||value.length>5000)throw new BadRequestException('Evidence values must be text under 5000 characters.');
+  return this.workflow.saveEvidence(id,req.user.id,body.fields);
+ }
  @Get(':orgId/clients')async clients(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);return this.db.account.findMany({where:{organizationId:orgId,status:'Customer'},select:{id:true,name:true,domain:true,contacts:{select:{id:true,name:true,title:true,email:true}},invoices:{select:{id:true,number:true,status:true,total:true,currency:true,dueAt:true}}},take:100,orderBy:{updatedAt:'desc'}});}
  @Get(':orgId/clients/:id')async client(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
   await this.scope.membership(req,orgId);await this.scope.account(orgId,id);
