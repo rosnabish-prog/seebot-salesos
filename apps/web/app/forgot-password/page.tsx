@@ -7,8 +7,8 @@ import {Button,ErrorMessage} from '@/components/ui';
 import {request,post} from '@/lib/api';
 
 export default function ForgotPassword(){
- const [enabled,setEnabled]=useState<boolean|null>(null),[email,setEmail]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
- useEffect(()=>{void request<{passwordResetEnabled:boolean}>('/auth/capabilities').then(x=>setEnabled(x.passwordResetEnabled)).catch(()=>setError('Authentication service is unavailable.'));},[]);
+ const [enabled,setEnabled]=useState<boolean|null>(null),[mailbox,setMailbox]=useState(false),[email,setEmail]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ useEffect(()=>{void request<{passwordResetEnabled:boolean;previewMailbox?:boolean}>('/auth/capabilities').then(x=>{setEnabled(x.passwordResetEnabled);setMailbox(Boolean(x.previewMailbox));}).catch(()=>setError('Authentication service is unavailable.'));},[]);
  async function submit(e:FormEvent){
   e.preventDefault();setBusy(true);setError('');setMessage('');
   try{const r=await post<{notice:string}>('/auth/forgot-password',{email});setMessage(r.notice);}
@@ -18,6 +18,7 @@ export default function ForgotPassword(){
   <section className="login-card-wrap"><div className="login-card"><span className="login-caption"><KeyRound size={16}/> ACCOUNT RECOVERY</span><h2>Forgot your password?</h2>
    <p>Enter the email associated with your account. We will send a one-time password reset link when email delivery is configured.</p>
    {enabled===false&&<p className="auth-preview-note">Password recovery email is not configured on this private Codespace yet. Contact your workspace administrator to reset your password securely.</p>}
+   {mailbox&&<p className="auth-preview-note">Private Codespaces test: open port 8025 in the Ports tab to read the reset email in Mailpit. Keep port 8025 Private.</p>}
    {message?<div role="status" className="soft-callout">{message}</div>:<form onSubmit={submit} className="stack-18">
     <label className="field"><span className="field-label">Email address</span><div className="input-icon"><Mail size={18}/><input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com" required/></div></label>
     <ErrorMessage message={error}/>
