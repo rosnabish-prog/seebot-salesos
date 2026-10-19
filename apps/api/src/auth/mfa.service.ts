@@ -47,7 +47,8 @@ export class MfaService{
   const existing=await this.db.loginChallenge.findUnique({where:{id:challengeId},include:{user:true}});
   if(!existing||existing.consumedAt||!existing.user.active)throw new UnauthorizedException('Sign in again to request another verification code.');
   if(Date.now()-existing.createdAt.getTime()<30_000)throw new BadRequestException('Wait 30 seconds before requesting another code.');
-  await this.db.loginChallenge.updateMany({where:{userId:existing.userId,consumedAt:null},data:{expiresAt:new Date()}});
+  const stoppedAt=new Date();
+  await this.db.loginChallenge.updateMany({where:{userId:existing.userId,consumedAt:null},data:{expiresAt:stoppedAt,consumedAt:stoppedAt}});
   return this.begin({id:existing.user.id,email:existing.user.email});
  }
  async verify(challengeId:string,code:string){
