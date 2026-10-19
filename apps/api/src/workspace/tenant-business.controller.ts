@@ -1,4 +1,4 @@
-import {BadRequestException,Body,Controller,Get,Param,Patch,Post,Req,UseGuards} from '@nestjs/common';
+import {BadRequestException,Body,Controller,Delete,Get,Param,Patch,Post,Req,UseGuards} from '@nestjs/common';
 import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from './identity.guard';
 import {TenantScopeService,type ScopedRequest} from './tenant-scope.service';
@@ -175,5 +175,23 @@ export class TenantBusinessController{
   if(name.length<2||sector.length<2)throw new BadRequestException('Campaign name and sector are required.');
   return this.db.campaign.create({data:{organizationId:orgId,ownerId:req.user.id,name,sector,objective:objective||null,status:'PLANNING'}});
  }
+ @Post(':orgId/campaigns/:campaignId/accounts')async enrollCampaign(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('campaignId')campaignId:string,@Body()body:{accountId?:string}){
+  await this.scope.membership(req,orgId,true);
+  const campaign=await this.db.campaign.findFirst({where:{id:campaignId,organizationId:orgId}});if(!campaign)throw new BadRequestException('Campaign unavailable in this workspace.');
+  const account=await this.scope.account(orgId,String(body?.accountId||''));
+  return this.db.campaignAccount.upsert({where:{campaignId_accountId:{campaignId,accountId:account.id}},create:{campaignId,accountId:account.id},update:{}});
+ }
+ @Delete(':orgId/campaigns/:campaignId/accounts/:accountId')async removeCampaignAccount(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('campaignId')campaignId:string,@Param('accountId')accountId:string){
+  await this.scope.membership(req,orgId,true);
+  const campaign=await this.db.campaign.findFirst({where:{id:campaignId,organizationId:orgId}});if(!campaign)throw new BadRequestException('Campaign unavailable in this workspace.');
+  await this.scope.account(orgId,accountId);await this.db.campaignAccount.deleteMany({where:{campaignId,accountId}});return {removed:true};
+ }
+ @Patch(':orgId/campaigns/:campaignId')async updateCampaign(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('campaignId')campaignId:string,@Body()body:{status?:string}){
+  await this.scope.membership(req,orgId,true);const status=String(body?.status||'').toUpperCase();
+  if(!['PLANNING','ACTIVE','PAUSED','COMPLETED'].includes(status))throw new BadRequestException('Invalid campaign status.');
+  const campaign=await this.db.campaign.findFirst({where:{id:campaignId,organizationId:orgId}});if(!campaign)throw new BadRequestException('Campaign unavailable in this workspace.');
+  return this.db.campaign.update({where:{id:campaign.id},data:{status}});
+ }
+
  @Get(':orgId/dashboard')async dashboard(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);const [accounts,clients,opportunities,contracts,invoices]=await Promise.all([this.db.account.count({where:{organizationId:orgId}}),this.db.account.count({where:{organizationId:orgId,status:'Customer'}}),this.db.opportunity.count({where:{account:{organizationId:orgId}}}),this.db.contract.count({where:{opportunity:{account:{organizationId:orgId}}}}),this.db.invoice.findMany({where:{account:{organizationId:orgId}},select:{currency:true,total:true,status:true},take:1000})]);const invoicedByCurrency:Record<string,number>={};for(const inv of invoices){if(['DRAFT','VOID'].includes(inv.status))continue;invoicedByCurrency[inv.currency]=(invoicedByCurrency[inv.currency]||0)+Number(inv.total);}return {mode:this.scope.preview()?'DEMO_ONLY':'LIVE_WORKSPACE',organizationId:orgId,accounts,clients,opportunities,contracts,invoices:invoices.length,invoicedByCurrency};}
 }
