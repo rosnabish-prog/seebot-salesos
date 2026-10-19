@@ -11,7 +11,7 @@ type Profile={organization:Record<string,any>;settings?:{plan:string;setupComple
 type Invitation={id:string;email:string;role:string;status:string;expiresAt:string};
 type SendResult={delivery:string;inviteUrl?:string;recipientEmail:string;notice:string};
 const industries=['Technology & Software','AI & Data','Computer Vision','Sports & Entertainment','Media & Advertising','Professional Services','Manufacturing','Healthcare','Finance & Insurance','Retail & Commerce','Education','Other'];
-const countries=[['GB','United Kingdom'],['NP','Nepal'],['US','United States'],['IN','India'],['CA','Canada'],['AU','Australia'],['DE','Germany'],['FR','France'],['SG','Singapore'],['AE','United Arab Emirates'],['IL','Israel'],['OTHER','Other country']];
+const countries=[['GB','United Kingdom'],['NP','Nepal'],['US','United States'],['IN','India'],['CA','Canada'],['AU','Australia'],['DE','Germany'],['FR','France'],['SG','Singapore'],['AE','United Arab Emirates'],['IL','Israel']];
 const currencies=['GBP','USD','NPR','INR','EUR','CAD','AUD','SGD','AED','ILS'];
 const zones=['Europe/London','Asia/Kathmandu','America/New_York','America/Los_Angeles','Asia/Kolkata','Europe/Berlin','Asia/Singapore','Asia/Dubai','Australia/Sydney','UTC'];
 const companyDefaults={name:'',website:'',industry:'Technology & Software',country:'GB',timezone:'Europe/London',defaultCurrency:'GBP',legalName:'',description:'',idealCustomers:'',services:'',targetIndustries:'',billingAddress:'',logoUrl:'',taxRegistrationNumber:''};
@@ -72,7 +72,7 @@ export default function WorkspacesPage(){
   try{
    const w=await post<Workspace>('/workspaces',{
     name:createForm.name.trim(),website:createForm.website.trim(),industry:createForm.industry,
-    country:createForm.country==='OTHER'?'GB':createForm.country,timezone:createForm.timezone,defaultCurrency:createForm.defaultCurrency
+    country:createForm.country,timezone:createForm.timezone,defaultCurrency:createForm.defaultCurrency
    });
    await post('/workspaces/'+w.id+'/select',{});
    setItems([w]);setSelected(w);setProfile({...companyDefaults,...createForm});setStage('invite');
@@ -188,7 +188,7 @@ export default function WorkspacesPage(){
    </form>
    {admin&&<div className="ws-team"><div className="ws-section-heading"><UsersRound size={18}/><h2>Team access</h2></div>
     <div className="ws-members">{members.map(m=><div className="ws-member-row" key={m.userId}><span><strong>{m.user.name}</strong><small>{m.user.email}</small></span><span className="ws-role-badge">{m.userId===selected.id?'Administrator':m.role==='OWNER'?'Administrator (Owner)':m.role==='ADMIN'?'Administrator':m.role}</span>
-     {m.userId!==undefined&&m.userId!==null&&m.userId!==''&&m.userId!==members.find(x=>x.role==='OWNER')?.userId&&!(selected.isCreator&&m.userId===members.find(x=>x.role==='ADMIN'&&x.user.email===profile.name)?.userId)&&<span className="ws-status">{m.status}</span>}
+     <span className="ws-status">{m.status}</span>
     </div>)}</div>
     <button type="button" className="ws-disclosure" aria-expanded={teamExpanded} onClick={()=>setTeamExpanded(x=>!x)}><Plus size={17}/> {teamExpanded?'Close invitations':'Invite more teammates'}</button>
     {teamExpanded&&<div className="ws-invite-inline"><Field label="Invite emails"><EmailChips emails={emails} setEmails={setEmails} disabled={busy}/></Field><SelectField label="Workspace role" value={inviteRole} onChange={setInviteRole} options={[{value:'MEMBER',label:'Member'},{value:'ADMIN',label:'Administrator'},{value:'FINANCE',label:'Finance'}]}/><Button disabled={emails.length===0} loading={busy} type="button" onClick={()=>void sendInvitations()}><Mail size={16}/> Send invitations</Button>
