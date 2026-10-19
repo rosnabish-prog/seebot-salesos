@@ -13,7 +13,7 @@ if(process.env.CI!=='true'||!process.env.DATABASE_URL?.includes('ci_only_passwor
  throw Error('Cross-tenant tests require the isolated disposable CI database and test environment.');
 function token(user,orgId){
  const s=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
- const body=s({sub:user.id,pv:user.passwordVersion,wid:orgId,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
+ const body=s({sub:user.id,pv:user.passwordVersion,wid:orgId,mfa:true,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
  const head=s({typ:'JWT',alg:'HS256'});
  return head+'.'+body+'.'+createHmac('sha256',jwtSecret).update(head+'.'+body).digest('base64url');
 }
@@ -34,7 +34,7 @@ async function main(){
   const invoice=await db.invoice.create({data:{accountId:account.id,number:'DEMO-CI-'+n+'-'+id,status:'DRAFT',currency:'USD',lineItems:[{description:'Test service',quantity:1,unitPrice:10}],subtotal:'10',tax:'0',total:'10',billingEmail:'billing'+n+'@example.invalid',dueAt:new Date('2030-01-01'),isDemo:true,createdById:user.id}});
   return {user,org,account,invoice,cookie:token(user,org.id)};
  }));
- const api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:process.cwd(),env:{...process.env,API_PORT:String(port),TENANT_SCOPED_CRM_PREVIEW:'true',DEV_EMAIL_SIGNUP_ENABLED:'true',SIGNING_ENABLED:'false',GMAIL_SENDING_ENABLED:'false'},stdio:['ignore','pipe','pipe']});
+ const api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:process.cwd(),env:{...process.env,API_PORT:String(port),TENANT_SCOPED_CRM_PREVIEW:'true',DEV_EMAIL_SIGNUP_ENABLED:'true',MFA_TEST_MODE:'true',SIGNING_ENABLED:'false',GMAIL_SENDING_ENABLED:'false'},stdio:['ignore','pipe','pipe']});
  let output='';api.stdout.on('data',b=>{output+=b.toString();});api.stderr.on('data',b=>{output+=b.toString();});
  try{
   let ready=false;
@@ -84,7 +84,11 @@ async function main(){
   assert.equal(independent.organizationMemberships.length,0,'Self signup never grants Seebot membership');
   check(await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'incorrect-password'})}),401,'Wrong password returns authentication error');
   check(await hit('/auth/login','',{method:'POST',headers:{Origin:'https://malicious.example'},body:JSON.stringify({email:signupEmail,password:'CI_Only_12_Password_One!'})}),403,'Untrusted origin is rejected');
-  check(await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'CI_Only_12_Password_One!'})}),201,'Correct credentials from trusted app origin work');
+  const mfaLogin=await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'CI_Only_12_Password_One!'})});
+  check(mfaLogin,201,'Correct first-factor credentials start MFA');
+  assert.equal(mfaLogin.body.mfaRequired,true);assert.match(mfaLogin.body.testCode,/^\d{6}$/);
+  check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId,code:mfaLogin.body.testCode})}),201,'Correct MFA code completes sign-in');
+  check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId,code:mfaLogin.body.testCode})}),401,'MFA code is single use');
   check(await hit('/auth/forgot-password','',{method:'POST',body:JSON.stringify({email:signupEmail})}),503,'Recovery requires working SMTP, not fake success');
 
   // A valid login must not require Seebot membership. Zero memberships enters setup.
