@@ -20,11 +20,6 @@ services:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "/mailpit", "readyz"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
   redis:
     image: redis:7-alpine
     ports:
