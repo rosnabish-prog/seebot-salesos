@@ -10,11 +10,24 @@ async function bootstrap(){
   const app=await NestFactory.create(AppModule);
   app.use(helmet());app.use(cookieParser());
   const allowedOrigin=process.env.CORS_ORIGIN||'http://localhost:3000';
-  app.enableCors({origin:allowedOrigin,credentials:true,methods:['GET','POST','PATCH','DELETE','OPTIONS']});
-  // Restrict cross-origin state-changing requests. Cookies use SameSite=Strict too.
+  const allowedOrigins=new Set([allowedOrigin]);
+  if(process.env.NODE_ENV!=='production'){
+    allowedOrigins.add('http://localhost:3000');
+    allowedOrigins.add('http://127.0.0.1:3000');
+    // Accept only THIS Codespace's forwarded web origin, not arbitrary github.dev hosts.
+    const name=process.env.CODESPACE_NAME;
+    if(name&&/^[a-z0-9-]+$/i.test(name)){
+      for(const domain of ['app.github.dev','preview.app.github.dev',process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN||'']){
+        if(/^[a-z0-9.-]+$/i.test(domain))allowedOrigins.add('https://'+name+'-3000.'+domain);
+      }
+    }
+  }
+  const validOrigin=(origin:unknown)=>typeof origin==='string'&&allowedOrigins.has(origin);
+  app.enableCors({origin:(origin,callback)=>callback(null,!origin||validOrigin(origin)),credentials:true,methods:['GET','POST','PATCH','DELETE','OPTIONS']});
+  // The session cookie is SameSite=Strict. Still require an exact trusted origin for all writes.
   app.use((req:any,res:any,next:any)=>{
-    if(['POST','PATCH','PUT','DELETE'].includes(req.method) && req.headers.origin && req.headers.origin!==allowedOrigin){
-      return res.status(403).json({message:'Origin not allowed'});
+    if(['POST','PATCH','PUT','DELETE'].includes(req.method)&&req.headers.origin&&!validOrigin(req.headers.origin)){
+      return res.status(403).json({message:'Unrecognized application address. Reopen the private Codespaces port 3000 URL.'});
     }
     next();
   });
