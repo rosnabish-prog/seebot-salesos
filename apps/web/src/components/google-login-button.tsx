@@ -26,7 +26,7 @@ export function GoogleLoginButton({onError,mode='login'}:{onError:(message:strin
     window.google.accounts.id.renderButton(mount.current,{type:'standard',theme:'outline',size:'large',text:mode==='signup'?'signup_with':'signin_with',shape:'rectangular',width:300});
     return ()=>{current=false;};
   },[loaded,clientId,onError,refresh,router,mode]);
-  if(!clientId)return <div className="google-workforce-login"><div className="google-divider">or continue with Google</div><p className="google-config-note">Google sign-in will appear when the administrator configures Google OAuth for this application.</p></div>;
+  if(!clientId)return <div className="google-workforce-login"><div className="google-divider">or continue with Google</div><button className="btn btn-secondary full-width" type="button" disabled aria-label="Continue with Google (configuration required)">Continue with Google</button><p className="google-config-note">Google sign-in will appear when the administrator configures Google OAuth for this application.</p></div>;
   return <div className="google-workforce-login" aria-busy={busy}>
     <div className="google-divider">or sign in with Google</div>
     <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={()=>setLoaded(true)}/>
