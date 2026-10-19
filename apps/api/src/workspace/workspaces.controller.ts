@@ -55,6 +55,29 @@ export class WorkspacesController{
    if(admin&&!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator required.');
    return member;
  }
+ @Get(':id/security-audit') async securityAudit(@Req()req:AuthRequest,@Param('id')id:string){
+  await this.authorized(req,id,true);
+  const [workspaceEvents,mySecurityEvents]=await Promise.all([
+   this.db.auditEvent.findMany({
+    where:{OR:[
+     {entityType:'ORGANIZATION',entityId:id},
+     {detail:{path:['organizationId'],equals:id}}
+    ]},
+    select:{id:true,action:true,entityType:true,entityId:true,detail:true,createdAt:true,actor:{select:{id:true,name:true,email:true}}},
+    orderBy:{createdAt:'desc'},take:250
+   }),
+   this.db.auditEvent.findMany({
+    where:{actorId:req.user.id,action:{in:['LOGIN_MFA_VERIFIED','PASSWORD_RESET_COMPLETED','PASSWORD_CHANGED']}},
+    select:{id:true,action:true,entityType:true,entityId:true,detail:true,createdAt:true},
+    orderBy:{createdAt:'desc'},take:50
+   })
+  ]);
+  return {
+   policy:{mfaRequiredEverySignIn:true,mfaMethod:'EMAIL_OTP',sessionMaxAgeDays:7,otpExpiresMinutes:10,maxOtpAttempts:5},
+   workspaceEvents,mySecurityEvents,
+   notice:'Workspace audit results include only events explicitly scoped to this organization. Authentication events shown are your own account events.'
+  };
+ }
  @Get(':id/integration-status') async integrations(@Req()req:AuthRequest,@Param('id')id:string){await this.authorized(req,id);return providerReadiness(process.env);}
   @Get(':id/profile') async profile(@Req()req:AuthRequest,@Param('id')id:string){const m=await this.authorized(req,id);const settings=await this.db.workspaceSettings.findUnique({where:{organizationId:id}});return {organization:m.organization,settings,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))};}
  @Patch(':id/profile') async update(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:any){
