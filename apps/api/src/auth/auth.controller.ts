@@ -31,6 +31,7 @@ export class AuthController {
     clearAuthCookies(res);
     return this.mfa.begin({id:out.user.id,email:out.user.email});
   }
+  @Post('mfa/resend') resendMfa(@Body()body:{challengeId?:string}){return this.mfa.resend(String(body?.challengeId||''));}
   @Post('mfa/verify') async verifyMfa(@Body()body:{challengeId?:string;code?:string},@Res({passthrough:true})res:Response){
     const user=await this.mfa.verify(String(body?.challengeId||''),String(body?.code||''));
     await this.issueSession(res,{id:user.id,role:user.role,passwordVersion:user.passwordVersion});
