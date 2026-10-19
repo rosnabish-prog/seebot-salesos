@@ -576,3 +576,10 @@ input:-webkit-autofill:focus {
 .finance-credit-section{padding-top:14px;border-top:1px solid #edf0f2}
 @media(max-width:960px){.accounting-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.campaign-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.integration-gmail-control{align-items:flex-start;flex-direction:column}.security-policy-grid,.accounting-health-grid{grid-template-columns:1fr}.accounting-match-row>.ws-nav-buttons{flex-basis:100%;justify-content:flex-start}.accounting-match-row .brand-select{min-width:0;width:100%}.audit-toolbar{align-items:stretch;flex-direction:column}.audit-toolbar .search-box{max-width:none}}
+
+
+/* Company account workspace */
+.tenant-account-detail{display:flex;flex-direction:column;gap:20px}
+.account-next-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.account-next-actions .ws-home-tile{min-height:94px}
+@media(max-width:850px){.account-next-actions{grid-template-columns:1fr}}
