@@ -57,6 +57,7 @@ export class TenantAccountsController {
   const name=String(body?.name||'').trim(),title=String(body?.title||'').trim(),email=String(body?.email||'').trim().toLowerCase();
   if(name.length<2||name.length>150||title.length<2||title.length>150||!(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))throw new BadRequestException('Valid contact name, job title and email required.');
   return this.db.contact.create({data:{accountId,name,title,email,source:'USER_ENTERED',verified:false}});
+ }
  @Patch(':orgId/accounts/:accountId/contacts/:contactId')async updateContact(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Param('contactId')contactId:string,@Body()body:any){await this.authorize(req,orgId,true);
   const account=await this.db.account.findFirst({where:{id:accountId,organizationId:orgId},select:{id:true}});if(!account)throw new BadRequestException('Account unavailable in this workspace.');
   const contact=await this.db.contact.findFirst({where:{id:contactId,accountId}});if(!contact)throw new BadRequestException('Contact unavailable for this account.');
@@ -69,6 +70,5 @@ export class TenantAccountsController {
   const updated=await this.db.contact.update({where:{id:contact.id},data});
   await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_CONTACT_UPDATED',entityType:'CONTACT',entityId:contact.id,detail:{organizationId:orgId,accountId,optedOut:updated.optedOut}}});
   return updated;
- }
  }
 }
