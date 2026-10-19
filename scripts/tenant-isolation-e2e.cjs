@@ -67,7 +67,7 @@ async function main(){
   check(await hit('/auth/forgot-password','',{method:'POST',body:JSON.stringify({email:signupEmail})}),503,'Recovery requires working SMTP, not fake success');
 
   // A valid login must not require Seebot membership. Zero memberships enters setup.
-  const standalone=await db.user.create({data:{email:'ci-unassigned-'+id+'@example.invalid',name:'Unassigned CI User',passwordHash:'NOT_REAL',role:'SALES_REP'}});
+  const standalone=await db.user.create({data:{email:'ci-unassigned-'+id+'@team-'+id+'.example',name:'Unassigned CI User',passwordHash:'NOT_REAL',role:'SALES_REP'}});
   const standaloneCookie=token(standalone,null);
   check(await hit('/auth/me',standaloneCookie),200,'Identity sign-in without a workspace');
   const emptyMemberships=await hit('/workspaces',standaloneCookie);
@@ -80,7 +80,15 @@ async function main(){
   check(standaloneSelect,201,'New owner can select created workspace');
   assert.equal(standaloneSelect.body.crmEnabled,false);
   const owned=await hit('/workspaces',standaloneCookie);check(owned,200,'New owner workspace list');
-  assert.equal(owned.body.length,1);assert.equal(owned.body[0].role,'OWNER');
+  assert.equal(owned.body.length,1);assert.equal(owned.body[0].role,'ADMIN');
+  assert.equal(owned.body[0].isCreator,true);
+
+  check(await hit('/workspaces',standaloneCookie,{method:'POST',body:JSON.stringify({name:'Duplicate Company',website:'https://team-'+id+'.example'})}),403,'A workspace creator cannot create a second workspace');
+  const personal=await db.user.create({data:{email:'ci-personal-'+id+'@gmail.com',name:'Personal Account',passwordHash:'NOT_REAL',role:'SALES_REP'}});
+  check(await hit('/workspaces',token(personal,null),{method:'POST',body:JSON.stringify({name:'Personal Fake Company',website:'https://gmail.com'})}),400,'Personal email cannot create a company workspace');
+  const mismatch=await db.user.create({data:{email:'ci-mismatch-'+id+'@legitimate-'+id+'.example',name:'Domain Mismatch',passwordHash:'NOT_REAL',role:'SALES_REP'}});
+  check(await hit('/workspaces',token(mismatch,null),{method:'POST',body:JSON.stringify({name:'Wrong Domain',website:'https://unrelated-'+id+'.example'})}),400,'Company website must match creator email domain');
+  check(await hit('/auth/register','',{method:'POST',body:JSON.stringify({name:'Personal Signup',email:'ci-claim-'+id+'@gmail.com',password:'CI_Only_12_Password_One!'})}),400,'Email registration blocks personal providers');
 
   // An invite does not grant access until redeemed by the exact recipient.
   const pendingUser=await db.user.create({data:{email:'ci-invite-'+id+'@example.invalid',name:'CI Invitee',passwordHash:'NOT_REAL',role:'SALES_REP'}});
