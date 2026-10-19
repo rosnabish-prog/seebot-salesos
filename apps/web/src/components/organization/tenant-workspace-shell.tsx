@@ -35,7 +35,7 @@ export function TenantWorkspaceShell({children}:{children:ReactNode}){
   {href:root+'/tasks',name:'Tasks & Follow-ups',icon:ListTodo},
   {href:root+'/campaigns',name:'Campaigns',icon:Megaphone},
   {href:root+'/business',name:'Contracts & Finance',icon:FileSignature},
-  {href:'/workspaces?manage='+encodeURIComponent(orgId),name:'Team & Settings',icon:Settings2}
+  {href:root+'/settings',name:'Team & Settings',icon:Settings2}
  ];
  const activeName=nav.find(n=>n.exact?path===n.href:path===n.href||path.startsWith(n.href+'/'))?.name||'Company workspace';
  return <div className="app-shell tenant-app-shell">
