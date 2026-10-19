@@ -6,7 +6,9 @@ import {validateInvoiceTotals} from '../accounting/receivable-policy';
 import {randomUUID} from 'node:crypto';
 import {OpportunityWorkflowService} from '../opportunities/workflow.service';
 import {STAGE_INDEX} from '@seebot/shared';
+import {summarizeHealth,isOverdue} from '../client-success/client-health';
 const txt=(s:any,max=160)=>String(s??'').trim().slice(0,max);
+const relationshipStages=['PILOT_CONTRACTED','PILOT_DELIVERED','PRODUCTION_NEGOTIATED','CLOSED_WON'];
 /** Tenant-specific business routes. The legacy global CRM is never opened to other companies. */
 @UseGuards(IdentityGuard) @Controller('workspace-business')
 export class TenantBusinessController{
@@ -36,7 +38,6 @@ export class TenantBusinessController{
  }
  @Get(':orgId/clients')async clients(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.scope.membership(req,orgId);
-  const relationshipStages=['PILOT_CONTRACTED','PILOT_DELIVERED','PRODUCTION_NEGOTIATED','CLOSED_WON'];
   const rows=await this.db.account.findMany({where:{organizationId:orgId,OR:[{status:{in:['Contracting','Customer']}},{opportunities:{some:{stage:{in:relationshipStages}}}}]},select:{id:true,name:true,domain:true,status:true,clientSince:true,contacts:{select:{id:true,name:true,title:true,email:true}},opportunities:{select:{id:true,title:true,stage:true,status:true},orderBy:{updatedAt:'desc'}},invoices:{select:{id:true,number:true,status:true,total:true,currency:true,dueAt:true}}},take:100,orderBy:{updatedAt:'desc'}});
   return rows.map(account=>{const highest=account.opportunities.reduce((best,o)=>Math.max(best,STAGE_INDEX[o.stage as keyof typeof STAGE_INDEX]??-1),-1);return {...account,relationshipStatus:account.status==='Customer'?'ACTIVE_CLIENT':account.status==='Contracting'||highest>=STAGE_INDEX.PILOT_CONTRACTED?'CONTRACTING':'PROSPECT'};});
  }
@@ -51,6 +52,80 @@ export class TenantBusinessController{
    milestones:{orderBy:{createdAt:'desc'},take:20}
   }});
  }
+ @Get(':orgId/clients/:id/health')async clientHealth(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
+  await this.scope.membership(req,orgId);await this.scope.account(orgId,id);
+  const [reviews,surveys,issues,contracts,invoices]=await Promise.all([
+   this.db.clientReview.findMany({where:{accountId:id,score:{not:null}},orderBy:{occurredAt:'desc'},take:50}),
+   this.db.clientSurveyInvitation.findMany({where:{accountId:id,status:'ANSWERED',score:{not:null}},orderBy:{respondedAt:'desc'},take:50}),
+   this.db.clientIssue.findMany({where:{accountId:id,status:'OPEN'}}),
+   this.db.contract.findMany({where:{opportunity:{accountId:id},status:'SIGNED'},select:{expiresAt:true}}),
+   this.db.invoice.findMany({where:{accountId:id},include:{payments:true}})
+  ]);
+  const dated=[...reviews.map(r=>({type:r.type,score:r.score!,date:r.occurredAt})),...surveys.map(r=>({type:r.type,score:r.score!,date:r.respondedAt||r.createdAt}))].sort((a,b)=>b.date.getTime()-a.date.getTime());
+  const now=new Date(),expiring=contracts.filter(c=>c.expiresAt&&c.expiresAt>=now).map(c=>Math.ceil((c.expiresAt!.getTime()-now.getTime())/86400000));
+  const overdue=invoices.filter(i=>isOverdue(i,now));
+  return summarizeHealth({
+   npsScores:dated.filter(x=>x.type==='NPS').map(x=>x.score),
+   csatScores:dated.filter(x=>x.type==='CSAT').map(x=>x.score),
+   criticalIssues:issues.filter(i=>i.severity==='CRITICAL').length,
+   highIssues:issues.filter(i=>i.severity==='HIGH').length,
+   overdueInvoices:overdue.length,
+   overdueAmount:overdue.reduce((sum,i)=>sum+Math.max(0,Number(i.total)-i.payments.reduce((n,p)=>n+Number(p.amount),0)),0),
+   expiresWithinDays:expiring.length?Math.min(...expiring):null
+  });
+ }
+ @Post(':orgId/clients/:id/reviews')async addReview(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:any){
+  await this.scope.membership(req,orgId,true);const account=await this.scope.account(orgId,id);
+  const type=txt(body?.type,20),title=txt(body?.title,180),summary=txt(body?.summary,4000),score=body?.score===undefined||body?.score===null?null:Number(body.score);
+  if(!['NPS','CSAT','MBR','QBR','GENERAL'].includes(type)||title.length<2||summary.length<2)throw new BadRequestException('Review type, title and summary are required.');
+  if(type==='NPS'&&(score===null||!Number.isInteger(score)||score<0||score>10))throw new BadRequestException('NPS score must be 0–10.');
+  if(type==='CSAT'&&(score===null||!Number.isInteger(score)||score<0||score>5))throw new BadRequestException('CSAT score must be 0–5.');
+  return this.db.clientReview.create({data:{accountId:id,type,title,summary,score,actionItems:Array.isArray(body?.actionItems)?body.actionItems.slice(0,30):[],recordedById:req.user.id,isDemo:account.isDemo}});
+ }
+ @Post(':orgId/clients/:id/issues')async addIssue(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:any){
+  await this.scope.membership(req,orgId,true);const account=await this.scope.account(orgId,id);
+  const title=txt(body?.title,200),details=txt(body?.details,4000),severity=txt(body?.severity,20).toUpperCase();
+  if(title.length<3||!['LOW','MEDIUM','HIGH','CRITICAL'].includes(severity))throw new BadRequestException('Issue title and severity are required.');
+  return this.db.clientIssue.create({data:{accountId:id,title,details:details||null,severity,status:'OPEN',isDemo:account.isDemo}});
+ }
+ @Patch(':orgId/clients/:id/issues/:issueId')async updateIssue(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Param('issueId')issueId:string,@Body()body:any){
+  await this.scope.membership(req,orgId,true);await this.scope.account(orgId,id);
+  const issue=await this.db.clientIssue.findFirst({where:{id:issueId,accountId:id}});if(!issue)throw new BadRequestException('Client issue not found.');
+  const status=txt(body?.status,20).toUpperCase();if(!['OPEN','RESOLVED'].includes(status))throw new BadRequestException('Issue status must be Open or Resolved.');
+  return this.db.clientIssue.update({where:{id:issue.id},data:{status,resolvedAt:status==='RESOLVED'?new Date():null}});
+ }
+ @Post(':orgId/clients/:id/milestones')async addMilestone(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:any){
+  await this.scope.membership(req,orgId,true);const account=await this.scope.account(orgId,id);
+  const title=txt(body?.title,200),description=txt(body?.description,4000),criteria=txt(body?.acceptanceCriteria,5000),dueAt=body?.dueAt?new Date(body.dueAt):null;
+  if(title.length<3||criteria.length<3||(dueAt&&!Number.isFinite(dueAt.getTime())))throw new BadRequestException('Milestone title, acceptance criteria and valid date are required.');
+  if(body?.contractId){const contract=await this.scope.contract(orgId,String(body.contractId));if(contract.opportunity.accountId!==id)throw new BadRequestException('Contract belongs to another client.');}
+  return this.db.deliveryMilestone.create({data:{accountId:id,contractId:body?.contractId||null,title,description,acceptanceCriteria:criteria,dueAt,isDemo:account.isDemo,createdById:req.user.id}});
+ }
+ @Patch(':orgId/clients/:id/milestones/:milestoneId')async updateMilestone(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Param('milestoneId')milestoneId:string,@Body()body:any){
+  await this.scope.membership(req,orgId,true);await this.scope.account(orgId,id);
+  const milestone=await this.db.deliveryMilestone.findFirst({where:{id:milestoneId,accountId:id}});if(!milestone)throw new BadRequestException('Delivery milestone not found.');
+  const status=txt(body?.status,30).toUpperCase();if(!['PLANNED','IN_PROGRESS','SUBMITTED','ACCEPTED','REJECTED'].includes(status))throw new BadRequestException('Invalid milestone status.');
+  const evidence=txt(body?.evidenceReference,500);if(status==='ACCEPTED'&&evidence.length<6)throw new BadRequestException('Acceptance evidence reference is required.');
+  const updated=await this.db.deliveryMilestone.update({where:{id:milestone.id},data:{status,actualAcceptedAt:status==='ACCEPTED'?new Date():null}});
+  await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_MILESTONE_STATUS',entityType:'DELIVERY_MILESTONE',entityId:milestone.id,detail:{organizationId:orgId,status,evidenceReference:evidence}}});
+  return updated;
+ }
+ @Get(':orgId/clients/:id/renewals')async renewals(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
+  await this.scope.membership(req,orgId);await this.scope.account(orgId,id);
+  return this.db.renewalPlan.findMany({where:{contract:{opportunity:{accountId:id,account:{organizationId:orgId}}}},include:{contract:{select:{id:true,title:true,status:true,expiresAt:true}}},orderBy:{nextReviewAt:'asc'}});
+ }
+ @Post(':orgId/contracts/:id/renewal')async planRenewal(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:any){
+  await this.scope.membership(req,orgId,true);const contract=await this.scope.contract(orgId,id);
+  if(contract.status!=='SIGNED'||!contract.expiresAt)throw new BadRequestException('Renewal planning requires a signed contract with an expiry date.');
+  const days=Number(body?.daysBefore??60);if(!Number.isInteger(days)||days<7||days>180)throw new BadRequestException('Renewal lead time must be 7–180 days.');
+  const reviewAt=new Date(Math.max(Date.now(),contract.expiresAt.getTime()-days*86400000));
+  const plan=await this.db.renewalPlan.upsert({where:{contractId:id},create:{contractId:id,ownerId:contract.opportunity.ownerId,nextReviewAt:reviewAt,notes:'Review satisfaction, delivery performance, pricing and renewal options.'},update:{nextReviewAt:reviewAt}});
+  const title='Renewal review: '+contract.title;
+  const existing=await this.db.task.findFirst({where:{opportunityId:contract.opportunityId,title,status:'OPEN'}});
+  if(!existing)await this.db.task.create({data:{organizationId:orgId,opportunityId:contract.opportunityId,assigneeId:contract.opportunity.ownerId,title,dueAt:reviewAt,description:'Review client health, contract performance and renewal proposal.'}});
+  return {plan,createdTask:!existing};
+ }
+
  @Get(':orgId/contracts')async contracts(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);return this.db.contract.findMany({where:{opportunity:{account:{organizationId:orgId}}},select:{id:true,title:true,type:true,status:true,opportunityId:true,committedAmount:true,currency:true,createdAt:true},take:150,orderBy:{createdAt:'desc'}});}
  @Post(':orgId/opportunities/:opportunityId/contracts')async addContract(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('opportunityId')opportunityId:string,@Body()body:any){await this.scope.membership(req,orgId,true);const opp=await this.scope.opportunity(orgId,opportunityId);this.scope.assertFictional(opp.account.domain);const type=txt(body?.type);if(!['NDA','MSA','SOW','DPA','PRODUCTION_OTHER'].includes(type)||!txt(body?.title,200))throw new BadRequestException('Contract title and type required.');if(body.parentContractId){const parent=await this.scope.contract(orgId,String(body.parentContractId));if(parent.type!=='MSA'||parent.opportunity.accountId!==opp.accountId||type!=='SOW')throw new BadRequestException('Parent MSA must belong to the same account.');}return this.db.contract.create({data:{opportunityId,title:txt(body.title,200),type:type as any,status:'DRAFT',isDemo:this.scope.preview(),parentContractId:body.parentContractId||null}});}
  @Get(':orgId/contracts/:id')async contract(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){await this.scope.membership(req,orgId);await this.scope.contract(orgId,id);return this.db.contract.findUnique({where:{id},include:{pricingLines:true,signingParties:{select:{name:true,email:true,role:true,status:true,signingOrder:true}},amendments:{orderBy:{version:'desc'}},documents:{select:{id:true,fileName:true,kind:true,sha256:true,uploadedAt:true}}}});}
