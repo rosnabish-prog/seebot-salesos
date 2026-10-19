@@ -63,7 +63,8 @@ export default function WorkspacesPage(){
    await post('/workspaces/'+workspace.id+'/select',{});
    setSelected(workspace);setStage('complete');setResults([]);
    const p=await request<Profile>('/workspaces/'+workspace.id+'/profile');
-   setProfile({...companyDefaults,...p.organization,services:Array.isArray(p.organization.services)?p.organization.services.join(', '):'',targetIndustries:(p.settings?.targetIndustries||[]).join(', ')});
+   const normalized=Object.fromEntries(Object.keys(companyDefaults).map(key=>[key,typeof p.organization[key]==='string'?p.organization[key]:'']));
+   setProfile({...companyDefaults,...normalized,services:Array.isArray(p.organization.services)?p.organization.services.join(', '):'',targetIndustries:(p.settings?.targetIndustries||[]).join(', ')});
    if(['OWNER','ADMIN'].includes(workspace.role)){const [m,inv]=await Promise.all([request<any[]>('/workspaces/'+workspace.id+'/members'),request<Invitation[]>('/workspace-invitations/organizations/'+workspace.id)]);setMembers(m);setInvitations(inv);}
    else{setMembers([]);setInvitations([]);}
   }catch(e){setError(e instanceof Error?e.message:'Could not open the workspace.');}
@@ -104,7 +105,11 @@ export default function WorkspacesPage(){
    // Do not send its UI display string to an API expecting string[].
    const {targetIndustries:unusedTargets,...fields}=profile;
    await patch('/workspaces/'+selected.id+'/profile',{
-    ...fields,services:profile.services.split(',').map(x=>x.trim()).filter(Boolean)
+    ...fields,
+    services:profile.services.split(',').map(x=>x.trim()).filter(Boolean),
+    // Preserve API defaults for optional selections the user did not configure.
+    ...(profile.defaultCurrency?{defaultCurrency:profile.defaultCurrency}:{defaultCurrency:'USD'}),
+    ...(profile.timezone?{timezone:profile.timezone}:{timezone:'UTC'})
    });
    router.push('/workspaces/'+selected.id);
   }catch(e){setError(e instanceof Error?e.message:'Could not save company settings.');}
