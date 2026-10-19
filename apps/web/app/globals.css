@@ -410,3 +410,41 @@ input:-webkit-autofill:focus {
 .ws-prospect-form .brand-select-trigger{min-height:43px}
 .ws-prospect-form .brand-select-menu{z-index:80}
 @media(max-width:650px){.ws-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ws-home-actions{grid-template-columns:1fr}.ws-top{align-items:flex-start}.ws-nav-buttons{gap:8px}}
+
+
+/* The original SalesOS shell, now shared in the isolated company preview. */
+.tenant-shell-company{display:flex;gap:11px;align-items:center;margin:8px 14px 17px;padding:13px 11px;background:#fff6f0;border:1px solid #ffdfce;border-radius:11px;color:#b95d29}
+.tenant-shell-company>svg{flex-shrink:0}
+.tenant-shell-company>div{min-width:0}
+.tenant-shell-company strong,.tenant-shell-company small{display:block;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tenant-shell-company strong{font-weight:750;font-size:14px;color:#424951}
+.tenant-shell-company small{font-size:11px;color:#ad7456;margin-top:3px}
+.tenant-switch-link{display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;margin-bottom:7px}
+.tenant-switch-link:hover{color:#c15d28}
+.tenant-app-shell .profile-bar .profile{min-width:0}
+.tenant-app-shell .profile-bar .profile-label small{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.tenant-page-content{max-width:100%;min-width:0}
+.tenant-dashboard,.tenant-kanban,.tenant-opportunity{display:flex;flex-direction:column;gap:19px}
+.tenant-dashboard .metrics-grid{margin-bottom:0}
+.tenant-preview-message{align-items:center;display:flex;gap:8px;background:#fff8f0;border:1px solid #ffdfc2;border-radius:10px;padding:10px 14px;color:#ae5f2b;font-size:12px}
+.tenant-dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:19px}
+.tenant-dashboard-grid>.panel{min-width:0}
+.tenant-recent-deals .record-row{align-items:center}
+.tenant-recent-deals .record-row div{min-width:0;flex:1}
+.tenant-recent-deals .record-row strong{font-size:13px}
+.tenant-recent-deals .record-row p{margin:4px 0;color:#677381}
+.tenant-recent-deals .record-row small{color:#919aa4}
+.tenant-panel-action{padding-top:13px}
+.tenant-panel-action .text-link{display:inline-flex;align-items:center;gap:5px}
+.tenant-kpi-rows{display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
+.tenant-kpi-rows>div{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:1px solid #eef0f3;padding-bottom:10px;font-size:13px}
+.tenant-kpi-rows span{color:#838d98}.tenant-kpi-rows strong{font-weight:700;text-align:right}
+.tenant-money-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px;border-bottom:1px solid #eff0f2}
+.tenant-requirements .record-row{font-size:12px;line-height:1.45;color:#7a4538}
+.tenant-kanban .toolbar{margin-bottom:0}
+.tenant-app-shell .ws-page{background:transparent;min-height:auto;padding:0;display:block}
+.tenant-app-shell .ws-container{max-width:100%;margin:0}
+.tenant-app-shell .ws-card{box-shadow:none}
+.tenant-app-shell .ws-top{display:none}
+.tenant-app-shell .ws-overview{max-width:100%}
+@media(max-width:960px){.tenant-dashboard-grid{grid-template-columns:1fr}}
