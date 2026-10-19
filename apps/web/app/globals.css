@@ -549,3 +549,30 @@ input:-webkit-autofill:focus {
 .integration-card strong{font-size:14px}.integration-card p{margin:5px 0 0;color:#7d8791;font-size:12px;line-height:1.45}
 .integration-state{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}.integration-state span{display:flex;align-items:center;gap:5px;color:#68747f;font-size:10px;font-weight:700}
 @media(max-width:760px){.integration-grid{grid-template-columns:1fr}}
+
+
+/* Final tenant product modules: accounting, campaigns, security, integrations and contracts */
+.integration-gmail-control{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px;margin:15px 0;border:1px solid #e8ebef;border-radius:12px;background:#fafbfc}
+.integration-gmail-control strong{font-size:14px}.integration-gmail-control p{margin:4px 0 0;color:#7f8994;font-size:12px}
+.accounting-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.accounting-health-grid>div{display:flex;flex-direction:column;gap:6px;min-width:0;padding:14px;border:1px solid #e8ebef;border-radius:11px;background:#fafbfc}
+.accounting-health-grid span{font-size:11px;color:#7c8791}.accounting-health-grid strong{font-size:19px}
+.accounting-reconciliation,.accounting-journal-list,.finance-credit-section,.finance-reminder-list,.finance-reminder-candidates{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.accounting-reconciliation h3,.accounting-journal-list h3,.finance-credit-section h3,.finance-reminder-list h3,.finance-reminder-candidates h3{font-size:14px;margin:0}
+.accounting-match-row>.ws-nav-buttons{flex:0 1 58%;justify-content:flex-end}.accounting-match-row .brand-select{min-width:250px}
+.campaign-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.campaign-controls{max-width:280px;margin:14px 0}
+.campaign-enrollment{border-top:1px solid #edf0f2;padding-top:14px;margin-top:14px}
+.campaign-account-chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 13px}
+.tenant-contract-detail{display:flex;flex-direction:column;gap:20px}
+.commercial-amendment-line{padding:15px;border:1px solid #e8ebef;border-radius:11px;background:#fafbfc}
+.security-policy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:15px 0}
+.security-policy-grid>div{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid #e8ebef;border-radius:11px;background:#fafbfc}
+.security-policy-grid svg{color:#c7602c;flex-shrink:0}.security-policy-grid small,.security-policy-grid strong{display:block}.security-policy-grid small{font-size:10px;color:#818b96}.security-policy-grid strong{font-size:13px;margin-top:3px}
+.audit-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 10px}.audit-toolbar .search-box{max-width:360px}
+.audit-event-list{display:flex;flex-direction:column;border:1px solid #e8ebef;border-radius:12px;overflow:hidden}
+.audit-event{border-bottom:1px solid #edf0f2}.audit-event:last-child{border-bottom:0}.audit-event summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;list-style:none}.audit-event summary::-webkit-details-marker{display:none}.audit-event summary p{margin:4px 0 0;color:#818b96;font-size:11px}.audit-event pre{margin:0;padding:14px 15px;background:#fafbfc;border-top:1px solid #edf0f2;overflow:auto;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}
+.personal-security-events{margin-top:20px}.personal-security-events h3{font-size:14px;margin:0 0 9px}
+.finance-credit-section{padding-top:14px;border-top:1px solid #edf0f2}
+@media(max-width:960px){.accounting-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.campaign-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.integration-gmail-control{align-items:flex-start;flex-direction:column}.security-policy-grid,.accounting-health-grid{grid-template-columns:1fr}.accounting-match-row>.ws-nav-buttons{flex-basis:100%;justify-content:flex-start}.accounting-match-row .brand-select{min-width:0;width:100%}.audit-toolbar{align-items:stretch;flex-direction:column}.audit-toolbar .search-box{max-width:none}}
