@@ -72,7 +72,7 @@ async function main(){
   await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
   await page.getByRole('button',{name:'Skip — return to company home'}).waitFor();
   const prospect='Browser Fictional Prospect '+unique;
-  await page.getByLabel('Company name').fill(prospect);
+  await page.getByLabel('Prospect company name').fill(prospect);
   await page.getByPlaceholder('https://example.com').fill('https://prospect-'+unique+'.example');
   await page.getByRole('button',{name:'Create prospect'}).click();
   await page.getByText(prospect,{exact:true}).waitFor({timeout:10000});
