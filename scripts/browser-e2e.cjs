@@ -118,8 +118,9 @@ async function main(){
   const surveyPage=await browser.newPage();
   try{
    await surveyPage.goto(previewUrl);
-   await surveyPage.getByRole('heading',{name:questionnaireName}).waitFor({timeout:10000});
-   await surveyPage.getByRole('group',{name:'How would you rate your overall experience?'}).getByRole('button',{name:'5'}).click();
+   const ratingGroup=surveyPage.getByRole('group',{name:'How would you rate your overall experience?'});
+   await ratingGroup.waitFor({timeout:10000});
+   await ratingGroup.getByRole('button',{name:'5'}).click();
    await surveyPage.getByRole('button',{name:'Submit feedback'}).click();
    await surveyPage.getByRole('heading',{name:'Thank you for your feedback.'}).waitFor({timeout:10000});
   }finally{await surveyPage.close();}
