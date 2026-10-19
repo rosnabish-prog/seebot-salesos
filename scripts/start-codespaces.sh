@@ -34,6 +34,13 @@ set('NEXT_PUBLIC_API_URL','');
 set('TENANT_SCOPED_CRM_PREVIEW','true');
 set('GOOGLE_SELF_SIGNUP_ENABLED','false');
 set('DEV_EMAIL_SIGNUP_ENABLED','true');
+set('DEV_MAIL_CAPTURE_ENABLED','true');
+set('SMTP_HOST','127.0.0.1');
+set('SMTP_PORT','1025');
+set('SMTP_USER','');
+set('SMTP_PASSWORD','');
+set('SMTP_FROM','SalesOS Preview <no-reply@seebot.example>');
+set('EMAIL_SIGNUP_ENABLED','false');
 set('GMAIL_SENDING_ENABLED','false');
 set('SIGNING_ENABLED','false');
 set('SEED_DEMO_DATA','false');
@@ -57,7 +64,7 @@ console.log('API requests will use the private /api proxy on port 3000.');
 NODE
 
 echo "Starting local PostgreSQL and Redis containers..."
-docker compose up -d --wait postgres redis
+docker compose up -d --wait postgres redis mailpit
 echo "Installing dependencies and preparing local preview schema..."
 npm install --no-audit --no-fund
 npm run db:generate
@@ -67,5 +74,5 @@ npm run db:seed
 
 echo
 echo "Starting API and web development servers. Keep this terminal open."
-echo "Open the PRIVATE forwarded port 3000 in the Codespaces Ports tab."
+echo "Open PRIVATE port 3000 for SalesOS and PRIVATE port 8025 for test reset emails."
 npm run dev
