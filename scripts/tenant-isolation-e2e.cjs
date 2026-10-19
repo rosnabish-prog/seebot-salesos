@@ -104,6 +104,17 @@ async function main(){
   assert.equal(owned.body.length,1);assert.equal(owned.body[0].role,'ADMIN');
   assert.equal(owned.body[0].isCreator,true);
 
+
+  // Display company names are not URL slugs. Short, Unicode and reserved names must work.
+  for(const [kind,display] of [['short','AI'],['unicode','कम्पनी'],['reserved','Seebot']]){
+   const slugUser=await db.user.create({data:{email:'ci-slug-'+kind+'-'+id+'@work-'+id+'.example',name:'Slug Test User',passwordHash:'NOT_REAL',role:'SALES_REP'}});
+   const created=await hit('/workspaces',token(slugUser,null),{method:'POST',body:JSON.stringify({name:display})});
+   check(created,201,'Company display name is not restricted by internal slug for '+kind);
+   assert.equal(created.body.name,display,'Display name remains unchanged for '+kind);
+   assert.match(created.body.slug,/^[a-z0-9-]{3,60}$/,'Generated slug is safe for '+kind);
+   assert.notEqual(created.body.slug,'seebot','Legacy Seebot slug stays reserved');
+  }
+
   check(await hit('/workspaces',standaloneCookie,{method:'POST',body:JSON.stringify({name:'Duplicate Company',website:'https://team-'+id+'.example'})}),403,'A workspace creator cannot create a second workspace');
   const personal=await db.user.create({data:{email:'ci-personal-'+id+'@gmail.com',name:'Personal Account',passwordHash:'NOT_REAL',role:'SALES_REP'}});
   check(await hit('/workspaces',token(personal,null),{method:'POST',body:JSON.stringify({name:'Personal Fake Company',website:'https://gmail.com'})}),400,'Personal email cannot create a company workspace');
