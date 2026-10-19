@@ -168,7 +168,7 @@ async function main(){
   await page.getByRole('combobox',{name:'Finance invoice'}).click();
   await page.getByRole('option',{name:new RegExp(drafted.number)}).click();
   await page.getByRole('button',{name:'Approve reviewed draft'}).click();
-  await page.getByText('APPROVED').first().waitFor({timeout:10000});
+  await page.getByRole('button',{name:'Issue invoice PDF'}).waitFor({timeout:10000});
   const approved=await db.invoice.findUniqueOrThrow({where:{id:drafted.id},include:{taxReview:true}});
   assert.equal(approved.status,'APPROVED');
   assert.equal(approved.total.toFixed(2),'120.00');
