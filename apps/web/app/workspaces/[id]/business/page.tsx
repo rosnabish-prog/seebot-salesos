@@ -1,35 +1,52 @@
 'use client';
-import Link from 'next/link';
 import {useEffect,useState} from 'react';
 import {useParams} from 'next/navigation';
+import {Badge,ErrorMessage,PageTop,Panel,Empty} from '@/components/ui';
 import {request} from '@/lib/api';
-import {ErrorMessage} from '@/components/ui';
 import {WorkspaceCommercialCreationPanel} from '@/components/organization/workspace-commercial-creation-panel';
 import {FinanceTaxRulesPanel} from '@/components/organization/tax-rules-panel';
 import {TenantFinanceInvoicePanel} from '@/components/organization/tenant-finance-invoice-panel';
+import {FileSignature,ReceiptText,ShieldCheck,WalletCards} from 'lucide-react';
+
 type Opportunity={id:string;accountId:string;title:string;stage:string;status:string};
-type Client={id:string;name:string;domain:string};
-type Contract={id:string;title:string;type:string;status:string};
+type Client={id:string;name:string;domain:string;relationshipStatus?:string};
+type Contract={id:string;title:string;type:string;status:string;committedAmount?:string|null;currency?:string|null};
 type Invoice={id:string;number:string;status:string;currency:string;total:string};
 type Summary={accounts:number;clients:number;opportunities:number;contracts:number;invoices:number;mode:string;invoicedByCurrency:Record<string,number>};
-const endpoint=(id:string,section:string)=>`/workspace-business/${id}/${section}`;
-export default function WorkspaceBusinessPreview(){
+const endpoint=(id:string,section:string)=>'/workspace-business/'+id+'/'+section;
+
+export default function ContractsFinance(){
  const params=useParams(),orgId=String(params.id||'');
- const [summary,setSummary]=useState<Summary|null>(null),[opportunities,setOpportunities]=useState<Opportunity[]>([]),[clients,setClients]=useState<Client[]>([]),[contracts,setContracts]=useState<Contract[]>([]),[invoices,setInvoices]=useState<Invoice[]>([]);
- const [error,setError]=useState('');
- async function refresh(){const [s,o,c,ct,i]=await Promise.all([request<Summary>(endpoint(orgId,'dashboard')),request<Opportunity[]>(endpoint(orgId,'opportunities')),request<Client[]>(endpoint(orgId,'clients')),request<Contract[]>(endpoint(orgId,'contracts')),request<Invoice[]>(endpoint(orgId,'invoices'))]);setSummary(s);setOpportunities(o);setClients(c);setContracts(ct);setInvoices(i);}
- useEffect(()=>{if(orgId)void refresh().catch(e=>setError(e.message));},[orgId]);
- return <main style={{background:'#fafafb',minHeight:'100vh',padding:'30px 16px'}}><section style={{maxWidth:1100,margin:'auto',background:'#fff',border:'1px solid #e7e7eb',borderRadius:18,padding:26}}>
- <Link href={`/workspaces/${orgId}/accounts`}>← Workspace prospects</Link><h1>Workspace Business Preview</h1>
- <p className="muted">Fictional data only. This preview is enabled only in local development with TENANT_SCOPED_CRM_PREVIEW=true. The full Seebot CRM remains separated from other company workspaces.</p>
- <ErrorMessage message={error}/>
- {summary&&<div className="field-grid" style={{margin:'18px 0'}}>{(['accounts','clients','opportunities','contracts','invoices'] as const).map(k=><div key={k} className="panel" style={{padding:16}}><div className="muted">{k.toUpperCase()}</div><strong style={{fontSize:24}}>{summary[k]}</strong></div>)}</div>}
- <WorkspaceCommercialCreationPanel orgId={orgId} onChanged={refresh}/>
- <section className="panel" style={{padding:18,marginBottom:18}}><h2>Opportunities ({opportunities.length})</h2><div className="table-scroll"><table className="data-table"><thead><tr><th>Title</th><th>Stage</th><th>Status</th></tr></thead><tbody>{opportunities.map(o=><tr key={o.id}><td>{o.title}</td><td>{o.stage}</td><td>{o.status}</td></tr>)}</tbody></table></div></section>
- <section className="panel" style={{padding:18,marginBottom:18}}><h2>Contracts ({contracts.length})</h2>{contracts.map(c=><p key={c.id}>{c.title} — {c.type} / {c.status}</p>)}{!contracts.length&&<p className="muted">No fictional contracts.</p>}</section>
- <section className="panel" style={{padding:18,marginBottom:18}}><h2>Invoices ({invoices.length})</h2>{invoices.map(i=><p key={i.id}>{i.number} — {i.currency} {String(i.total)} ({i.status})</p>)}{!invoices.length&&<p className="muted">No fictional invoices.</p>}</section>
- <FinanceTaxRulesPanel organizationId={orgId} invoices={invoices}/>
- <TenantFinanceInvoicePanel orgId={orgId} invoices={invoices}/>
- <section className="panel" style={{padding:18}}><h2>Client accounts ({clients.length})</h2>{clients.map(c=><p key={c.id}>{c.name} — {c.domain}</p>)}</section>
- </section></main>;
+ const [summary,setSummary]=useState<Summary|null>(null),[opportunities,setOpportunities]=useState<Opportunity[]>([]),[clients,setClients]=useState<Client[]>([]),[contracts,setContracts]=useState<Contract[]>([]),[invoices,setInvoices]=useState<Invoice[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+ async function refresh(){
+  const [s,o,c,ct,i]=await Promise.all([
+   request<Summary>(endpoint(orgId,'dashboard')),
+   request<Opportunity[]>(endpoint(orgId,'opportunities')),
+   request<Client[]>(endpoint(orgId,'clients')),
+   request<Contract[]>(endpoint(orgId,'contracts')),
+   request<Invoice[]>(endpoint(orgId,'invoices'))
+  ]);
+  setSummary(s);setOpportunities(o);setClients(c);setContracts(ct);setInvoices(i);
+ }
+ useEffect(()=>{let active=true;setLoading(true);void refresh().catch(e=>{if(active)setError(e instanceof Error?e.message:'Unable to load contracts and finance.')}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[orgId]);
+ return <section className="commercial-hub">
+  <PageTop kicker="COMMERCIAL OPERATIONS" title="Contracts & Finance" description="Manage commercial agreements, invoices, tax review and payment records from the same customer relationship. Financial actions remain approval-based and auditable."/>
+  <ErrorMessage message={error}/>
+  {summary?.mode==='DEMO_ONLY'&&<div className="tenant-preview-message"><ShieldCheck size={17}/>Private development workspace · use fictional test records only.</div>}
+  {loading?<div className="panel">Loading commercial workspace…</div>:<>
+   <div className="metrics-grid">
+    <div className="metric-card"><span className="metric-icon"><FileSignature size={20}/></span><small>Contracts</small><strong>{summary?.contracts||0}</strong><p>Across all customer relationships</p></div>
+    <div className="metric-card"><span className="metric-icon"><ReceiptText size={20}/></span><small>Invoices</small><strong>{summary?.invoices||0}</strong><p>Draft, issued and paid records</p></div>
+    <div className="metric-card"><span className="metric-icon"><WalletCards size={20}/></span><small>Client relationships</small><strong>{clients.length}</strong><p>Contracting and active clients</p></div>
+    <div className="metric-card"><span className="metric-icon"><ShieldCheck size={20}/></span><small>Open opportunities</small><strong>{opportunities.filter(o=>o.status==='OPEN').length}</strong><p>Available for commercial actions</p></div>
+   </div>
+   <WorkspaceCommercialCreationPanel orgId={orgId} onChanged={refresh}/>
+   <div className="tenant-dashboard-grid">
+    <Panel title="Contracts">{contracts.length?<div className="stack-16">{contracts.slice(0,12).map(c=><div className="record-row" key={c.id}><div><strong>{c.title}</strong><p>{c.type}{c.committedAmount?' · '+(c.currency||'')+' '+c.committedAmount:''}</p></div><Badge tone={c.status==='SIGNED'?'green':'neutral'}>{c.status}</Badge></div>)}</div>:<Empty title="No contracts yet" description="Create contracts from a qualified opportunity when commercial work begins."/>}</Panel>
+    <Panel title="Invoice register">{invoices.length?<div className="stack-16">{invoices.slice(0,12).map(i=><div className="record-row" key={i.id}><div><strong>{i.number}</strong><p>{i.currency} {Number(i.total).toLocaleString()}</p></div><Badge>{i.status}</Badge></div>)}</div>:<Empty title="No invoices yet" description="Billing starts only when the relationship and commercial terms require it."/>}</Panel>
+   </div>
+   <TenantFinanceInvoicePanel orgId={orgId} invoices={invoices}/>
+   <FinanceTaxRulesPanel organizationId={orgId} invoices={invoices}/>
+  </>}
+ </section>;
 }
