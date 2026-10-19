@@ -67,8 +67,19 @@ async function main(){
   const row=page.locator('.ws-choice').filter({hasText:name});
   await row.getByRole('button',{name:'Open'}).click();
   await page.waitForURL(/\/workspaces\/[^/]+$/,{timeout:15000});
-  await page.getByRole('heading',{name}).waitFor();
-  await page.getByRole('link',{name:/Prospects & accounts/}).click();
+  await page.getByRole('heading',{name:/Good morning/}).waitFor();
+  await page.getByRole('link',{name:'Kanban Pipeline'}).click();
+  await page.getByRole('heading',{name:'Kanban Pipeline'}).waitFor();
+  await page.getByRole('link',{name:'Executive Overview'}).click();
+  await page.getByRole('heading',{name:'Executive Overview'}).waitFor();
+  await page.getByRole('link',{name:'Tasks & Follow-ups'}).click();
+  await page.getByRole('heading',{name:'Tasks & Follow-ups'}).waitFor();
+  await page.getByRole('link',{name:'Campaigns'}).click();
+  await page.getByRole('heading',{name:'Campaigns'}).waitFor();
+  await page.getByRole('link',{name:/Prospects & Accounts/i}).click();
+  await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
+
+  await page.getByRole('link',{name:/Prospects & Accounts/i}).click();
   await page.getByRole('heading',{name:'Company Prospects'}).waitFor();
   await page.getByRole('button',{name:'Skip — return to company home'}).waitFor();
   const prospect='Browser Fictional Prospect '+unique;
@@ -152,8 +163,8 @@ async function main(){
    await newPage.getByRole('heading',{name:ownName}).waitFor({timeout:10000});
    await newPage.getByRole('button',{name:'Save & continue'}).click();
    await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:15000});
-   await newPage.getByRole('heading',{name:ownName}).waitFor();
-   await newPage.getByRole('link',{name:/Prospects & accounts/}).click();
+   await newPage.getByRole('heading',{name:/Good morning/}).waitFor();
+   await newPage.getByRole('link',{name:/Prospects & Accounts/i}).click();
    await newPage.getByRole('button',{name:'Skip — return to company home'}).click();
    await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:10000});
    await newPage.getByRole('button',{name:'Sign out'}).click();
