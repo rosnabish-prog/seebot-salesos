@@ -12,10 +12,10 @@
 ## User flow
 
 - **Email/password login:** Existing admin credentials remain in `.env`; use `ADMIN_EMAIL` and `ADMIN_PASSWORD`. The login form reports wrong credentials separately from a rejected origin.
-- **Email registration:** Codespaces enables `DEV_EMAIL_SIGNUP_ENABLED=true`. Only in non-production Codespaces, new accounts can sign up directly and are routed to create their first workspace. **Email ownership is not verified in this developer-only mode**. Do not use with real customers or a publicly shared port.
+- **Email registration:** Codespaces enables `DEV_EMAIL_SIGNUP_ENABLED=true` and `DEV_MAIL_CAPTURE_ENABLED=true`. Company registration blocks common personal email domains (Gmail, Outlook, Yahoo, etc.), sends a verification link to the private Mailpit inbox (port 8025), and routes successful registrations to the centered two-step company wizard. This proves possession of a simulated preview inbox **only** — not real-world company email or company ownership. Do not use real customers or publicly shared ports.
 - **Password recovery:** Use **Forgot password** and enter the account email. In the Codespaces preview the reset email appears in Mailpit at port 8025. Open the one-use reset URL within 30 minutes. Password change increments session version and revokes old JWT sessions.
 - **Google login:** The UI displays a configuration explanation if the OAuth client ID is absent. To enable it, configure a Google OAuth Web application with the exact Codespace port 3000 HTTPS origin, set `GOOGLE_LOGIN_CLIENT_ID` and `NEXT_PUBLIC_GOOGLE_LOGIN_CLIENT_ID` to that authorized client ID, and restart the servers. Keep `GOOGLE_SELF_SIGNUP_ENABLED=false` until intentionally enabling private testing.
-- **Team invitations:** Workspace owners can invite a user and share a private link. Invitations are bound to the invited email and only grant membership after the recipient proves control of that email or signs into the already registered account with that email.
+- **Team invitations:** The wizard accepts comma/Enter-delimited work-email chips with removable × icons (up to 25 per batch). Invitations are email-bound, expire after seven days, and grant access only on acceptance by the invited identity. In Codespaces, invitations are captured by Mailpit; connected Gmail can deliver real mail in an approved environment; otherwise an admin receives a private fallback link. Creators get the ADMIN membership role and cannot create another workspace.
 
 ## Production boundaries
 
@@ -28,3 +28,7 @@
 ## Existing local .env
 
 The preview script preserves any existing `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `JWT_SECRET` in `.env`. Never paste `.env` or credentials into GitHub commits, issues, or chats. Running `npm run db:seed` repeatedly will not automatically enroll newly registered standalone users into Seebot.
+
+## Company setup policy
+
+Users with any active workspace membership cannot create a second workspace, even if they joined that workspace as an invited teammate. Multi-workspace membership via invitation is still supported. A work-email domain is required and, when provided, the company website domain must match the creator's email domain. A blocklist alone is not legal-company verification: domain ownership, DNS/business registry checks and independent security approval remain requirements before public deployment.
