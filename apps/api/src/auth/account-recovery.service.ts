@@ -39,7 +39,7 @@ export class AccountRecoveryService{
   const options:SMTPTransport.Options={
    host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT||587),
    secure:Number(process.env.SMTP_PORT||587)===465,
-   ...(this.previewMailboxReady()?{}:{auth:{user:process.env.SMTP_USER,password:process.env.SMTP_PASSWORD}}),
+   ...(this.previewMailboxReady()?{}:{auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASSWORD}}),
    requireTLS:!this.previewMailboxReady()&&Number(process.env.SMTP_PORT||587)!==465,
    connectionTimeout:10000,socketTimeout:12000
   };
