@@ -4,6 +4,7 @@ import {createHash,randomBytes} from 'node:crypto';
 import argon2 from 'argon2';
 import nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
+import {companyDomain} from '../workspace/company-email';
 
 const sha=(v:string)=>createHash('sha256').update(v).digest('hex');
 const validEmail=(s:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)&&s.length<=254;
@@ -31,7 +32,7 @@ export class AccountRecoveryService{
  }
  capabilities(){
   return {emailSignupEnabled:this.emailSignupReady()||this.developerSignupReady(),
-    developerSignup:this.developerSignupReady(),passwordResetEnabled:this.smtpReady(),
+    developerSignup:this.developerSignupReady(),emailVerificationRequired:!this.developerSignupReady()||this.previewMailboxReady(),passwordResetEnabled:this.smtpReady(),
     googleConfigured:Boolean(process.env.GOOGLE_LOGIN_CLIENT_ID),previewMailbox:this.previewMailboxReady()};
  }
  private async send(to:string,subject:string,body:string){
@@ -57,12 +58,13 @@ export class AccountRecoveryService{
   const name=String(body?.name||'').trim(),email=String(body?.email||'').trim().toLowerCase(),password=body?.password;
   if(!validEmail(email)||name.length<2||name.length>160||!passwordOK(password as string))
    throw new BadRequestException('Name, valid email and a password of 12–256 characters are required.');
+  companyDomain(email);
   if(!this.capabilities().emailSignupEnabled)
    throw new ServiceUnavailableException('Email registration is not enabled. Use a team invitation or an approved sign-in provider.');
   if(await this.db.user.findUnique({where:{email},select:{id:true}}))
    throw new ConflictException('This email already has an account. Sign in or use password recovery.');
   const passwordHash=await argon2.hash(password as string);
-  if(this.developerSignupReady()){
+  if(this.developerSignupReady()&&!this.previewMailboxReady()){
    // Explicitly private/CI-only preview. Never use this path in production.
    const user=await this.db.user.create({data:{name,email,passwordHash,role:'SALES_REP'}});
    await this.db.auditEvent.create({data:{actorId:user.id,action:'PRIVATE_PREVIEW_EMAIL_SIGNUP',entityType:'USER',entityId:user.id,detail:{preview:true}}});
