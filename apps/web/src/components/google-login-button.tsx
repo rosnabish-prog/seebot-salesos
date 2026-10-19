@@ -2,13 +2,12 @@
 import { useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import { post } from '../lib/api';
-import { useAuth } from '../context/auth';
 import { useRouter } from 'next/navigation';
 
 /** Google Identity Services, distinct from Gmail inbox authorization. */
 export function GoogleLoginButton({onError,mode='login'}:{onError:(message:string)=>void;mode?:'login'|'signup'}){
   const clientId=process.env.NEXT_PUBLIC_GOOGLE_LOGIN_CLIENT_ID;
-  const mount=useRef<HTMLDivElement>(null),{refresh}=useAuth(),router=useRouter();
+  const mount=useRef<HTMLDivElement>(null),router=useRouter();
   const [loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false);
   useEffect(()=>{
     if(!loaded||!clientId||!mount.current||!window.google)return;
@@ -17,15 +16,16 @@ export function GoogleLoginButton({onError,mode='login'}:{onError:(message:strin
       if(!response.credential||!current)return;
       setBusy(true);
       try{
-        await post('/auth/google',{credential:response.credential});
-        await refresh();router.replace('/entry');
+        const challenge=await post<{challengeId:string;maskedEmail:string}>('/auth/google',{credential:response.credential});
+        sessionStorage.setItem('salesos_mfa',JSON.stringify({challengeId:challenge.challengeId,maskedEmail:challenge.maskedEmail}));
+        router.replace('/two-factor');
       }catch(err){onError(err instanceof Error?err.message:'Google sign-in failed.');}
       finally{if(current)setBusy(false);}
     }});
     mount.current.innerHTML='';
     window.google.accounts.id.renderButton(mount.current,{type:'standard',theme:'outline',size:'large',text:mode==='signup'?'signup_with':'signin_with',shape:'rectangular',width:300});
     return ()=>{current=false;};
-  },[loaded,clientId,onError,refresh,router,mode]);
+  },[loaded,clientId,onError,router,mode]);
   if(!clientId)return <div className="google-workforce-login"><div className="google-divider">or continue with Google</div><button className="btn btn-secondary full-width" type="button" disabled aria-label="Continue with Google (configuration required)">Continue with Google</button><p className="google-config-note">Google sign-in will appear when the administrator configures Google OAuth for this application.</p></div>;
   return <div className="google-workforce-login" aria-busy={busy}>
     <div className="google-divider">or sign in with Google</div>
