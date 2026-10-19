@@ -3,7 +3,7 @@ import {ReactNode,useEffect,useState} from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {useParams,usePathname,useRouter} from 'next/navigation';
-import {LayoutDashboard,ChartNoAxesCombined,KanbanSquare,Building2,BriefcaseBusiness,FileSignature,Settings2,LogOut,Menu,X,LoaderCircle,UsersRound,ListTodo,Megaphone} from 'lucide-react';
+import {LayoutDashboard,ChartNoAxesCombined,KanbanSquare,Building2,BriefcaseBusiness,FileSignature,Settings2,LogOut,Menu,X,LoaderCircle,UsersRound,ListTodo,Megaphone,HeartHandshake} from 'lucide-react';
 import {request} from '@/lib/api';
 import {useAuth} from '@/context/auth';
 
@@ -32,6 +32,7 @@ export function TenantWorkspaceShell({children}:{children:ReactNode}){
   {href:root+'/pipeline',name:'Kanban Pipeline',icon:KanbanSquare},
   {href:root+'/accounts',name:'Prospects & Accounts',icon:Building2},
   {href:root+'/clients',name:'Client Management',icon:BriefcaseBusiness},
+  {href:root+'/satisfaction',name:'Client Satisfaction',icon:HeartHandshake},
   {href:root+'/tasks',name:'Tasks & Follow-ups',icon:ListTodo},
   {href:root+'/campaigns',name:'Campaigns',icon:Megaphone},
   {href:root+'/business',name:'Contracts & Finance',icon:FileSignature},
