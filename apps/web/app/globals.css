@@ -448,3 +448,13 @@ input:-webkit-autofill:focus {
 .tenant-app-shell .ws-top{display:none}
 .tenant-app-shell .ws-overview{max-width:100%}
 @media(max-width:960px){.tenant-dashboard-grid{grid-template-columns:1fr}}
+
+
+/* Keep account switching and sign out visible even with the complete SalesOS navigation. */
+.tenant-app-shell .sidebar{overflow:hidden}
+.tenant-app-shell .sidebar-head,.tenant-app-shell .sidebar-subhead,.tenant-app-shell .tenant-shell-company{flex-shrink:0}
+.tenant-app-shell .nav-list{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:15px}
+.tenant-app-shell .sidebar-bottom{flex:0 0 auto;margin-top:0;border-top:1px solid #edf0f1;background:#fff;padding-top:12px;padding-bottom:12px}
+.tenant-app-shell .sidebar-note{padding:9px 10px;margin-bottom:7px}
+.tenant-app-shell .sidebar-head{height:78px;padding-top:16px;padding-bottom:16px}
+@media(max-height:650px){.tenant-app-shell .sidebar-head{height:58px}.tenant-app-shell .tenant-shell-company{margin-top:0;margin-bottom:8px;padding:8px}.tenant-app-shell .nav-link{padding-top:9px;padding-bottom:9px}}
