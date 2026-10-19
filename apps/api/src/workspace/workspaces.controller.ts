@@ -4,7 +4,8 @@ import {JwtService} from '@nestjs/jwt';
 import {PrismaService} from '../prisma/prisma.service';
 import type {AuthRequest} from '../common/auth.guard';
 import {IdentityGuard} from './identity.guard';
-import {normalizeSlug} from './workspace-policy';
+import {generateCompanySlug} from './workspace-policy';
+import {randomBytes} from 'node:crypto';
 import {assertWebsiteEmailMatch} from './company-email';
 @UseGuards(IdentityGuard) @Controller('workspaces')
 export class WorkspacesController{
@@ -24,8 +25,7 @@ export class WorkspacesController{
    currency=String(body?.defaultCurrency||'USD').trim().toUpperCase(),timezone=String(body?.timezone||'UTC').trim();
   if(industry.length>100||!/^[A-Z]{2}$/.test(country)||!/^[A-Z]{3}$/.test(currency)||timezone.length>100)
    throw new BadRequestException('Select a valid industry, country, currency and time zone.');
-  let slug:string;
-  try{slug=normalizeSlug(String(body?.slug||name));}catch{throw new BadRequestException('Company name must generate a valid unique workspace identifier.');}
+  const slug=generateCompanySlug(name,randomBytes(5).toString('hex'));
   return this.db.$transaction(async tx=>{
    // The row lock serializes two concurrent requests from the same creator.
    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${req.user.id} FOR UPDATE`;
