@@ -5,6 +5,7 @@ import {PrismaService} from '../prisma/prisma.service';
 import type {AuthRequest} from '../common/auth.guard';
 import {IdentityGuard} from './identity.guard';
 import {normalizeSlug} from './workspace-policy';
+import {assertWebsiteEmailMatch} from './company-email';
 @UseGuards(IdentityGuard) @Controller('workspaces')
 export class WorkspacesController{
  constructor(private db:PrismaService,private jwt:JwtService){}
@@ -15,12 +16,36 @@ export class WorkspacesController{
   if(!membership||membership.status!=='ACTIVE'||!['ACTIVE','SETUP'].includes(membership.organization.status))return {selected:null,legacyAllowed:false};
   return {selected:id,slug:membership.organization.slug,legacyAllowed:membership.organization.slug==='seebot'};
  }
- @Get()async list(@Req()req:AuthRequest){const members=await this.db.organizationMembership.findMany({where:{userId:req.user.id,status:'ACTIVE',organization:{status:{in:['ACTIVE','SETUP']}}},include:{organization:true},orderBy:{createdAt:'asc'}});return members.map(m=>({id:m.organizationId,slug:m.organization.slug,name:m.organization.name,logoUrl:m.organization.logoUrl,status:m.organization.status,role:m.role,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))}));}
+ @Get()async list(@Req()req:AuthRequest){const members=await this.db.organizationMembership.findMany({where:{userId:req.user.id,status:'ACTIVE',organization:{status:{in:['ACTIVE','SETUP']}}},include:{organization:true},orderBy:{createdAt:'asc'}});return members.map(m=>({id:m.organizationId,slug:m.organization.slug,name:m.organization.name,logoUrl:m.organization.logoUrl,status:m.organization.status,role:m.role,isCreator:m.organization.createdById===req.user.id,crmEnabled:m.organization.slug==='seebot',tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true'))}));}
  @Post()async create(@Req()req:AuthRequest,@Body()body:any){
-  const name=String(body?.name||'').trim(),slug=normalizeSlug(String(body?.slug||name)),website=String(body?.website||'').trim();
-  if(name.length<2||name.length>160||website&&(!/^https:\/\/[^\s/]+/i.test(website)||website.length>300))throw new BadRequestException('Valid company name and optional HTTPS website required.');
-  const org=await this.db.organization.create({data:{slug,name,website:website||null,industry:String(body?.industry||'').slice(0,100),description:String(body?.description||'').slice(0,4000),country:String(body?.country||'').slice(0,2)||null,defaultCurrency:/^[A-Z]{3}$/.test(body?.defaultCurrency||'')?body.defaultCurrency:'USD',status:'SETUP',memberships:{create:{userId:req.user.id,role:'OWNER'}},workspaceSettings:{create:{plan:'ALL_FEATURES_UNLOCKED',setupComplete:false}}}});
-  return {id:org.id,name:org.name,slug:org.slug,status:org.status,crmEnabled:false,tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true')),notice:'Workspace profile created. Access to shared legacy CRM is disabled until all tenant boundaries pass security validation.'};
+  const name=String(body?.name||'').trim(),website=String(body?.website||'').trim();
+  if(name.length<2||name.length>160||website.length>300)throw new BadRequestException('Company name must be between 2 and 160 characters.');
+  const industry=String(body?.industry||'').trim(),country=String(body?.country||'GB').trim().toUpperCase(),
+   currency=String(body?.defaultCurrency||'USD').trim().toUpperCase(),timezone=String(body?.timezone||'UTC').trim();
+  if(industry.length>100||!/^[A-Z]{2}$/.test(country)||!/^[A-Z]{3}$/.test(currency)||timezone.length>100)
+   throw new BadRequestException('Select a valid industry, country, currency and time zone.');
+  let slug:string;
+  try{slug=normalizeSlug(String(body?.slug||name));}catch{throw new BadRequestException('Company name must generate a valid unique workspace identifier.');}
+  return this.db.$transaction(async tx=>{
+   // The row lock serializes two concurrent requests from the same creator.
+   await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${req.user.id} FOR UPDATE`;
+   const user=await tx.user.findUnique({where:{id:req.user.id},select:{email:true,active:true}});
+   if(!user?.active)throw new ForbiddenException('An active, verified account is required.');
+   assertWebsiteEmailMatch(user.email,website);
+   const existing=await tx.organizationMembership.findFirst({where:{userId:req.user.id,status:'ACTIVE',organization:{status:{in:['ACTIVE','SETUP']}}},select:{organizationId:true}});
+   const priorCreator=await tx.organization.findFirst({where:{createdById:req.user.id},select:{id:true}});
+   if(existing||priorCreator)throw new ForbiddenException('You already belong to a company workspace. Creating another workspace is not available.');
+   const org=await tx.organization.create({data:{
+    slug,name,website:website||null,createdById:req.user.id,industry:industry||null,country,
+    timezone,defaultCurrency:currency,status:'SETUP',
+    memberships:{create:{userId:req.user.id,role:'ADMIN'}},
+    workspaceSettings:{create:{plan:'ALL_FEATURES_UNLOCKED',setupComplete:false}}
+   }});
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'WORKSPACE_CREATED',entityType:'ORGANIZATION',entityId:org.id,detail:{domain:user.email.split('@')[1],creatorRole:'ADMIN'}}});
+   return {id:org.id,name:org.name,slug:org.slug,status:org.status,role:'ADMIN',isCreator:true,crmEnabled:false,
+    tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true')),
+    notice:'Company workspace created. You are its administrator. Invite your teammates to continue.'};
+  },{isolationLevel:'Serializable'});
  }
  private async authorized(req:AuthRequest,id:string,admin=false){
    const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
