@@ -13,8 +13,9 @@ export class AuthGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<AuthRequest>();
     const token = req.cookies?.salesos_session;
     if (!token) throw new UnauthorizedException('Please sign in.');
-    let payload: {sub:string;pv?:number;wid?:string};
+    let payload: {sub:string;pv?:number;wid?:string;mfa?:boolean};
     try { payload = await this.jwt.verifyAsync(token); } catch { throw new UnauthorizedException('Session expired.'); }
+    if(payload.mfa!==true)throw new UnauthorizedException('Two-factor verification required.');
     const user = await this.db.user.findUnique({ where: { id: payload.sub }, select: { id:true,email:true,name:true,role:true,active:true,passwordVersion:true } });
     if (!user || !user.active) throw new UnauthorizedException('Account disabled.');
     if (payload.pv !== user.passwordVersion) throw new UnauthorizedException('Session needs renewal. Please sign in again.');
@@ -23,7 +24,10 @@ export class AuthGuard implements CanActivate {
     const seebot=await this.db.organization.findUnique({where:{slug:'seebot'},select:{id:true}});
     if(!seebot)throw new ForbiddenException('Run the Seebot organization bootstrap first.');
     const membership=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:seebot.id,userId:user.id}},select:{status:true}});
-    if(payload.wid && payload.wid!==seebot.id)throw new ForbiddenException('This workspace cannot use the legacy CRM until organization isolation is completed.');
+    let selected=payload.wid||null;
+    const workspaceToken=(req as any).cookies?.salesos_workspace;
+    if(workspaceToken){try{const w:any=await this.jwt.verifyAsync(workspaceToken);selected=w?.kind==='workspace'&&w?.sub===user.id?w.wid:null;}catch{selected=null;}}
+    if(selected && selected!==seebot.id)throw new ForbiddenException('This workspace cannot use the legacy CRM until organization isolation is completed.');
     if(!mayAccessLegacySeebotWorkspace('seebot',membership?.status||'NONE'))throw new ForbiddenException('Not authorized for the Seebot workspace.');
     req.user = { id:user.id,email:user.email,name:user.name,role:user.role,organizationId:seebot.id };
     return true;
