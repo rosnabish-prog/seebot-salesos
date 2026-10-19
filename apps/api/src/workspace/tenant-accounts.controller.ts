@@ -54,9 +54,12 @@ export class TenantAccountsController {
  }
  @Post(':orgId/accounts/:accountId/contacts')async contact(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Body()body:any){await this.authorize(req,orgId,true);
   const account=await this.db.account.findFirst({where:{id:accountId,organizationId:orgId},select:{id:true}});if(!account)throw new BadRequestException('Account unavailable in this workspace.');
-  const name=String(body?.name||'').trim(),title=String(body?.title||'').trim(),email=String(body?.email||'').trim().toLowerCase();
+  const name=String(body?.name||'').trim(),title=String(body?.title||'').trim(),email=String(body?.email||'').trim().toLowerCase(),linkedinUrl=String(body?.linkedinUrl||'').trim();
   if(name.length<2||name.length>150||title.length<2||title.length>150||!(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))throw new BadRequestException('Valid contact name, job title and email required.');
-  return this.db.contact.create({data:{accountId,name,title,email,source:'USER_ENTERED',verified:false}});
+  if(linkedinUrl&&(!/^https:\/\//.test(linkedinUrl)||linkedinUrl.length>500))throw new BadRequestException('Use a valid HTTPS LinkedIn/profile URL.');
+  const created=await this.db.contact.create({data:{accountId,name,title,email,linkedinUrl:linkedinUrl||null,source:'USER_ENTERED',verified:false}});
+  await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_CONTACT_CREATED',entityType:'CONTACT',entityId:created.id,detail:{organizationId:orgId,accountId}}});
+  return created;
  }
  @Patch(':orgId/accounts/:accountId/contacts/:contactId')async updateContact(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Param('contactId')contactId:string,@Body()body:any){await this.authorize(req,orgId,true);
   const account=await this.db.account.findFirst({where:{id:accountId,organizationId:orgId},select:{id:true}});if(!account)throw new BadRequestException('Account unavailable in this workspace.');
