@@ -14,7 +14,13 @@ type RequestData={email?:string;name?:string;password?:string};
 @Injectable()
 export class AccountRecoveryService{
  constructor(private db:PrismaService){}
+ private previewMailboxReady(){
+  return process.env.NODE_ENV!=='production'&&process.env.DEV_MAIL_CAPTURE_ENABLED==='true'&&
+    Boolean(process.env.CODESPACE_NAME||process.env.CI==='true')&&
+    process.env.SMTP_HOST==='127.0.0.1'&&Number(process.env.SMTP_PORT)===1025&&Boolean(process.env.SMTP_FROM);
+ }
  private smtpReady(){
+  if(this.previewMailboxReady())return true;
   return Boolean(process.env.SMTP_HOST&&process.env.SMTP_FROM&&process.env.SMTP_USER&&process.env.SMTP_PASSWORD
     &&Number.isInteger(Number(process.env.SMTP_PORT||587))&&Number(process.env.SMTP_PORT||587)>0);
  }
@@ -26,15 +32,15 @@ export class AccountRecoveryService{
  capabilities(){
   return {emailSignupEnabled:this.emailSignupReady()||this.developerSignupReady(),
     developerSignup:this.developerSignupReady(),passwordResetEnabled:this.smtpReady(),
-    googleConfigured:Boolean(process.env.GOOGLE_LOGIN_CLIENT_ID)};
+    googleConfigured:Boolean(process.env.GOOGLE_LOGIN_CLIENT_ID),previewMailbox:this.previewMailboxReady()};
  }
  private async send(to:string,subject:string,body:string){
   if(!this.smtpReady())throw new ServiceUnavailableException('Email delivery is not configured.');
   const options:SMTPTransport.Options={
    host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT||587),
    secure:Number(process.env.SMTP_PORT||587)===465,
-   auth:{user:process.env.SMTP_USER,password:process.env.SMTP_PASSWORD},
-   requireTLS:Number(process.env.SMTP_PORT||587)!==465,
+   ...(this.previewMailboxReady()?{}:{auth:{user:process.env.SMTP_USER,password:process.env.SMTP_PASSWORD}}),
+   requireTLS:!this.previewMailboxReady()&&Number(process.env.SMTP_PORT||587)!==465,
    connectionTimeout:10000,socketTimeout:12000
   };
   const transport=nodemailer.createTransport(options);
