@@ -2,6 +2,7 @@ import {BadRequestException,Body,Controller,ForbiddenException,Get,Param,Post,Re
 import type {Response} from 'express';
 import {createHash,randomBytes} from 'node:crypto';
 import argon2 from 'argon2';
+import nodemailer from 'nodemailer';
 import {JwtService} from '@nestjs/jwt';
 import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from './identity.guard';
@@ -69,9 +70,20 @@ export class WorkspaceInvitationsController{
    });
    delivery=(await this.outbox.send(message.id,req.user.id)).status;
   }catch{delivery='NOT_SENT';}
+  // Private Codespaces demo only. Mailpit captures messages locally; these are NOT delivered to real inboxes.
+  if(delivery!=='SENT'&&process.env.NODE_ENV!=='production'&&process.env.DEV_MAIL_CAPTURE_ENABLED==='true'&&
+     Boolean(process.env.CODESPACE_NAME)&&process.env.SMTP_HOST==='127.0.0.1'&&process.env.SMTP_PORT==='1025'){
+   const transport=nodemailer.createTransport({host:'127.0.0.1',port:1025,secure:false});
+   try{
+    await transport.sendMail({from:process.env.SMTP_FROM||'SalesOS Preview <no-reply@seebot.example>',to:email,
+     subject:'Invitation to '+member.organization.name+' on SalesOS',
+     text:'Hello '+name+',\\n\\nJoin '+member.organization.name+' using your private invitation link (expires in 7 days):\\n\\n'+link});
+    delivery='SENT_PREVIEW';
+   }catch{delivery='NOT_SENT';}finally{transport.close();}
+  }
   return {id:invitation.id,recipientEmail:email,expiresAt,delivery,
-   ...(delivery==='SENT'?{}:{inviteUrl:link}),
-   notice:delivery==='SENT'?'Invitation sent through connected Gmail.':'Invitation not emailed. Copy the one-time private invitation link and share it securely.'};
+   ...(['SENT','SENT_PREVIEW'].includes(delivery)?{}:{inviteUrl:link}),
+   notice:delivery==='SENT'?'Invitation sent through connected Gmail.':delivery==='SENT_PREVIEW'?'Invitation captured in private Codespaces test inbox on port 8025.':'Invitation not emailed. Copy the one-time private invitation link and share it securely.'};
  }
  private async pending(raw:unknown,email:string){
   if(typeof raw!=='string'||!/^[A-Za-z0-9_-]{32,100}$/.test(raw))throw new UnauthorizedException('Invalid invitation.');
