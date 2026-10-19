@@ -48,6 +48,27 @@ async function main(){
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+a.invoice.id,a.cookie),200,'Own invoice');
   check(await hit('/workspace-tax/'+a.org.id+'/rules',a.cookie),200,'Own finance rules');
 
+  // All restored navigation pages use selected-tenant APIs, not the legacy global controllers.
+  check(await hit('/workspace-business/'+a.org.id+'/tasks',a.cookie),200,'Own workspace tasks');
+  check(await hit('/workspace-business/'+b.org.id+'/tasks',a.cookie),403,'Other company tasks denied');
+  const task=await hit('/workspace-business/'+a.org.id+'/tasks',a.cookie,{method:'POST',body:JSON.stringify({title:'Fictional CI followup'})});
+  check(task,201,'Create scoped task');
+  check(await hit('/workspace-business/'+b.org.id+'/tasks/'+task.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'DONE'})}),403,'Cannot alter task through a foreign workspace');
+  check(await hit('/workspace-business/'+a.org.id+'/tasks/'+task.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'DONE'})}),200,'Complete own task');
+  check(await hit('/workspace-business/'+a.org.id+'/campaigns',a.cookie),200,'Own workspace campaigns');
+  check(await hit('/workspace-business/'+b.org.id+'/campaigns',a.cookie),403,'Foreign company campaigns denied');
+  const campaign=await hit('/workspace-business/'+a.org.id+'/campaigns',a.cookie,{method:'POST',body:JSON.stringify({name:'Fictional CI campaign',sector:'Sports'})});
+  check(campaign,201,'Create scoped campaign');
+  const newOpportunity=await hit('/workspace-business/'+a.org.id+'/accounts/'+a.account.id+'/opportunities',a.cookie,{method:'POST',body:JSON.stringify({title:'CI Pipeline Deal',serviceLine:'Computer vision'})});
+  check(newOpportunity,201,'Create tenant pipeline opportunity');
+  check(await hit('/workspace-business/'+a.org.id+'/opportunities',a.cookie),200,'Read tenant Kanban');
+  check(await hit('/workspace-business/'+b.org.id+'/opportunities',a.cookie),403,'Foreign tenant Kanban denied');
+  check(await hit('/workspace-business/'+a.org.id+'/opportunities/'+newOpportunity.body.id+'/stage-state',a.cookie),200,'Read stage evidence for own opportunity');
+  check(await hit('/workspace-business/'+a.org.id+'/opportunities/'+newOpportunity.body.id+'/transition',a.cookie,{method:'POST',body:JSON.stringify({targetStage:'DECISION_MAKER_IDENTIFIED'})}),400,'Stage changes without evidence require authorized override');
+  check(await hit('/workspace-business/'+b.org.id+'/opportunities/'+newOpportunity.body.id+'/transition',a.cookie,{method:'POST',body:JSON.stringify({targetStage:'DECISION_MAKER_IDENTIFIED',override:true,reason:'Forbidden'})}),403,'Cross-tenant Kanban move denied');
+  check(await hit('/workspace-business/'+a.org.id+'/opportunities/'+newOpportunity.body.id+'/transition',a.cookie,{method:'POST',body:JSON.stringify({targetStage:'DECISION_MAKER_IDENTIFIED',override:true,reason:'CI-only stage transition check'})}),201,'Administrator override of own fictional opportunity requires recorded reason');
+
+
 
   // Authentication regression coverage: invalid credentials must reach auth, not fail origin checks.
   const capabilities=await hit('/auth/capabilities','');
