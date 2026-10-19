@@ -130,6 +130,11 @@ export class OpportunityWorkflowService {
       await tx.task.create({data:{organizationId:(await tx.account.findUnique({where:{id:opp.accountId},select:{organizationId:true}}))?.organizationId,opportunityId:opp.id,assigneeId:opp.ownerId,title:`Stage: Complete ${stageName}`,description:'Complete required evidence and activities to advance this opportunity.'}});
     }
     await tx.stageTransition.create({data:{opportunityId:opp.id,fromStage:opp.stage,toStage:stage,actorId,reason,automated}});
+    // Client Management is a relationship view over the SAME Account record, never a duplicate company.
+    // Once contracting begins, keep the relationship visible even if the opportunity is later moved backward for correction.
+    if(STAGE_INDEX[stage]>=STAGE_INDEX.PILOT_CONTRACTED&&stage!=='CLOSED_WON'){
+      await tx.account.updateMany({where:{id:opp.accountId,status:{not:'Customer'}},data:{status:'Contracting'}});
+    }
     if(stage==='CLOSED_WON') {
       const contract=await tx.contract.findFirst({where:{opportunityId:opp.id,type:'PRODUCTION_OTHER',status:'SIGNED'},orderBy:{signedAt:'desc'}});
       if(contract?.committedAmount)await tx.opportunity.update({where:{id:opp.id},data:{contractedAmount:contract.committedAmount,currency:contract.currency||opp.currency}});
