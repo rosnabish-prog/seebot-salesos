@@ -94,6 +94,7 @@ model User {
   googleOAuthStates GoogleOAuthState[]
   createdInvitations EmployeeInvitation[]
   issuedSurveys ClientSurveyInvitation[]
+  passwordResetRequests PasswordResetRequest[]
 }
 model Account {
   id String @id @default(cuid())
@@ -1065,4 +1066,25 @@ model InvoiceTaxReview {
   ruleInvoiceNoteSnapshot String? @db.Text
   ratePercentSnapshot Decimal? @db.Decimal(9,4)
   reviewedAt DateTime @default(now())
+}
+
+model SignupChallenge {
+ id String @id @default(cuid())
+ email String @unique
+ name String
+ passwordHash String
+ tokenHash String @unique
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+}
+
+model PasswordResetRequest {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ tokenHash String @unique
+ expiresAt DateTime
+ usedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([userId,expiresAt])
 }
