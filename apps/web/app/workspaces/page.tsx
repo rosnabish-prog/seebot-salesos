@@ -47,7 +47,7 @@ function SelectField({label,value,onChange,options,disabled=false}:{label:string
  return <Field label={label}><div className={disabled?'ws-select-disabled':''}><BrandSelect value={value} onValueChange={v=>{if(!disabled)onChange(v)}} ariaLabel={label}>{value&&!options.some(o=>o.value===value)&&<option value={value}>{value}</option>}{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</BrandSelect></div></Field>;
 }
 const optionize=(list:string[])=>list.map(value=>({value,label:value}));
-export default function WorkspacesPage(){
+export default function WorkspacesPage({embeddedWorkspaceId}:{embeddedWorkspaceId?:string}={}){
  const router=useRouter(),{logout}=useAuth();
  const [items,setItems]=useState<Workspace[]>([]),[loaded,setLoaded]=useState(false),[selected,setSelected]=useState<Workspace|null>(null);
  const [profile,setProfile]=useState(companyDefaults),[createForm,setCreateForm]=useState(companyDefaults),[stage,setStage]=useState<'company'|'invite'|'complete'>('company');
@@ -55,7 +55,7 @@ export default function WorkspacesPage(){
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[teamExpanded,setTeamExpanded]=useState(false);
  async function list(){const workspaces=await request<Workspace[]>('/workspaces');setItems(workspaces);setLoaded(true);return workspaces;}
  useEffect(()=>{void list().then(workspaces=>{
-   const manage=new URLSearchParams(window.location.search).get('manage');const requested=workspaces.find(w=>w.id===manage);
+   const manage=embeddedWorkspaceId||new URLSearchParams(window.location.search).get('manage');const requested=workspaces.find(w=>w.id===manage);
    if(requested)void open(requested);
  }).catch(e=>{if(e.status===401)router.replace('/login');else setError(e.message);setLoaded(true);});},[]);
  async function open(workspace:Workspace){
