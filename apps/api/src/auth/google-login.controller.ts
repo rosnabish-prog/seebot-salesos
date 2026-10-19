@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Res, UnauthorizedException } from '@nestjs/common';
 import {randomBytes} from 'node:crypto';
+import {companyDomain} from '../workspace/company-email';
 import argon2 from 'argon2';
 import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,6 +15,7 @@ export class GoogleLoginController {
     const verified=await this.identity.verify(body?.credential||'',process.env.GOOGLE_LOGIN_CLIENT_ID||'');
     let user=await this.db.user.findUnique({where:{email:verified.email}});
     if(!user && process.env.GOOGLE_SELF_SIGNUP_ENABLED==='true'){
+      companyDomain(verified.email);
       // A Google verified email proves control of the Google account only; it does not verify a company.
       // No Seebot membership is granted. The user must explicitly create their company workspace.
       user=await this.db.user.create({data:{
