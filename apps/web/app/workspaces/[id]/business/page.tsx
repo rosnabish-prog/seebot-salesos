@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {useParams} from 'next/navigation';
+import Link from 'next/link';
 import {Badge,ErrorMessage,PageTop,Panel,Empty} from '@/components/ui';
 import {request} from '@/lib/api';
 import {WorkspaceCommercialCreationPanel} from '@/components/organization/workspace-commercial-creation-panel';
@@ -42,7 +43,7 @@ export default function ContractsFinance(){
    </div>
    <WorkspaceCommercialCreationPanel orgId={orgId} onChanged={refresh}/>
    <div className="tenant-dashboard-grid">
-    <Panel title="Contracts">{contracts.length?<div className="stack-16">{contracts.slice(0,12).map(c=><div className="record-row" key={c.id}><div><strong>{c.title}</strong><p>{c.type}{c.committedAmount?' · '+(c.currency||'')+' '+c.committedAmount:''}</p></div><Badge tone={c.status==='SIGNED'?'green':'neutral'}>{c.status}</Badge></div>)}</div>:<Empty title="No contracts yet" description="Create contracts from a qualified opportunity when commercial work begins."/>}</Panel>
+    <Panel title="Contracts">{contracts.length?<div className="stack-16">{contracts.slice(0,12).map(c=><Link href={'/workspaces/'+orgId+'/contracts/'+c.id} className="record-row" key={c.id}><div><strong>{c.title}</strong><p>{c.type}{c.committedAmount?' · '+(c.currency||'')+' '+c.committedAmount:''}</p></div><Badge tone={c.status==='SIGNED'?'green':'neutral'}>{c.status}</Badge></Link>)}</div>:<Empty title="No contracts yet" description="Create contracts from a qualified opportunity when commercial work begins."/>}</Panel>
     <Panel title="Invoice register">{invoices.length?<div className="stack-16">{invoices.slice(0,12).map(i=><div className="record-row" key={i.id}><div><strong>{i.number}</strong><p>{i.currency} {Number(i.total).toLocaleString()}</p></div><Badge>{i.status}</Badge></div>)}</div>:<Empty title="No invoices yet" description="Billing starts only when the relationship and commercial terms require it."/>}</Panel>
    </div>
    <TenantFinanceInvoicePanel orgId={orgId} invoices={invoices}/>
