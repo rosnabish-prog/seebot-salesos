@@ -43,7 +43,7 @@ function EmailChips({emails,setEmails,disabled=false}:{emails:string[];setEmails
  </div>;
 }
 function SelectField({label,value,onChange,options,disabled=false}:{label:string;value:string;onChange:(v:string)=>void;options:{value:string;label:string}[];disabled?:boolean}){
- return <Field label={label}><div className={disabled?'ws-select-disabled':''}><BrandSelect value={value} onValueChange={v=>{if(!disabled)onChange(v)}} ariaLabel={label}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</BrandSelect></div></Field>;
+ return <Field label={label}><div className={disabled?'ws-select-disabled':''}><BrandSelect value={value} onValueChange={v=>{if(!disabled)onChange(v)}} ariaLabel={label}>{value&&!options.some(o=>o.value===value)&&<option value={value}>{value}</option>}{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</BrandSelect></div></Field>;
 }
 const optionize=(list:string[])=>list.map(value=>({value,label:value}));
 export default function WorkspacesPage(){
