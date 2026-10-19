@@ -52,9 +52,18 @@ export class TenantBusinessController{
 
  @Get(':orgId/tasks')async tasks(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.scope.membership(req,orgId);
-  return this.db.task.findMany({where:{OR:[{organizationId:orgId},{opportunity:{account:{organizationId:orgId}}}]}},
-   select:{id:true,title:true,status:true,description:true,dueAt:true,assignee:{select:{id:true,name:true}},opportunity:{select:{id:true,title:true}}},
-   createdAt:true},orderBy:{createdAt:'desc'},take:200});
+  return this.db.task.findMany({
+   where: { OR: [
+     { organizationId:orgId },
+     { opportunity:{account:{organizationId:orgId}} }
+   ] },
+   select: {
+    id:true,title:true,status:true,description:true,dueAt:true,createdAt:true,
+    assignee:{select:{id:true,name:true}},
+    opportunity:{select:{id:true,title:true}}
+   },
+   orderBy:{createdAt:'desc'},take:200
+  });
  }
  @Post(':orgId/tasks')async addTask(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Body()body:{title?:string;description?:string;dueAt?:string|null}){
   await this.scope.membership(req,orgId,true);
@@ -65,7 +74,9 @@ export class TenantBusinessController{
  @Patch(':orgId/tasks/:taskId')async changeTask(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('taskId')taskId:string,@Body()body:{status:string}){
   const member=await this.scope.membership(req,orgId,true);
   if(!['OPEN','DONE'].includes(body?.status))throw new BadRequestException('Choose Open or Done.');
-  const task=await this.db.task.findFirst({where:{id:taskId,OR:[{organizationId:orgId},{opportunity:{account:{organizationId:orgId}}}]}});
+  const task=await this.db.task.findFirst({where:{
+    id:taskId,OR:[{organizationId:orgId},{opportunity:{account:{organizationId:orgId}}}]
+   }});
   if(!task)throw new BadRequestException('Task not found in this workspace.');
   if(task.assigneeId!==req.user.id&&!['ADMIN','OWNER'].includes(member.role))throw new BadRequestException('You may update your tasks only.');
   return this.db.task.update({where:{id:task.id},data:{status:body.status as 'OPEN'|'DONE',completedAt:body.status==='DONE'?new Date():null}});
