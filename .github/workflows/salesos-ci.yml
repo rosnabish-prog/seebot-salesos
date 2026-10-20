@@ -60,9 +60,11 @@ jobs:
         run: npm run test
 
       - name: Typecheck API and web
+        if: success() || failure()
         run: npm run typecheck
 
       - name: Build NestJS API and Next.js web
+        if: success() || failure()
         run: npm run build
 
       - name: Summarize verification boundary
