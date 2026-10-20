@@ -1,0 +1,75 @@
+name: SalesOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salesos-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify API, web and Prisma source
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Schema validation and client generation only. No live database is used in this job.
+      DATABASE_URL: postgresql://seebot:ci-only@127.0.0.1:5432/seebot_salesos?schema=public
+      JWT_SECRET: ci-only-dummy-secret-not-for-live-deployment-2026
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install workspace dependencies
+        # Temporary: the repository currently has no root package-lock.json.
+        # Replace with npm ci and enable npm caching after a reviewed lockfile is committed.
+        run: npm install --no-audit --no-fund
+
+      - name: Export resolved lockfile for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-resolved-package-lock
+          path: package-lock.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema packages/database/prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Build shared types and stage definitions
+        run: npm run build -w @seebot/shared
+
+      - name: Run source tests
+        run: npm run test
+
+      - name: Typecheck API and web
+        run: npm run typecheck
+
+      - name: Build NestJS API and Next.js web
+        run: npm run build
+
+      - name: Summarize verification boundary
+        if: always()
+        run: |
+          echo '## SalesOS CI verification' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Validates dependencies, Prisma schema/client, source tests, TypeScript and builds.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Does not run database migrations, database integration tests, browser E2E, or security tests.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Does not establish production-readiness or verify live integrations.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Before reproducible release builds, commit/review a lockfile and switch to npm ci.' >> "$GITHUB_STEP_SUMMARY"
