@@ -1,5 +1,5 @@
-import {PipelineSettingsPanel} from '@/components/organization/pipeline-settings-panel';
 'use client';
+import {PipelineSettingsPanel} from '@/components/organization/pipeline-settings-panel';
 import { ReportTemplatesPanel } from '@/components/client/report-templates-panel';
 import { IntegrationStatusPanel } from '@/components/organization/integration-status-panel';
 
