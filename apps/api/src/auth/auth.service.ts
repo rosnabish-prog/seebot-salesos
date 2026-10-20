@@ -8,8 +8,7 @@ export class AuthService {
   async login(email:string, password:string) {
     const user = await this.db.user.findUnique({where:{email:email.trim().toLowerCase()}});
     if (!user || !user.active || !(await argon2.verify(user.passwordHash,password))) throw new UnauthorizedException('Invalid email or password.');
-    const token = await this.jwt.signAsync({sub:user.id,role:user.role,pv:user.passwordVersion});
-    return {token,user:{id:user.id,email:user.email,name:user.name,role:user.role}};
+    return user;
   }
   async changePassword(userId:string,currentPassword:string,newPassword:string){
     const user=await this.db.user.findUnique({where:{id:userId}});
