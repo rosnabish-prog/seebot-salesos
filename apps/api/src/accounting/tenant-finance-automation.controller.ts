@@ -1,4 +1,4 @@
-import {BadRequestException,Controller,Param,Post,Get,Req,UseGuards,ForbiddenException} from '@nestjs/common';
+import {BadRequestException,Body,Controller,Param,Patch,Post,Get,Req,UseGuards,ForbiddenException} from '@nestjs/common';
 import {randomUUID} from 'node:crypto';
 import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from '../workspace/identity.guard';
@@ -16,6 +16,48 @@ export class TenantFinanceAutomationController{
   const member=await this.scope.membership(req,orgId,true),allowed=adminOnly?['OWNER','ADMIN']:['OWNER','ADMIN','FINANCE'];
   if(!allowed.includes(member.role))throw new ForbiddenException(adminOnly?'Workspace administrator required.':'Finance access required.');
   return member;
+ }
+ @Get(':orgId/billing/schedules')async schedules(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
+  await this.finance(req,orgId);
+  const [schedules,contracts]=await Promise.all([
+   this.db.billingSchedule.findMany({
+    where:{contract:{opportunity:{account:{organizationId:orgId}}}},
+    include:{contract:{select:{id:true,title:true,status:true,currency:true,opportunity:{select:{account:{select:{id:true,name:true}}}}}}},
+    orderBy:{createdAt:'desc'},take:300
+   }),
+   this.db.contract.findMany({
+    where:{opportunity:{account:{organizationId:orgId}},status:{in:['DRAFT','SIGNED']}},
+    select:{id:true,title:true,status:true,currency:true,opportunity:{select:{account:{select:{id:true,name:true}},deliveryMilestones:{select:{id:true,title:true,status:true,dueAt:true}}}}},
+    orderBy:{createdAt:'desc'},take:200
+   })
+  ]);
+  return {schedules,contracts:contracts.map(c=>({id:c.id,title:c.title,status:c.status,currency:c.currency,client:c.opportunity.account,milestones:c.opportunity.deliveryMilestones.filter(m=>m.status!=='REJECTED')}))};
+ }
+ @Post(':orgId/contracts/:contractId/billing-schedules')async createSchedule(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('contractId')contractId:string,@Body()body:any){
+  await this.finance(req,orgId);const contract=await this.scope.contract(orgId,contractId);
+  const description=String(body?.description||'').trim(),cadence=String(body?.cadence||'').toUpperCase(),currency=String(body?.currency||contract.currency||'USD').toUpperCase();
+  if(description.length<3||description.length>250||!['MONTHLY','QUARTERLY','MILESTONE','ONE_TIME'].includes(cadence)||!/^[A-Z]{3}$/.test(currency))throw new BadRequestException('Valid description, cadence and ISO currency are required.');
+  const amountRaw=String(body?.amount??'').trim();if(!/^\d+(?:\.\d{1,2})?$/.test(amountRaw)||Number(amountRaw)<=0)throw new BadRequestException('Billing amount must be positive with up to two decimal places.');
+  let nextDueAt:Date|null=null,milestoneId:string|null=null;
+  if(cadence==='MILESTONE'){
+   milestoneId=String(body?.milestoneId||'').trim();if(!milestoneId)throw new BadRequestException('Choose the delivery milestone that triggers this billing draft.');
+   const milestone=await this.db.deliveryMilestone.findFirst({where:{id:milestoneId,contractId,account:{organizationId:orgId}}});if(!milestone)throw new BadRequestException('Milestone is unavailable for this contract.');
+   if(milestone.status==='ACCEPTED')nextDueAt=new Date();
+  }else{
+   nextDueAt=new Date(body?.nextDueAt);if(!Number.isFinite(nextDueAt.getTime()))throw new BadRequestException('Choose a valid first billing date.');
+  }
+  const created=await this.db.billingSchedule.create({data:{contractId,description,cadence,amount:amountRaw,currency,nextDueAt,milestoneId,createdById:req.user.id}});
+  await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_BILLING_SCHEDULE_CREATED',entityType:'BILLING_SCHEDULE',entityId:created.id,detail:{organizationId:orgId,contractId,cadence,milestoneId}}});
+  return created;
+ }
+ @Patch(':orgId/billing/schedules/:scheduleId')async updateSchedule(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('scheduleId')scheduleId:string,@Body()body:any){
+  await this.finance(req,orgId);
+  const schedule=await this.db.billingSchedule.findFirst({where:{id:scheduleId,contract:{opportunity:{account:{organizationId:orgId}}}}});if(!schedule)throw new BadRequestException('Billing schedule unavailable.');
+  const status=String(body?.status||'').toUpperCase();if(!['ACTIVE','PAUSED','CANCELLED'].includes(status))throw new BadRequestException('Status must be Active, Paused or Cancelled.');
+  if(schedule.status==='CANCELLED')throw new BadRequestException('Cancelled schedules are immutable.');
+  const updated=await this.db.billingSchedule.update({where:{id:schedule.id},data:{status}});
+  await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_BILLING_SCHEDULE_STATUS',entityType:'BILLING_SCHEDULE',entityId:schedule.id,detail:{organizationId:orgId,status}}});
+  return updated;
  }
  @Post(':orgId/billing/generate-drafts')async generate(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.finance(req,orgId);
