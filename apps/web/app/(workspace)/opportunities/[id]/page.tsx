@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState,FormEvent} from 'react';import {useParams} from 'next/navigation';import Link from 'next/link';
-import {STAGES,STAGE_FIELDS,StageId} from '@seebot/shared';
+import {STAGES,STAGE_FIELDS,StageId,StageField} from '@seebot/shared';
 import {request,post,patch,fmtDate,currency} from '@/lib/api';
 import {useAuth,mayEdit} from '@/context/auth';
 import {Badge,Button,Field,PageTop,Panel,Modal,ErrorMessage,SuccessMessage,Empty,BrandSelect} from '@/components/ui';
@@ -14,7 +14,7 @@ type Contact={id:string;name:string;title:string;email:string|null;linkedinUrl:s
 type Activity={id:string;type:string;outcome:string;note:string;occurredAt:string};
 type Proposal={id:string;title:string;status:string;amount:string;currency:string};
 type Contract={id:string;title:string;type:string;status:string;signedAt:string|null};
-type Opp={id:string;title:string;estimatedAmount:string|null;contractedAmount:string|null;currency:string;stage:StageId;status:string;owner:{name:string;id:string};account:{id:string;name:string;domain:string;industry:string;priority:string;contacts:Contact[]};stageVisits:Visit[];stageState:{missing:string[];ready:boolean;visitId:string};activities:Activity[];proposals:Proposal[];contracts:Contract[];tasks:{id:string;title:string;status:string;dueAt:string|null}[];transitions:{id:string;fromStage:string;toStage:string;createdAt:string;automated:boolean;reason:string|null}[]};
+type Opp={id:string;title:string;estimatedAmount:string|null;contractedAmount:string|null;currency:string;stage:StageId;status:string;owner:{name:string;id:string};account:{id:string;name:string;domain:string;industry:string;priority:string;contacts:Contact[]};stageVisits:Visit[];stageState:{missing:string[];ready:boolean;visitId:string;fields?:StageField[]};activities:Activity[];proposals:Proposal[];contracts:Contract[];tasks:{id:string;title:string;status:string;dueAt:string|null}[];transitions:{id:string;fromStage:string;toStage:string;createdAt:string;automated:boolean;reason:string|null}[]};
 type Action='contact'|'activity'|'proposal'|'contract'|'task'|'estimate'|'close'|null;
 const newContact={name:'',title:'',email:'',linkedinUrl:'',source:'Company website',verified:false};
 const newActivity={type:'EMAIL',outcome:'OUTBOUND',note:''};
@@ -33,7 +33,7 @@ export default function OpportunityDetail(){const params=useParams(),id=String(p
  if(loading)return <div className="panel">Loading opportunity workspace…</div>;
  if(!opp)return <ErrorMessage message={error||'Opportunity was not found.'}/>;
  const idx=STAGES.findIndex(s=>s.id===opp.stage),visit=opp.stageVisits.find(v=>v.id===opp.stageState.visitId),editable=mayEdit(user?.role)&&(['SUPER_ADMIN','SALES_MANAGER'].includes(user?.role||'')||opp.owner.id===user?.id);
- const requirements=STAGE_FIELDS[opp.stage]||[];
+ const requirements=opp.stageState.fields||STAGE_FIELDS[opp.stage]||[];
  return <><div className="back-link"><Link href="/pipeline"><ArrowLeft size={15}/>Back to Pipeline</Link></div><PageTop kicker="OPPORTUNITY WORKSPACE" title={opp.account.name} description={`${opp.account.industry} · ${opp.account.domain} · Owner: ${opp.owner.name}`} action={<div className="page-actions"><Badge tone={opp.account.priority==='HIGH'?'orange':'neutral'}>{opp.account.priority} priority</Badge><Badge tone={opp.status==='CLOSED_WON'?'green':'neutral'}>{opp.status.replaceAll('_',' ')}</Badge></div>}/>
  <ErrorMessage message={error}/><SuccessMessage text={success}/>{opp.status==='CLOSED_WON'&&<div className="client-conversion-banner"><div><strong>Client relationship active</strong><p>The account, contacts, contract history and opportunities now continue in Client Management.</p></div><Link className="btn btn-primary" href={`/clients/${opp.account.id}`}>Open Client Management <ChevronRight size={16}/></Link></div>}
  <Panel className="progress-section" title="Sales Progress" actions={<span className="tiny-note">Completion-gated · {idx+1} of {STAGES.length}</span>}><div className="opp-progress-track" role="list" aria-label="Opportunity stage timeline">{STAGES.map((s,i)=><div role="listitem" key={s.id} className={`opp-progress-step ${i===idx?'current':i<idx?'completed':'upcoming'}`} title={s.label} aria-current={i===idx?'step':undefined}><span className="opp-progress-symbol">{i<idx?<CheckCircle2 size={18}/>:<StageIcon stage={s.id} size={18}/>}</span><span className="opp-progress-name">{s.short}</span><span className="opp-progress-state">{i<idx?'Complete':i===idx?'Current':'Upcoming'}</span></div>)}</div><div className="current-stage-inline"><div><span className="eyebrow">CURRENT STAGE</span><h2>{STAGES[idx]?.label}</h2></div><Badge tone={opp.status==='CLOSED_WON'?'green':'orange'}>{opp.status==='OPEN'?'In Progress':opp.status.replaceAll('_',' ')}</Badge></div></Panel>
