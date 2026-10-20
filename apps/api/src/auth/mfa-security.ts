@@ -22,6 +22,7 @@ function key():Buffer{
   const parsed=Buffer.from(raw,'base64');if(parsed.length!==32)throw Error('Invalid MFA_ENCRYPTION_KEY length.');
   return parsed;
 }
+export function assertMfaConfigured(){if(mfaRequired())key();}
 export function encryptAuthenticatorSecret(secret:string){
   const iv=randomBytes(12);const cipher=createCipheriv('aes-256-gcm',key(),iv);const bytes=Buffer.concat([cipher.update(secret,'utf8'),cipher.final()]);
   return ['v1',iv.toString('base64url'),cipher.getAuthTag().toString('base64url'),bytes.toString('base64url')].join('.');
