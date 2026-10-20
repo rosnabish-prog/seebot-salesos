@@ -21,7 +21,7 @@ test('AES-GCM protects authenticator secrets and rejects tampering',()=>{
  const secret=s.newAuthenticatorSecret();
  const first=s.encryptAuthenticatorSecret(secret),second=s.encryptAuthenticatorSecret(secret);
  assert.notEqual(first,second);assert.equal(s.decryptAuthenticatorSecret(first),secret);
- const sections=first.split('.');sections[3]='A'+sections[3].slice(1);
+ const sections=first.split('.');sections[3]=(sections[3][0]==='A'?'B':'A')+sections[3].slice(1);
  assert.throws(()=>s.decryptAuthenticatorSecret(sections.join('.')));
 });
 test('recovery codes are high-entropy, keyed digests, and never match invalid shapes',()=>{
