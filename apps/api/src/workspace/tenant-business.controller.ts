@@ -201,5 +201,38 @@ export class TenantBusinessController{
   return this.db.campaign.update({where:{id:campaign.id},data:{status}});
  }
 
- @Get(':orgId/dashboard')async dashboard(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.scope.membership(req,orgId);const [accounts,clients,opportunities,contracts,invoices]=await Promise.all([this.db.account.count({where:{organizationId:orgId}}),this.db.account.count({where:{organizationId:orgId,status:'Customer'}}),this.db.opportunity.count({where:{account:{organizationId:orgId}}}),this.db.contract.count({where:{opportunity:{account:{organizationId:orgId}}}}),this.db.invoice.findMany({where:{account:{organizationId:orgId}},select:{currency:true,total:true,status:true},take:1000})]);const invoicedByCurrency:Record<string,number>={};for(const inv of invoices){if(['DRAFT','VOID'].includes(inv.status))continue;invoicedByCurrency[inv.currency]=(invoicedByCurrency[inv.currency]||0)+Number(inv.total);}return {mode:this.scope.preview()?'DEMO_ONLY':'LIVE_WORKSPACE',organizationId:orgId,accounts,clients,opportunities,contracts,invoices:invoices.length,invoicedByCurrency};}
+ @Get(':orgId/dashboard')async dashboard(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
+  await this.scope.membership(req,orgId);const now=new Date(),staleBefore=new Date(now.getTime()-14*86400000),expiryCutoff=new Date(now.getTime()+60*86400000);
+  const [accounts,clients,opportunityRows,contracts,invoices,tasks]=await Promise.all([
+   this.db.account.count({where:{organizationId:orgId}}),
+   this.db.account.count({where:{organizationId:orgId,status:'Customer'}}),
+   this.db.opportunity.findMany({where:{account:{organizationId:orgId}},select:{id:true,status:true,stage:true,createdAt:true,updatedAt:true,closedAt:true,estimatedAmount:true,currency:true},take:3000}),
+   this.db.contract.findMany({where:{opportunity:{account:{organizationId:orgId}}},select:{id:true,status:true,expiresAt:true},take:2000}),
+   this.db.invoice.findMany({where:{account:{organizationId:orgId}},include:{payments:{select:{amount:true}},adjustments:{select:{amount:true,kind:true,status:true}}},take:3000}),
+   this.db.task.findMany({where:{organizationId:orgId,status:'OPEN'},select:{id:true,dueAt:true},take:3000})
+  ]);
+  const invoicedByCurrency:Record<string,number>={},openPipelineByCurrency:Record<string,number>={},overdueReceivablesByCurrency:Record<string,number>={};
+  for(const inv of invoices){
+   if(!['DRAFT','VOID'].includes(inv.status))invoicedByCurrency[inv.currency]=(invoicedByCurrency[inv.currency]||0)+Number(inv.total);
+   if(['SENT','PARTIALLY_PAID'].includes(inv.status)&&inv.dueAt<now){
+    const paid=inv.payments.reduce((n,p)=>n+Number(p.amount),0),credits=inv.adjustments.filter(a=>a.status==='APPROVED'&&a.kind==='CREDIT_NOTE').reduce((n,a)=>n+Number(a.amount),0),due=Math.max(0,Number(inv.total)-paid-credits);
+    if(due>0)overdueReceivablesByCurrency[inv.currency]=(overdueReceivablesByCurrency[inv.currency]||0)+due;
+   }
+  }
+  for(const opp of opportunityRows)if(opp.status==='OPEN'&&opp.estimatedAmount!==null)openPipelineByCurrency[opp.currency]=(openPipelineByCurrency[opp.currency]||0)+Number(opp.estimatedAmount);
+  const won=opportunityRows.filter(o=>o.status==='CLOSED_WON'),lost=opportunityRows.filter(o=>o.status==='CLOSED_LOST'),closed=won.length+lost.length;
+  const cycles=won.filter(o=>o.closedAt).map(o=>Math.max(0,o.closedAt!.getTime()-o.createdAt.getTime())/86400000).sort((a,b)=>a-b);
+  const medianSalesCycleDays=cycles.length?(cycles.length%2?cycles[(cycles.length-1)/2]:(cycles[cycles.length/2-1]+cycles[cycles.length/2])/2):null;
+  return {
+   mode:this.scope.preview()?'DEMO_ONLY':'LIVE_WORKSPACE',organizationId:orgId,accounts,clients,opportunities:opportunityRows.length,contracts:contracts.length,invoices:invoices.length,invoicedByCurrency,
+   analytics:{
+    won:won.length,lost:lost.length,winRate:closed?Math.round(won.length*1000/closed)/10:null,
+    medianSalesCycleDays:medianSalesCycleDays===null?null:Math.round(medianSalesCycleDays*10)/10,
+    staleOpen:opportunityRows.filter(o=>o.status==='OPEN'&&o.updatedAt<staleBefore).length,
+    overdueTasks:tasks.filter(t=>t.dueAt&&t.dueAt<now).length,
+    expiringContracts60d:contracts.filter(c=>c.status==='SIGNED'&&c.expiresAt&&c.expiresAt>=now&&c.expiresAt<=expiryCutoff).length,
+    openPipelineByCurrency,overdueReceivablesByCurrency
+   }
+  };
+ }
 }
