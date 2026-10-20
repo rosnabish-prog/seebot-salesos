@@ -13,8 +13,9 @@ export class AuthGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<AuthRequest>();
     const token = req.cookies?.salesos_session;
     if (!token) throw new UnauthorizedException('Please sign in.');
-    let payload: {sub:string;pv?:number;wid?:string};
+    let payload: {sub:string;pv?:number;wid?:string;purpose?:string;mfa?:boolean;exp?:number};
     try { payload = await this.jwt.verifyAsync(token); } catch { throw new UnauthorizedException('Session expired.'); }
+    if(payload.purpose!=='session'||payload.mfa!==true)throw new UnauthorizedException('Complete two-factor verification to continue.');
     const user = await this.db.user.findUnique({ where: { id: payload.sub }, select: { id:true,email:true,name:true,role:true,active:true,passwordVersion:true } });
     if (!user || !user.active) throw new UnauthorizedException('Account disabled.');
     if (payload.pv !== user.passwordVersion) throw new UnauthorizedException('Session needs renewal. Please sign in again.');
