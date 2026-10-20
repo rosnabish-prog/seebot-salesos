@@ -1,3 +1,4 @@
+import {MfaService} from './auth/mfa.service';
 import {TaxReviewController} from './accounting/tax-review.controller';
 import {TenantScopeService} from './workspace/tenant-scope.service';
 import {TenantBusinessController} from './workspace/tenant-business.controller';
@@ -54,8 +55,8 @@ import { ClientsController, ClientDemoController } from './clients/clients.contr
 import { OpportunityAIController } from './opportunities/opportunity-ai.controller';
 import { DemoOpportunityAssistant } from './opportunities/opportunity-ai.demo';
 @Module({
-  imports:[JwtModule.register({secret:process.env.JWT_SECRET,signOptions:{expiresIn:'8h'}})],
+  imports:[JwtModule.register({secret:process.env.JWT_SECRET,signOptions:{expiresIn:'7d'}})],
   controllers:[TaxReviewController,TenantBusinessController,JournalController,TenantAccountsController,WorkspaceLogoController,CreditNotePdfController,ReportTemplatesController,FinanceAutomationController,DemoLifecycleController,ContractsExpansionController,BillingExpansionController,DeliveryController,ReviewWorkflowController,ExecutiveDrilldownsController,WorkspacesController,LocalReminderJobsController,ClientSuccessController,IntegrationStatusController,InvoiceRemindersController,PublicSurveysController,ClientSurveysController,EmployeeInvitationController,InvoicePdfController,GoogleLoginController,GmailConnectionController,OutgoingMessageController,ExternalSigningController,SigningAdministrationController,OrganizationsController,ContractPricingController,AuthController,UsersController,AccountsController,OpportunitiesController,TasksController,CampaignsController,DashboardController,IndustriesController,IntelligenceController,OpportunityAIController,ClientsController,ClientDemoController],
-  providers:[TenantScopeService,JournalService,EvidenceArchiveService,IdentityGuard,InvoicePdfService,GoogleIdentityService,GmailConnectionService,OutgoingMessageService,PrismaService,AuthGuard,AuthService,OpportunityWorkflowService,DemoIntelligenceProvider,DemoOpportunityAssistant]
+  providers:[MfaService,TenantScopeService,JournalService,EvidenceArchiveService,IdentityGuard,InvoicePdfService,GoogleIdentityService,GmailConnectionService,OutgoingMessageService,PrismaService,AuthGuard,AuthService,OpportunityWorkflowService,DemoIntelligenceProvider,DemoOpportunityAssistant]
 })
 export class AppModule {}
