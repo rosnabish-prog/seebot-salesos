@@ -128,6 +128,11 @@ export class OpportunityWorkflowService {
       await tx.task.create({data:{opportunityId:opp.id,assigneeId:opp.ownerId,title:`Stage: Complete ${stageName}`,description:'Complete required evidence and activities to advance this opportunity.'}});
     }
     await tx.stageTransition.create({data:{opportunityId:opp.id,fromStage:opp.stage,toStage:stage,actorId,reason,automated}});
+    // The same account becomes visible in Client Management once a pilot contract is in progress.
+    // No second company or duplicate contacts are ever created.
+    if(stage==='PILOT_CONTRACTED'){
+      await tx.account.updateMany({where:{id:opp.accountId,status:{not:'Customer'}},data:{status:'Contracting'}});
+    }
     if(stage==='CLOSED_WON') {
       const contract=await tx.contract.findFirst({where:{opportunityId:opp.id,type:'PRODUCTION_OTHER',status:'SIGNED'},orderBy:{signedAt:'desc'}});
       if(contract?.committedAmount)await tx.opportunity.update({where:{id:opp.id},data:{contractedAmount:contract.committedAmount,currency:contract.currency||opp.currency}});
