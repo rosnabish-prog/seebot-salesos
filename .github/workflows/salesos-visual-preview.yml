@@ -29,6 +29,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://seebot:screenshot_ci_only@localhost:5432/seebot_salesos?schema=public
       JWT_SECRET: screenshot-ci-only-jwt-key-never-use-in-production
+      # CI-only encryption key for fictional accounts; never use for any other environment.
+      MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       ADMIN_EMAIL: preview-admin@example.invalid
       ADMIN_PASSWORD: PreviewOnly_CI_2026!NoLiveData
       ADMIN_NAME: Preview Administrator
@@ -93,7 +95,28 @@ jobs:
               await page.locator('input[type="email"]').fill(process.env.ADMIN_EMAIL);
               await page.locator('input[type="password"]').fill(process.env.ADMIN_PASSWORD);
               await page.locator('button[type="submit"]').click();
+              await page.getByRole('heading', { name: 'Protect your account' }).waitFor({ timeout: 30000 });
+              // Complete real TOTP enrollment, not a fake pre-authenticated cookie.
+              const secret = (await page.locator('.login-card code').first().innerText()).replace(/\\s+/g, '');
+              const crypto = require('node:crypto');
+              const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+              let bits = 0,acc = 0;const bytes=[];
+              for (const c of secret) { acc = (acc << 5) | alphabet.indexOf(c); bits += 5; if(bits >= 8){bits -= 8;bytes.push((acc >>> bits) & 255);acc &= (1 << bits) - 1;} }
+              const counter = Math.floor(Date.now() / 30000);
+              const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(counter));
+              const mac=crypto.createHmac('sha1',Buffer.from(bytes)).update(msg).digest();
+              const offset=mac[19]&15;
+              const number=(((mac[offset]&127)<<24)|(mac[offset+1]<<16)|(mac[offset+2]<<8)|mac[offset+3])%1000000;
+              await page.locator('input[autocomplete="one-time-code"]').fill(String(number).padStart(6,'0'));
+              await page.getByRole('button', { name: /Verify and enable MFA/ }).click();
+              await page.getByRole('heading', { name: 'Save your recovery codes' }).waitFor({ timeout: 30000 });
+              await page.screenshot({ path: 'visual-preview/01b-authenticator-setup.png', fullPage: true });
+              await page.getByRole('button', { name: /I have saved my recovery codes/ }).click();
               await page.waitForURL(url => !url.pathname.endsWith('/login'), { timeout: 30000 });
+              const session=(await page.context().cookies()).find(c=>c.name==='salesos_session');
+              if(!session||!session.httpOnly)throw Error('Expected server-issued HttpOnly session');
+              const jwtPayload=JSON.parse(Buffer.from(session.value.split('.')[1],'base64url').toString('utf8'));
+              if(jwtPayload.mfa!==true||jwtPayload.purpose!=='session'||jwtPayload.exp-jwtPayload.iat>604800)throw Error('Verified weekly MFA session was not enforced');
               await capture('/dashboard', '02-dashboard');
               await capture('/pipeline', '03-pipeline');
               await capture('/prospects', '04-prospects');
