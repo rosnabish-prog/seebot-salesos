@@ -284,7 +284,7 @@ async function main(){
     const before=(await verificationPage.context().cookies()).find(x=>x.name==='salesos_session');
     assert.equal(before,undefined,'Email verification must not grant a session before MFA.');
     await completeMfa(verificationPage);
-    await verificationPage.waitForURL(/\\/workspaces\\?new=1/,{timeout:15000});
+    await verificationPage.waitForURL(url=>url.pathname==='/workspaces'&&url.searchParams.get('new')==='1',{timeout:15000});
     const after=(await verificationPage.context().cookies()).find(x=>x.name==='salesos_session');
     assert.ok(after?.httpOnly,'After correct MFA, sign-in must create a protected server cookie.');
     assert.equal((await db.signupChallenge.findUnique({where:{email:signupEmail}})),null,'Signup token must be one-use.');
