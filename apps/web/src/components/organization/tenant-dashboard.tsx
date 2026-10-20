@@ -8,7 +8,7 @@ import {MetricCard,Bars} from '@/components/charts';
 import {Panel,PageTop,ErrorMessage,Button,Badge,Empty} from '@/components/ui';
 import {useAuth} from '@/context/auth';
 
-type Summary={organizationId:string;mode:string;accounts:number;clients:number;opportunities:number;contracts:number;invoices:number;invoicedByCurrency:Record<string,number>};
+type Summary={organizationId:string;mode:string;accounts:number;clients:number;opportunities:number;contracts:number;invoices:number;invoicedByCurrency:Record<string,number>;analytics:{won:number;lost:number;winRate:number|null;medianSalesCycleDays:number|null;staleOpen:number;overdueTasks:number;expiringContracts60d:number;openPipelineByCurrency:Record<string,number>;overdueReceivablesByCurrency:Record<string,number>}};
 type Deal={id:string;title:string;stage:string;status:string;updatedAt:string;account:{id:string;name:string;industry:string};currency:string;estimatedAmount:string|null};
 type Profile={organization:{name:string};role:string};
 type PipelineConfig={stages:{id:string;label:string}[]};
@@ -46,10 +46,22 @@ export function TenantDashboard({executiveView=false}:{executiveView?:boolean}){
      {deals.length?<div className="tenant-recent-deals">{deals.slice(0,6).map(d=><Link key={d.id} href={home+'/opportunities/'+d.id} className="record-row"><div><strong>{d.account.name}</strong><p>{d.title}</p><small>{stageLabel(d.stage)}</small></div><ArrowUpRight size={17}/></Link>)}</div>:<Empty title="No opportunities yet" description="Add a prospect when you're ready. SalesOS creates its first engagement in Account Researched." action={<Link className="btn btn-secondary" href={home+'/accounts'}>Add a prospect</Link>}/>}
     </Panel>
    </div>
-   {executiveView&&<div className="tenant-dashboard-grid">
-    <Panel title="Commercial overview"><div className="tenant-kpi-rows"><div><span>Prospects</span><strong>{data.accounts}</strong></div><div><span>Customers</span><strong>{data.clients}</strong></div><div><span>Opportunities</span><strong>{data.opportunities}</strong></div><div><span>Contracts</span><strong>{data.contracts}</strong></div><div><span>Invoices (all statuses)</span><strong>{data.invoices}</strong></div></div><Link className="text-link" href={home+'/business'}>Open business & finance <ArrowUpRight size={14}/></Link></Panel>
-    <Panel title="Invoiced by currency"><p className="muted small-text">Only non-draft, non-void invoices are included; currencies are never combined.</p>{Object.entries(data.invoicedByCurrency).map(([currency,amount])=><div className="tenant-money-row" key={currency}><Badge>{currency}</Badge><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency}).format(amount)}</strong></div>)}{!Object.keys(data.invoicedByCurrency).length&&<Empty title="No issued invoices" description="Amounts will appear after a reviewed invoice is issued."/>}</Panel>
-   </div>}
+   {executiveView&&<>
+    <div className="metrics-grid executive-evidence-metrics">
+     <MetricCard label="Win Rate" value={data.analytics.winRate===null?'—':data.analytics.winRate+'%'} icon={<Trophy size={21}/>} sub={data.analytics.winRate===null?'No closed outcomes yet':data.analytics.won+' won · '+data.analytics.lost+' lost'}/>
+     <MetricCard label="Median Won Cycle" value={data.analytics.medianSalesCycleDays===null?'—':data.analytics.medianSalesCycleDays+'d'} icon={<BriefcaseBusiness size={21}/>} sub="Created to Closed Won"/>
+     <MetricCard label="Stale Open Deals" value={data.analytics.staleOpen} icon={<KanbanSquare size={21}/>} sub="No opportunity update in 14 days"/>
+     <MetricCard label="Overdue Tasks" value={data.analytics.overdueTasks} icon={<ShieldCheck size={21}/>} sub="Open tasks past due date"/>
+    </div>
+    <div className="tenant-dashboard-grid">
+     <Panel title="Commercial overview"><div className="tenant-kpi-rows"><div><span>Prospects</span><strong>{data.accounts}</strong></div><div><span>Customers</span><strong>{data.clients}</strong></div><div><span>Opportunities</span><strong>{data.opportunities}</strong></div><div><span>Contracts</span><strong>{data.contracts}</strong></div><div><span>Expiring contracts (60d)</span><strong>{data.analytics.expiringContracts60d}</strong></div><div><span>Invoices (all statuses)</span><strong>{data.invoices}</strong></div></div><Link className="text-link" href={home+'/business'}>Open business & finance <ArrowUpRight size={14}/></Link></Panel>
+     <Panel title="Open pipeline by currency"><p className="muted small-text">Recorded estimated amounts on open opportunities only. No probability weighting is invented.</p>{Object.entries(data.analytics.openPipelineByCurrency).map(([currency,amount])=><div className="tenant-money-row" key={currency}><Badge>{currency}</Badge><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency}).format(amount)}</strong></div>)}{!Object.keys(data.analytics.openPipelineByCurrency).length&&<Empty title="No valued open pipeline" description="Amounts appear when estimated opportunity values are recorded."/>}</Panel>
+    </div>
+    <div className="tenant-dashboard-grid">
+     <Panel title="Invoiced by currency"><p className="muted small-text">Only non-draft, non-void invoices are included; currencies are never combined.</p>{Object.entries(data.invoicedByCurrency).map(([currency,amount])=><div className="tenant-money-row" key={currency}><Badge>{currency}</Badge><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency}).format(amount)}</strong></div>)}{!Object.keys(data.invoicedByCurrency).length&&<Empty title="No issued invoices" description="Amounts will appear after a reviewed invoice is issued."/>}</Panel>
+     <Panel title="Overdue receivables"><p className="muted small-text">Issued unpaid balance past due, net of recorded payments and approved customer credits.</p>{Object.entries(data.analytics.overdueReceivablesByCurrency).map(([currency,amount])=><div className="tenant-money-row" key={currency}><Badge tone="orange">{currency}</Badge><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency}).format(amount)}</strong></div>)}{!Object.keys(data.analytics.overdueReceivablesByCurrency).length&&<Empty title="No overdue receivables" description="No recorded unpaid balance is currently past due."/>}</Panel>
+    </div>
+   </>}
   </>}
  </section>;
 }
