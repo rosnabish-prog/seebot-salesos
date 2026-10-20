@@ -844,7 +844,7 @@ model ContractSignatory {
 }
 model InvoiceAdjustment {
  id String @id @default(cuid())
- creditNoteDocument CreditNoteDocument?
+ document CreditNoteDocument?
  invoiceId String
  invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Restrict)
  kind String // CREDIT_NOTE | WRITE_OFF
