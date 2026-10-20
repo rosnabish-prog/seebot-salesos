@@ -27,12 +27,13 @@ export class AccountRecoveryService{
  }
  private emailSignupReady(){return process.env.EMAIL_SIGNUP_ENABLED==='true'&&this.smtpReady();}
  private developerSignupReady(){
+  // No path, including CI, may silently self-register without real email verification.
   return process.env.NODE_ENV!=='production'&&process.env.DEV_EMAIL_SIGNUP_ENABLED==='true'&&
-    Boolean(process.env.CODESPACE_NAME||process.env.CI==='true');
+    this.previewMailboxReady();
  }
  capabilities(){
   return {emailSignupEnabled:this.emailSignupReady()||this.developerSignupReady(),
-    developerSignup:this.developerSignupReady(),emailVerificationRequired:!this.developerSignupReady()||this.previewMailboxReady(),passwordResetEnabled:this.smtpReady(),
+    developerSignup:this.developerSignupReady(),emailVerificationRequired:true,passwordResetEnabled:this.smtpReady(),
     googleConfigured:Boolean(process.env.GOOGLE_LOGIN_CLIENT_ID),previewMailbox:this.previewMailboxReady()};
  }
  private async send(to:string,subject:string,body:string){
@@ -64,12 +65,6 @@ export class AccountRecoveryService{
   if(await this.db.user.findUnique({where:{email},select:{id:true}}))
    throw new ConflictException('This email already has an account. Sign in or use password recovery.');
   const passwordHash=await argon2.hash(password as string);
-  if(this.developerSignupReady()&&!this.previewMailboxReady()){
-   // Explicitly private/CI-only preview. Never use this path in production.
-   const user=await this.db.user.create({data:{name,email,passwordHash,role:'SALES_REP'}});
-   await this.db.auditEvent.create({data:{actorId:user.id,action:'PRIVATE_PREVIEW_EMAIL_SIGNUP',entityType:'USER',entityId:user.id,detail:{preview:true}}});
-   return {user:{id:user.id,email:user.email,name:user.name,role:user.role},preview:true};
-  }
   const existing=await this.db.signupChallenge.findUnique({where:{email},select:{createdAt:true}});
   if(existing && Date.now()-existing.createdAt.getTime()<minute)
    throw new BadRequestException('Please wait a minute before requesting another verification email.');
