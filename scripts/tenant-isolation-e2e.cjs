@@ -63,6 +63,9 @@ async function main(){
   check(await hit('/workspace-business/'+b.org.id+'/tasks',a.cookie),403,'Other company tasks denied');
   const task=await hit('/workspace-business/'+a.org.id+'/tasks',a.cookie,{method:'POST',body:JSON.stringify({title:'Fictional CI followup'})});
   check(task,201,'Create scoped task');
+  check(await hit('/workspaces/'+a.org.id+'/member-options',a.cookie),200,'Own task assignee options');
+  check(await hit('/workspaces/'+b.org.id+'/member-options',a.cookie),403,'Foreign task assignee options denied');
+  check(await hit('/workspace-business/'+a.org.id+'/tasks',a.cookie,{method:'POST',body:JSON.stringify({title:'Forbidden cross-workspace assignee',assigneeId:b.user.id})}),400,'Cannot assign task to a user outside the selected workspace');
   check(await hit('/workspace-business/'+b.org.id+'/tasks/'+task.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'DONE'})}),403,'Cannot alter task through a foreign workspace');
   check(await hit('/workspace-business/'+a.org.id+'/tasks/'+task.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'DONE'})}),200,'Complete own task');
   check(await hit('/workspace-business/'+a.org.id+'/campaigns',a.cookie),200,'Own workspace campaigns');
@@ -100,6 +103,14 @@ async function main(){
   const relationship=contractingClients.body.find(x=>x.id===a.account.id);
   assert.equal(relationship?.relationshipStatus,'CONTRACTING');
   assert.equal(await db.account.count({where:{id:a.account.id}}),1,'Client lifecycle must reuse the original Account record');
+  const billingContract=await hit('/workspace-business/'+a.org.id+'/opportunities/'+newOpportunity.body.id+'/contracts',a.cookie,{method:'POST',body:JSON.stringify({title:'CI Billing SOW',type:'SOW'})});
+  check(billingContract,201,'Create tenant contract for billing schedule coverage');
+  const recurringSchedule=await hit('/workspace-finance-automation/'+a.org.id+'/contracts/'+billingContract.body.id+'/billing-schedules',a.cookie,{method:'POST',body:JSON.stringify({description:'CI monthly service',cadence:'MONTHLY',amount:'50.00',currency:'USD',nextDueAt:'2030-02-01'})});
+  check(recurringSchedule,201,'Create tenant recurring billing schedule');
+  check(await hit('/workspace-finance-automation/'+b.org.id+'/contracts/'+billingContract.body.id+'/billing-schedules',a.cookie,{method:'POST',body:JSON.stringify({description:'Forbidden schedule',cadence:'MONTHLY',amount:'50.00',currency:'USD',nextDueAt:'2030-02-01'})}),403,'Foreign billing schedule creation denied');
+  const scheduleContext=await hit('/workspace-finance-automation/'+a.org.id+'/billing/schedules',a.cookie);
+  check(scheduleContext,200,'Read tenant billing schedules');
+  assert.ok(scheduleContext.body.schedules.some(x=>x.id===recurringSchedule.body.id));
 
   const template=await hit('/workspace-surveys/'+a.org.id+'/templates',a.cookie,{method:'POST',body:JSON.stringify({
    name:'CI Quarterly Relationship Review',
@@ -137,10 +148,17 @@ async function main(){
   check(issue,201,'Create own client issue');
   check(await hit('/workspace-business/'+b.org.id+'/clients/'+a.account.id+'/issues',a.cookie,{method:'POST',body:JSON.stringify({title:'Forbidden',severity:'HIGH'})}),403,'Cross-tenant issue creation denied');
   check(await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/issues/'+issue.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'RESOLVED'})}),200,'Resolve own client issue');
-  const milestone=await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones',a.cookie,{method:'POST',body:JSON.stringify({title:'Fictional acceptance milestone',acceptanceCriteria:'Written CI-only acceptance criteria'})});
+  const milestone=await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones',a.cookie,{method:'POST',body:JSON.stringify({title:'Fictional acceptance milestone',acceptanceCriteria:'Written CI-only acceptance criteria',contractId:billingContract.body.id})});
   check(milestone,201,'Create tenant delivery milestone');
+  const milestoneSchedule=await hit('/workspace-finance-automation/'+a.org.id+'/contracts/'+billingContract.body.id+'/billing-schedules',a.cookie,{method:'POST',body:JSON.stringify({description:'CI accepted milestone fee',cadence:'MILESTONE',amount:'75.00',currency:'USD',milestoneId:milestone.body.id})});
+  check(milestoneSchedule,201,'Create milestone-triggered billing schedule');
+  assert.equal(milestoneSchedule.body.nextDueAt,null);
   check(await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones/'+milestone.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'ACCEPTED'})}),400,'Milestone acceptance requires evidence');
-  check(await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones/'+milestone.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'ACCEPTED',evidenceReference:'CI-EVIDENCE-123'})}),200,'Accept milestone with evidence');
+  const acceptedMilestone=await hit('/workspace-business/'+a.org.id+'/clients/'+a.account.id+'/milestones/'+milestone.body.id,a.cookie,{method:'PATCH',body:JSON.stringify({status:'ACCEPTED',evidenceReference:'CI-EVIDENCE-123'})});
+  check(acceptedMilestone,200,'Accept milestone with evidence');
+  assert.equal(acceptedMilestone.body.armedBillingSchedules,1,'Accepted milestone arms its billing schedule exactly once');
+  const armedSchedule=await db.billingSchedule.findUniqueOrThrow({where:{id:milestoneSchedule.body.id}});
+  assert.ok(armedSchedule.nextDueAt,'Accepted milestone must make the billing schedule due for finance draft generation');
 
 
 
