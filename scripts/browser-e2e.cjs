@@ -212,6 +212,8 @@ async function main(){
    await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:15000});
    await newPage.getByRole('heading',{name:/Good morning/}).waitFor();
    await newPage.getByRole('link',{name:'Team & Settings'}).click();
+   await newPage.getByRole('heading',{name:'Team & Settings'}).waitFor({timeout:10000});
+   await newPage.getByRole('button',{name:'Sales Workflow'}).click();
    await newPage.getByRole('heading',{name:'Pipeline configuration'}).waitFor({timeout:10000});
    await newPage.getByLabel('Stage name').fill('CI Qualified Research');
    await newPage.getByRole('button',{name:'Save pipeline settings'}).click();
