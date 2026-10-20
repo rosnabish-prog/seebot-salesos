@@ -11,7 +11,7 @@ import {GoogleLoginButton} from '@/components/google-login-button';
 
 type Capabilities={emailSignupEnabled:boolean;developerSignup:boolean;passwordResetEnabled:boolean;googleConfigured:boolean;emailVerificationRequired?:boolean};
 export default function SignUp(){
- const router=useRouter(),{user,refresh}=useAuth(),[cap,setCap]=useState<Capabilities|null>(null),[name,setName]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[pending,setPending]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const router=useRouter(),{user}=useAuth(),[cap,setCap]=useState<Capabilities|null>(null),[name,setName]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[pending,setPending]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  useEffect(()=>{void request<Capabilities>('/auth/capabilities').then(setCap).catch(()=>setError('Cannot connect to the authentication service.'));},[]);
  useEffect(()=>{if(user)router.replace('/entry');},[user,router]);
  async function submit(e:FormEvent){
