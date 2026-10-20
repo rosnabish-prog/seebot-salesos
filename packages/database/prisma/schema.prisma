@@ -72,6 +72,13 @@ model User {
   email String @unique
   passwordHash String
   passwordVersion Int @default(1)
+  // Never store a raw authenticator secret or recovery code.
+  mfaSecretEncrypted String? @db.Text
+  mfaEnabledAt DateTime?
+  mfaLastCounter BigInt?
+  mfaFailedAttempts Int @default(0)
+  mfaLockedUntil DateTime?
+  mfaRecoveryCodes Json @default("[]")
   name String
   role UserRole @default(SALES_REP)
   active Boolean @default(true)
