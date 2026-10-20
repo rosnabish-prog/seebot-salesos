@@ -77,9 +77,7 @@ export class TenantBusinessController{
  @Post(':orgId/clients/:id/reviews')async addReview(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:any){
   await this.scope.membership(req,orgId,true);const account=await this.scope.account(orgId,id);
   const type=txt(body?.type,20),title=txt(body?.title,180),summary=txt(body?.summary,4000),score=body?.score===undefined||body?.score===null?null:Number(body.score);
-  if(!['NPS','CSAT','MBR','QBR','GENERAL'].includes(type)||title.length<2||summary.length<2)throw new BadRequestException('Review type, title and summary are required.');
-  if(type==='NPS'&&(score===null||!Number.isInteger(score)||score<0||score>10))throw new BadRequestException('NPS score must be 0–10.');
-  if(type==='CSAT'&&(score===null||!Number.isInteger(score)||score<0||score>5))throw new BadRequestException('CSAT score must be 0–5.');
+  if(type!=='GENERAL'||title.length<2||summary.length<2)throw new BadRequestException('Use General Review here. NPS/CSAT belongs in Client Satisfaction, and MBR/QBR belongs in Business Reviews.');
   return this.db.clientReview.create({data:{accountId:id,type,title,summary,score,actionItems:Array.isArray(body?.actionItems)?body.actionItems.slice(0,30):[],recordedById:req.user.id,isDemo:account.isDemo}});
  }
  @Post(':orgId/clients/:id/issues')async addIssue(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:any){
