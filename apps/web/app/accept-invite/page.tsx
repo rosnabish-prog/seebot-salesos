@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import Script from 'next/script';
 import {useRouter} from 'next/navigation';
 import {post} from '@/lib/api';
-import {useAuth} from '@/context/auth';
+import {useAuth,LoginResult} from '@/context/auth';
 
 export default function AcceptInvitation(){
   const router=useRouter(),[token,setToken]=useState(''),{refresh}=useAuth(),mount=useRef<HTMLDivElement>(null),[loaded,setLoaded]=useState(false),[message,setMessage]=useState('Sign in with the Google account that received the invitation.');
@@ -14,7 +14,7 @@ export default function AcceptInvitation(){
     window.google.accounts.id.initialize({client_id:clientId,callback:async response=>{
       if(!response.credential){setMessage('Google sign-in did not return a credential.');return;}
       setMessage('Confirming your invitation…');
-      try{await post('/employee-invitations/accept',{invitationToken:token,googleCredential:response.credential});await refresh();router.replace('/dashboard');}
+      try{const result=await post<LoginResult>('/employee-invitations/accept',{invitationToken:token,googleCredential:response.credential});if(result.mfaRequired){router.replace('/login');}else if(result.user){await refresh();router.replace('/dashboard');}else throw Error('Invitation acceptance could not establish the sign-in flow.');}
       catch(e){setMessage(e instanceof Error?e.message:'Invitation could not be accepted.');}
     }});
     mount.current.innerHTML='';window.google.accounts.id.renderButton(mount.current,{type:'standard',size:'large',theme:'outline',width:280});
