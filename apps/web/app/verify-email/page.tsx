@@ -3,14 +3,18 @@ import {useEffect,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import Link from 'next/link';
 import {post} from '@/lib/api';
-import {useAuth} from '@/context/auth';
+import {useAuth,MfaChallenge} from '@/context/auth';
 export default function VerifyEmail(){
- const router=useRouter(),{refresh}=useAuth(),[message,setMessage]=useState('Verifying your email…'),[failed,setFailed]=useState(false);
+ const router=useRouter(),[message,setMessage]=useState('Verifying your email…'),[failed,setFailed]=useState(false);
  useEffect(()=>{
   const token=new URLSearchParams(window.location.search).get('token');
   if(!token){setMessage('The verification link is missing its token.');setFailed(true);return;}
   let active=true;
-  void post('/auth/verify-signup',{token}).then(async()=>{await refresh();if(active)router.replace('/entry');})
+  void post<MfaChallenge>('/auth/verify-signup',{token}).then(challenge=>{
+    if(!active)return;
+    sessionStorage.setItem('salesos_mfa',JSON.stringify({challengeId:challenge.challengeId,maskedEmail:challenge.maskedEmail,...(challenge.testCode?{testCode:challenge.testCode}:{})}));
+    router.replace('/two-factor');
+  })
     .catch(err=>{if(active){setMessage(err instanceof Error?err.message:'Verification failed.');setFailed(true);}});
   return()=>{active=false;};
  },[router,refresh]);
