@@ -1,3 +1,4 @@
+import {assertMfaConfigured} from './auth/mfa-security';
 import 'reflect-metadata';
 import 'dotenv/config';
 import helmet from 'helmet';
@@ -6,6 +7,7 @@ import { NestFactory } from '@nestjs/core';
 import { BadRequestException } from '@nestjs/common';
 import { AppModule } from './app.module';
 async function bootstrap(){
+  assertMfaConfigured();
   if(!process.env.JWT_SECRET||process.env.JWT_SECRET.length<32||process.env.JWT_SECRET.includes('REPLACE_'))throw Error('Set a strong JWT_SECRET (32+ chars).');
   const app=await NestFactory.create(AppModule);
   app.use(helmet());app.use(cookieParser());
