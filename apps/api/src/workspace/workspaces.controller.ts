@@ -56,8 +56,12 @@ export class WorkspacesController{
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
   if(!member||member.status!=='ACTIVE')throw new ForbiddenException('You are not an active member of this workspace.');
   const user=await this.db.user.findUnique({where:{id:req.user.id}});if(!user)throw new ForbiddenException('User unavailable.');
-  const token=await this.jwt.signAsync({sub:user.id,pv:user.passwordVersion,wid:id});
-  res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});
+  // Workspace switching must not reset the original seven-day reauthentication deadline.
+  const exp=(req as any).sessionExpiresAt;
+  const remaining=typeof exp==='number'?exp-Math.floor(Date.now()/1000):0;
+  if(remaining<=0||remaining>7*24*60*60)throw new ForbiddenException('Please sign in again to select a workspace.');
+  const token=await this.jwt.signAsync({sub:user.id,pv:user.passwordVersion,wid:id,purpose:'session',mfa:true},{expiresIn:remaining});
+  res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:remaining*1000,path:'/'});
   return {selected:id,slug:member.organization.slug,crmEnabled:member.organization.slug==='seebot',tenantCrmEnabled:process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true',notice:member.organization.slug==='seebot'?'Seebot SalesOS activated.':'Organization setup selected. CRM remains locked until tenant isolation is certified.'};
  }
 }
