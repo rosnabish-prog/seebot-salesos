@@ -95,7 +95,8 @@ export class WorkspacesController{
    await this.db.workspaceSettings.upsert({where:{organizationId:id},create:{organizationId:id,plan:'ALL_FEATURES_UNLOCKED',setupComplete:true,targetIndustries:targets||[]},update:{setupComplete:true,...(targets?{targetIndustries:targets}:{})}});
    return {organization:saved,plan:'ALL_FEATURES_UNLOCKED',crmEnabled:member.organization.slug==='seebot'};
  }
- @Get(':id/members') async members(@Req()req:AuthRequest,@Param('id')id:string){await this.authorized(req,id,true);return this.db.organizationMembership.findMany({where:{organizationId:id},include:{user:{select:{id:true,name:true,email:true,active:true}}},orderBy:{createdAt:'asc'}});}
+ @Get(':id/member-options') async memberOptions(@Req()req:AuthRequest,@Param('id')id:string){await this.authorized(req,id);return this.db.organizationMembership.findMany({where:{organizationId:id,status:'ACTIVE',user:{active:true}},select:{role:true,user:{select:{id:true,name:true}}},orderBy:{createdAt:'asc'}});}
+  @Get(':id/members') async members(@Req()req:AuthRequest,@Param('id')id:string){await this.authorized(req,id,true);return this.db.organizationMembership.findMany({where:{organizationId:id},include:{user:{select:{id:true,name:true,email:true,active:true}}},orderBy:{createdAt:'asc'}});}
  @Post(':id/members/existing') async addExisting(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:any){await this.authorized(req,id,true);
   const address=String(body?.email||'').trim().toLowerCase(),role=String(body?.role||'MEMBER');
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)||!['ADMIN','MEMBER','FINANCE'].includes(role))throw new BadRequestException('Valid email and role required.');
