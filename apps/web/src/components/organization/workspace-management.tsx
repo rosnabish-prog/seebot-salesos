@@ -155,8 +155,8 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
   </div>;
  }
  const admin=selected&&['ADMIN','OWNER'].includes(selected.role);
- return <main className="ws-page"><div className="ws-container">
-  <header className="ws-top"><div className="ws-nav-buttons"><Link href={selected?'/workspaces/'+selected.id:'/login'} className="ws-back"><ChevronLeft size={16}/> {selected?'Company home':'Back to login'}</Link><span className="ws-kicker"><ShieldCheck size={14}/> PRIVATE COMPANY WORKSPACES</span></div><Button variant="secondary" type="button" onClick={async()=>{await logout();router.replace('/login');}}><LogOut size={15}/> Sign out</Button></header>
+ return <main className={embeddedWorkspaceId?'ws-page ws-page-embedded':'ws-page'}><div className="ws-container">
+  {!embeddedWorkspaceId&&<header className="ws-top"><div className="ws-nav-buttons"><Link href={selected?'/workspaces/'+selected.id:'/login'} className="ws-back"><ChevronLeft size={16}/> {selected?'Company home':'Back to login'}</Link><span className="ws-kicker"><ShieldCheck size={14}/> PRIVATE COMPANY WORKSPACES</span></div><Button variant="secondary" type="button" onClick={async()=>{await logout();router.replace('/login');}}><LogOut size={15}/> Sign out</Button></header>}
   <ErrorMessage message={error}/>{notice&&<div role="status" className="ws-notice"><Check size={16}/>{notice}</div>}
   {!loaded?<div className="ws-card ws-centered"><h2>Loading company workspace…</h2></div>:!items.length&&!selected?
   <section className="ws-card ws-centered">
@@ -205,7 +205,7 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
     {invitations.length>0&&<div className="ws-invite-history"><h3>Invitation history</h3>{invitations.map(inv=><div key={inv.id} className="ws-member-row"><span>{inv.email} <small>· {inv.role}</small></span><span className="ws-status">{inv.status}</span>{inv.status==='PENDING'&&<Button variant="secondary" type="button" onClick={async()=>{try{await post('/workspace-invitations/organizations/'+selected.id+'/'+inv.id+'/revoke',{});setInvitations(items=>items.map(i=>i.id===inv.id?{...i,status:'REVOKED'}:i));}catch(e){setError(e instanceof Error?e.message:'Could not revoke invitation.');}}}>Revoke</Button>}</div>)}</div>}
    </div>}
    <div className="ws-settings-footer"><ShieldCheck size={16}/> An account may belong to multiple invited teams, but cannot create a second company workspace.</div>
-   {selected.tenantCrmEnabled&&<Button type="button" className="ws-main-cta" onClick={()=>void choose(selected)}>Open company CRM <ChevronRight size={16}/></Button>}
+   {!embeddedWorkspaceId&&selected.tenantCrmEnabled&&<Button type="button" className="ws-main-cta" onClick={()=>void choose(selected)}>Open company CRM <ChevronRight size={16}/></Button>}
   </section>:<section className="ws-card ws-centered"><h1>Company workspaces</h1><p className="ws-intro">Select a workspace to continue. Creating another company is not available.</p><div className="ws-workspace-list">{items.map(w=><div key={w.id} className="ws-choice"><div><strong>{w.name}</strong><small>{w.role==='OWNER'?'Administrator (Owner)':w.role==='ADMIN'?'Administrator':w.role}</small></div><Button variant="secondary" onClick={()=>void open(w)}>Manage</Button><Button onClick={()=>void choose(w)}>Open</Button></div>)}</div></section>}
  </div></main>;
 }
