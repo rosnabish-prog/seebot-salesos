@@ -25,7 +25,7 @@ body{font-size:16px;letter-spacing:.01em}
 .btn-secondary{color:var(--orange-action);border-color:#FAC2A3}
 .btn-secondary:hover{background:#FFF3EC}
 .btn-danger{color:#B91C1C;background:#FFF6F6}
-.page-actions .btn{color:#fff}
+.page-actions .btn-primary{color:#fff}.page-actions .btn-secondary{color:var(--orange-deep)}
 :focus-visible{outline:2px solid #D66B36;outline-offset:3px}
 .field input,.field textarea,.select,.input-icon{transition:border-color .18s ease,background-color .18s ease,box-shadow .18s ease;border-color:#E5E7EB}
 .field input:focus,.field textarea:focus,.select:focus,.input-icon:focus-within{outline:none;border-color:#CEB3A2;box-shadow:0 0 0 1px #EED7C8;background:#fff}
@@ -95,7 +95,7 @@ body{font-size:16px;letter-spacing:.01em}
 .profile-bar{display:flex;gap:4px;align-items:center;justify-content:space-between}.profile-bar .profile{flex:1}.profile-bar .icon-button:hover{color:#C2410C;background:#FFF3E9;border-radius:9px}.profile-detail{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #F0F1F3}.profile-detail:last-child{border:0}.profile-detail svg{color:#C2410C}.profile-detail>div{display:flex;flex-direction:column;gap:4px}.profile-detail span{color:#858C96;font-size:13px}.profile-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:18px}.profile-grid .panel{margin:0}@media(max-width:900px){.profile-grid{grid-template-columns:1fr}}
 
 
-/* Seebot SalesOS v1.3.1 — consistent #FF7A3D actions and seamless white form fields. */
+/* Consistent brand orange accents and accessible filled primary buttons. */
 :root {
   --orange: #FF7A3D;
   --orange-action: #FF7A3D;
@@ -103,18 +103,17 @@ body{font-size:16px;letter-spacing:.01em}
 }
 .btn-primary, a.btn-primary, button.btn-primary,
 .page-actions .btn-primary {
-  background-color: #FF7A3D !important;
+  background-color: #B84B1B !important;
   color: #FFFFFF !important;
-  border-color: #FF7A3D !important;
-  text-shadow: 0 1px 1px rgba(65, 23, 0, .27);
-  box-shadow: 0 4px 12px rgba(255, 122, 61, .14);
+  border-color: #B84B1B !important;
+  text-shadow: none;
+  box-shadow: 0 4px 12px rgba(184, 75, 27, .15);
 }
 .btn-primary:hover:not(:disabled), a.btn-primary:hover {
-  background-color: #FF7A3D !important;
-  border-color: #FF7A3D !important;
+  background-color: #9B390E !important;
+  border-color: #9B390E !important;
   color: #FFFFFF !important;
-  filter: brightness(.965);
-  box-shadow: 0 7px 18px rgba(255, 122, 61, .22);
+  box-shadow: 0 7px 18px rgba(155, 57, 14, .2);
 }
 .btn-primary:active:not(:disabled) { transform: translateY(0); filter: brightness(.94); }
 .btn-primary svg, a.btn-primary svg { color: #FFFFFF !important; stroke: #FFFFFF; }
