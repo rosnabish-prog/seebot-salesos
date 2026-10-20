@@ -926,6 +926,8 @@ model WorkspaceSettings {
  organizationId String @id
  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
  targetIndustries Json @default("[]")
+ pipelineConfig Json @default("{}")
+ pipelineVersion Int @default(1)
  plan String @default("ALL_FEATURES_UNLOCKED")
  setupComplete Boolean @default(false)
  updatedAt DateTime @updatedAt
