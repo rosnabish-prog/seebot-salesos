@@ -156,11 +156,17 @@ export class TenantBusinessController{
    orderBy:{createdAt:'desc'},take:200
   });
  }
- @Post(':orgId/tasks')async addTask(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Body()body:{title?:string;description?:string;dueAt?:string|null}){
+ @Post(':orgId/tasks')async addTask(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Body()body:{title?:string;description?:string;dueAt?:string|null;assigneeId?:string;opportunityId?:string|null}){
   await this.scope.membership(req,orgId,true);
-  const title=txt(body?.title,160),description=txt(body?.description,1500),dueAt=body?.dueAt?new Date(body.dueAt):null;
+  const title=txt(body?.title,160),description=txt(body?.description,1500),dueAt=body?.dueAt?new Date(body.dueAt):null,assigneeId=String(body?.assigneeId||req.user.id);
   if(title.length<2||(dueAt&&!Number.isFinite(dueAt.getTime())))throw new BadRequestException('Task title and valid due date required.');
-  return this.db.task.create({data:{organizationId:orgId,assigneeId:req.user.id,title,description:description||null,dueAt}});
+  const assignee=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:assigneeId}}});
+  if(!assignee||assignee.status!=='ACTIVE')throw new BadRequestException('Task assignee must be an active member of this workspace.');
+  let opportunityId:string|null=null;
+  if(body?.opportunityId){const opportunity=await this.scope.opportunity(orgId,String(body.opportunityId));opportunityId=opportunity.id;}
+  const created=await this.db.task.create({data:{organizationId:orgId,assigneeId,title,description:description||null,dueAt,opportunityId}});
+  await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_TASK_CREATED',entityType:'TASK',entityId:created.id,detail:{organizationId:orgId,assigneeId,opportunityId}}});
+  return created;
  }
  @Patch(':orgId/tasks/:taskId')async changeTask(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('taskId')taskId:string,@Body()body:{status:string}){
   const member=await this.scope.membership(req,orgId,true);
