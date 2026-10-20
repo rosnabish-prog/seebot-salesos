@@ -62,6 +62,17 @@ jobs:
         run: npm run build -w @seebot/shared
       - name: Validate Prisma schema
         run: npx prisma validate --schema=packages/database/prisma/schema.prisma
+      - name: Generate SQL baseline for migration review (never apply to a live database)
+        run: |
+          mkdir -p artifacts/database
+          npx prisma migrate diff --from-empty --to-schema-datamodel packages/database/prisma/schema.prisma --script > artifacts/database/schema-baseline-review.sql
+          test -s artifacts/database/schema-baseline-review.sql
+      - name: Upload review-only schema baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: salesos-database-schema-review
+          path: artifacts/database/schema-baseline-review.sql
+          retention-days: 7
       - name: Apply schema to disposable PostgreSQL test database
         run: npx prisma db push --schema=packages/database/prisma/schema.prisma
       - name: Generate Prisma client
@@ -80,6 +91,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser E2E for company onboarding and finance
         run: node scripts/browser-e2e.cjs
+      - name: Save real browser screenshots for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: salesos-consolidated-browser-screens
+          path: artifacts/salesos-e2e-screens/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Confirm pending real-world security gates
         run: |
           test "$SIGNING_ENABLED" = false

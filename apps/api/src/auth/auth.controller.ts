@@ -13,14 +13,16 @@ export class AuthController {
   private async issueSession(res:Response,user:{id:string;role:string;passwordVersion:number}){const token=await this.jwt.signAsync({sub:user.id,role:user.role,pv:user.passwordVersion,mfa:true,authAt:Date.now()});setSessionCookie(res,token);return token;}
   @Get('capabilities') capabilities(){return this.recovery.capabilities();}
   @Post('register') async register(@Body()body:{name?:string;email?:string;password?:string},@Res({passthrough:true})res:Response){
-    const result=await this.recovery.register(body);
-    if('user' in result && result.user){await this.issueSession(res,{id:result.user.id,role:result.user.role,passwordVersion:1});}
-    return result;
+    // Registration never creates an authenticated session. Email verification is first-factor only.
+    clearAuthCookies(res);
+    return this.recovery.register(body);
   }
   @Post('verify-signup') async verify(@Body()body:{token:string},@Res({passthrough:true})res:Response){
     const result=await this.recovery.verifySignup(body?.token);
-    await this.issueSession(res,{id:result.user.id,role:result.user.role,passwordVersion:1});
-    return result;
+    // Proving control of a signup email link is not a replacement for the mandatory
+    // one-time login verification. No workspace/API session is minted here.
+    clearAuthCookies(res);
+    return this.mfa.begin({id:result.user.id,email:result.user.email});
   }
   @Post('forgot-password') forgotPassword(@Body()body:{email?:string}){return this.recovery.requestReset(body?.email||'');}
   @Post('reset-password') resetPassword(@Body()body:{token?:string;password?:string}){return this.recovery.resetPassword(body?.token||'',body?.password||'');}

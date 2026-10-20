@@ -26,13 +26,20 @@ export class AccountRecoveryService{
     &&Number.isInteger(Number(process.env.SMTP_PORT||587))&&Number(process.env.SMTP_PORT||587)>0);
  }
  private emailSignupReady(){return process.env.EMAIL_SIGNUP_ENABLED==='true'&&this.smtpReady();}
+ private ciDisposableSignupReady(){
+  // Explicit exception only for isolated, disposable GitHub Actions test data.
+  // This path never issues an authenticated session and cannot be enabled in production.
+  return process.env.NODE_ENV==='test'&&process.env.CI==='true'&&
+    process.env.MFA_TEST_MODE==='true'&&process.env.DEV_EMAIL_SIGNUP_ENABLED==='true'&&
+    (process.env.DATABASE_URL||'').includes('ci_only_password');
+ }
  private developerSignupReady(){
   return process.env.NODE_ENV!=='production'&&process.env.DEV_EMAIL_SIGNUP_ENABLED==='true'&&
-    Boolean(process.env.CODESPACE_NAME||process.env.CI==='true');
+    (this.previewMailboxReady()||this.ciDisposableSignupReady());
  }
  capabilities(){
   return {emailSignupEnabled:this.emailSignupReady()||this.developerSignupReady(),
-    developerSignup:this.developerSignupReady(),emailVerificationRequired:!this.developerSignupReady()||this.previewMailboxReady(),passwordResetEnabled:this.smtpReady(),
+    developerSignup:this.developerSignupReady(),emailVerificationRequired:!this.ciDisposableSignupReady(),passwordResetEnabled:this.smtpReady(),
     googleConfigured:Boolean(process.env.GOOGLE_LOGIN_CLIENT_ID),previewMailbox:this.previewMailboxReady()};
  }
  private async send(to:string,subject:string,body:string){
@@ -64,11 +71,10 @@ export class AccountRecoveryService{
   if(await this.db.user.findUnique({where:{email},select:{id:true}}))
    throw new ConflictException('This email already has an account. Sign in or use password recovery.');
   const passwordHash=await argon2.hash(password as string);
-  if(this.developerSignupReady()&&!this.previewMailboxReady()){
-   // Explicitly private/CI-only preview. Never use this path in production.
-   const user=await this.db.user.create({data:{name,email,passwordHash,role:'SALES_REP'}});
-   await this.db.auditEvent.create({data:{actorId:user.id,action:'PRIVATE_PREVIEW_EMAIL_SIGNUP',entityType:'USER',entityId:user.id,detail:{preview:true}}});
-   return {user:{id:user.id,email:user.email,name:user.name,role:user.role},preview:true};
+  if(this.ciDisposableSignupReady()&&!this.previewMailboxReady()){
+    const user=await this.db.user.create({data:{name,email,passwordHash,role:'SALES_REP'}});
+    await this.db.auditEvent.create({data:{actorId:user.id,action:'DISPOSABLE_CI_PREVIEW_SIGNUP',entityType:'USER',entityId:user.id,detail:{fictional:true,verified:false}}});
+    return {verificationRequired:false,preview:true,notice:'CI-only preview account created. Sign in and complete mandatory two-factor verification.'};
   }
   const existing=await this.db.signupChallenge.findUnique({where:{email},select:{createdAt:true}});
   if(existing && Date.now()-existing.createdAt.getTime()<minute)
@@ -118,6 +124,8 @@ export class AccountRecoveryService{
    const consumed=await tx.passwordResetRequest.updateMany({where:{id:request.id,usedAt:null,expiresAt:{gt:now()}},data:{usedAt:now()}});
    if(consumed.count!==1)throw new UnauthorizedException('Reset link was already used.');
    await tx.user.update({where:{id:request.userId},data:{passwordHash,passwordVersion:{increment:1}}});
+   // A pre-reset MFA code must not complete sign-in using the new password version.
+   await tx.loginChallenge.updateMany({where:{userId:request.userId,consumedAt:null},data:{expiresAt:now(),consumedAt:now()}});
    await tx.auditEvent.create({data:{actorId:request.userId,action:'PASSWORD_RESET_COMPLETED',entityType:'USER',entityId:request.userId,detail:{method:'EMAIL_RESET'}}});
   },{isolationLevel:'Serializable'});
   return {success:true};

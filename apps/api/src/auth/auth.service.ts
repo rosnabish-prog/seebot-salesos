@@ -13,7 +13,12 @@ export class AuthService {
     const user=await this.db.user.findUnique({where:{id:userId}});
     if(!user||!currentPassword||!(await argon2.verify(user.passwordHash,currentPassword))) throw new UnauthorizedException('Current password is incorrect.');
     if(!newPassword||newPassword.length<12||newPassword.length>256||newPassword===currentPassword)throw new BadRequestException('Choose a new, different password of 12–256 characters.');
-    await this.db.user.update({where:{id:userId},data:{passwordHash:await argon2.hash(newPassword),passwordVersion:{increment:1}}});
+    const passwordHash=await argon2.hash(newPassword);
+    await this.db.$transaction(async tx=>{
+      await tx.user.update({where:{id:userId},data:{passwordHash,passwordVersion:{increment:1}}});
+      await tx.loginChallenge.updateMany({where:{userId,consumedAt:null},data:{expiresAt:new Date(),consumedAt:new Date()}});
+      await tx.auditEvent.create({data:{actorId:userId,action:'PASSWORD_CHANGED',entityType:'USER',entityId:userId,detail:{revokedPendingMfa:true}}});
+    });
     return {success:true};
   }
   async createUser(actorRole:string, body:{email:string,name:string,password:string,role:string}) {

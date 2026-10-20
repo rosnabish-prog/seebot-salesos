@@ -2,7 +2,8 @@
 const assert=require('node:assert/strict');
 const {spawn}=require('node:child_process');
 const path=require('node:path');
-const {randomUUID}=require('node:crypto');
+const fs=require('node:fs');
+const {randomUUID,randomBytes,createHash}=require('node:crypto');
 const {PrismaClient}=require('@prisma/client');
 const argon2=require('argon2');
 const {chromium}=require('playwright');
@@ -13,6 +14,10 @@ if(process.env.CI!=='true'||process.env.NODE_ENV!=='test'||!process.env.DATABASE
 const db=new PrismaClient();
 const children=[];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const previewDir=path.resolve('artifacts/salesos-e2e-screens');
+fs.mkdirSync(previewDir,{recursive:true});
+async function screenshot(page,name){await page.screenshot({path:path.join(previewDir,name+'.png'),fullPage:true,animations:'disabled'});}
+
 function launch(command,args,env,cwd=process.cwd()){
  const cp=spawn(command,args,{cwd,env:{...process.env,...env},stdio:['ignore','pipe','pipe']});
  let output='';
@@ -54,6 +59,7 @@ async function main(){
   await page.goto('/');
   await page.waitForURL('**/login');
   await page.getByRole('heading',{name:'Welcome back'}).waitFor();
+  await screenshot(page,'01-login');
   await page.getByRole('link',{name:'Create an account'}).waitFor();
   await page.getByRole('link',{name:'Forgot password?'}).click();
   await page.getByRole('heading',{name:'Forgot your password?'}).waitFor();
@@ -67,6 +73,7 @@ async function main(){
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await completeMfa(page);
   await page.waitForURL('**/dashboard',{timeout:15000});
+  await screenshot(page,'02-dashboard');
   // Existing Seebot staff cannot create a second company. Simulate receiving another team's invitation.
   const name='CI Browser Organization '+unique;
   await db.organization.create({data:{slug:'ci-browser-'+unique,name,status:'SETUP',memberships:{create:{userId:user.id,role:'ADMIN',status:'ACTIVE'}}}});
@@ -79,8 +86,10 @@ async function main(){
   await page.getByRole('heading',{name:/Good morning/}).waitFor();
   await page.getByRole('link',{name:'Kanban Pipeline',exact:true}).click();
   await page.getByRole('heading',{name:'Kanban Pipeline'}).waitFor();
+  await screenshot(page,'03-workspace-pipeline');
   await page.getByRole('link',{name:'Executive Overview'}).click();
   await page.getByRole('heading',{name:'Executive Overview'}).waitFor();
+  await screenshot(page,'04-executive-overview');
   await page.getByRole('link',{name:'Tasks & Follow-ups'}).click();
   await page.locator('h1').filter({hasText:'Tasks & Follow-ups'}).waitFor();
   await page.getByRole('link',{name:'Campaigns'}).click();
@@ -99,6 +108,7 @@ async function main(){
   await db.account.update({where:{id:relationshipAccount.id},data:{status:'Contracting'}});
   await page.getByRole('link',{name:'Client Satisfaction'}).click();
   await page.getByRole('heading',{name:'Client Satisfaction',exact:true}).waitFor();
+  await screenshot(page,'05-client-satisfaction');
   const questionnaireName='CI Relationship Questionnaire '+unique;
   await page.getByLabel('Questionnaire name').fill(questionnaireName);
   await page.getByRole('button',{name:'Create questionnaire'}).click();
@@ -128,6 +138,7 @@ async function main(){
   await page.locator('table.data-table tbody tr').filter({hasText:questionnaireName}).waitFor({timeout:10000});
   await page.getByRole('link',{name:'Contracts & Finance'}).click();
   await page.getByText('Finance tax rules').first().waitFor({timeout:10000});
+  await screenshot(page,'06-contracts-finance');
   // Commercial actions are optional, not an artificial mandatory three-step wizard.
   await page.getByRole('button',{name:/Draft contract/}).click();
   await page.getByRole('combobox',{name:'Company account'}).click();
@@ -187,6 +198,7 @@ async function main(){
    await completeMfa(newPage);
    await newPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
    await newPage.getByRole('heading',{name:'Create your company workspace'}).waitFor();
+   await screenshot(newPage,'07-company-setup');
    const ownName='CI Fresh Team '+unique;
    await newPage.getByLabel('Company name').fill(ownName);
    await newPage.getByPlaceholder('https://company.com').fill('https://fresh-'+unique+'.example');
@@ -213,6 +225,7 @@ async function main(){
    await newPage.getByRole('heading',{name:/Good morning/}).waitFor();
    await newPage.getByRole('link',{name:'Team & Settings'}).click();
    await newPage.getByRole('heading',{name:'Team & Settings'}).waitFor({timeout:10000});
+   await screenshot(newPage,'08-team-settings');
    await newPage.getByRole('button',{name:'Sales Workflow'}).click();
    await newPage.getByRole('heading',{name:'Pipeline configuration'}).waitFor({timeout:10000});
    await newPage.getByLabel('Stage name').fill('CI Qualified Research');
@@ -241,10 +254,41 @@ async function main(){
    await signupPage.getByPlaceholder('name@company.com').fill(signupEmail);
    await signupPage.getByPlaceholder('At least 12 characters').fill(password);
    await signupPage.getByRole('button',{name:'Create account',exact:true}).click();
+   // Signup alone must NEVER set an authenticated workspace cookie.
+   await signupPage.getByText(/CI-only preview account created/).waitFor({timeout:10000});
+   const signupSession=(await signupPage.context().cookies()).find(c=>c.name==='salesos_session');
+   assert.equal(signupSession,undefined,'Signup must not issue an MFA-verified session.');
+   await signupPage.getByRole('link',{name:'Return to sign in'}).click();
+   await signupPage.getByPlaceholder('name@company.com').fill(signupEmail);
+   await signupPage.getByPlaceholder('Your password').fill(password);
+   await signupPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await completeMfa(signupPage);
    await signupPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
    const newSignup=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
    assert.equal(newSignup.organizationMemberships.length,0,'UI signup must not grant Seebot membership');
   }finally{await signupContext.close();}
+  // A genuinely verified one-use signup link is only first-factor identity proof.
+  // It MUST route to the same mandatory second-factor challenge.
+  const verificationContext=await browser.newContext(),verificationPage=await verificationContext.newPage();
+  try{
+    const signupEmail='ci-verified-signup-'+unique+'@example.invalid';
+    const rawToken=randomBytes(32).toString('base64url');
+    await db.signupChallenge.create({data:{
+      email:signupEmail,name:'CI Verified Signup User',
+      passwordHash:await argon2.hash(password),
+      tokenHash:createHash('sha256').update(rawToken).digest('hex'),
+      expiresAt:new Date(Date.now()+20*60_000)
+    }});
+    await verificationPage.goto('http://localhost:3000/verify-email?token='+encodeURIComponent(rawToken));
+    await verificationPage.waitForURL('**/two-factor',{timeout:15000});
+    const before=(await verificationPage.context().cookies()).find(x=>x.name==='salesos_session');
+    assert.equal(before,undefined,'Email verification must not grant a session before MFA.');
+    await completeMfa(verificationPage);
+    await verificationPage.waitForURL(url=>url.pathname==='/workspaces'&&url.searchParams.get('new')==='1',{timeout:15000});
+    const after=(await verificationPage.context().cookies()).find(x=>x.name==='salesos_session');
+    assert.ok(after?.httpOnly,'After correct MFA, sign-in must create a protected server cookie.');
+    assert.equal((await db.signupChallenge.findUnique({where:{email:signupEmail}})),null,'Signup token must be one-use.');
+  }finally{await verificationContext.close();}
   console.log('PASS: signup, forgot-password configuration and Google OAuth states visible in UI.');
 
   // Multiple memberships require an explicit workspace choice on the next login.

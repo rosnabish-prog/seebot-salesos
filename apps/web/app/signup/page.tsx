@@ -11,14 +11,13 @@ import {GoogleLoginButton} from '@/components/google-login-button';
 
 type Capabilities={emailSignupEnabled:boolean;developerSignup:boolean;passwordResetEnabled:boolean;googleConfigured:boolean;emailVerificationRequired?:boolean};
 export default function SignUp(){
- const router=useRouter(),{user,refresh}=useAuth(),[cap,setCap]=useState<Capabilities|null>(null),[name,setName]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[pending,setPending]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const router=useRouter(),{user}=useAuth(),[cap,setCap]=useState<Capabilities|null>(null),[name,setName]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[pending,setPending]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  useEffect(()=>{void request<Capabilities>('/auth/capabilities').then(setCap).catch(()=>setError('Cannot connect to the authentication service.'));},[]);
  useEffect(()=>{if(user)router.replace('/entry');},[user,router]);
  async function submit(e:FormEvent){
   e.preventDefault();setError('');setMessage('');setPending(true);
   try{
-   const result=await post<{user?:{id:string};verificationRequired?:boolean;notice?:string}>('/auth/register',{name,email,password});
-   if(result.user){await refresh();router.replace('/entry');return;}
+   const result=await post<{verificationRequired?:boolean;notice?:string}>('/auth/register',{name,email,password});
    setMessage(result.notice||'Check your email to verify your account before signing in.');setPassword('');
   }catch(e){setError(e instanceof Error?e.message:'Unable to create account.');}
   finally{setPending(false);}

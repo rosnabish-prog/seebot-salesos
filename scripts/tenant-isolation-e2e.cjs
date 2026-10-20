@@ -172,7 +172,9 @@ async function main(){
   const signupEmail='ci-self-register-'+id+'@example.invalid';
   const joined=await hit('/auth/register','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({name:'Standalone Email Signup',email:signupEmail,password:'CI_Only_12_Password_One!'})});
   check(joined,201,'Private preview email registration succeeds');
-  assert.equal(joined.body.user.email,signupEmail);
+   assert.equal(joined.body.user,undefined,'Registration must not return an authenticated user.');
+   assert.equal(joined.body.verificationRequired,false,'Disposable CI preview does not prove mailbox ownership.');
+   assert.match(joined.body.notice,/two-factor verification/i);
   const independent=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
   assert.equal(independent.organizationMemberships.length,0,'Self signup never grants Seebot membership');
   check(await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'incorrect-password'})}),401,'Wrong password returns authentication error');
