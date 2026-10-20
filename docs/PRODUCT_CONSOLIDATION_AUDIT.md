@@ -84,7 +84,8 @@ Personal-email blocking and mailbox verification prove control of an address, no
 - Create/search prospect accounts.
 - Domain uniqueness within a workspace.
 - Initial opportunity created automatically at Account Researched.
-- Contacts are shared across prospect and client lifecycle.
+- Dedicated Account workspace for company context, contacts and opportunities.
+- Contacts are created/edited once, carry opt-out state, and are shared across prospect and client lifecycle.
 - Multiple opportunities per Account for expansion/renewal.
 - Relationship status:
   - Prospect
@@ -143,8 +144,16 @@ The eleven canonical stage IDs remain stable for system integrity and historical
 - Pipeline and recent opportunity visibility.
 - Admin-only access.
 
-### Further optimization
-Add cohort conversion, median stage age, forecast categories and rep capacity only when based on recorded data; never fabricate history for charts.
+### Operational executive analytics
+- Closed-deal win rate based only on recorded won/lost outcomes.
+- Median sales-cycle days for recorded Closed Won opportunities.
+- Stale open opportunities based on a transparent 14-day no-update rule.
+- Overdue task count.
+- Signed contracts expiring within 60 days.
+- Open pipeline value separated by ISO currency with no invented probability weighting.
+- Overdue receivables separated by currency and net of recorded payments/approved customer credits.
+
+Further forecasting/cohort models remain out until backed by enough real recorded history.
 
 ## 8. Client Satisfaction
 
@@ -196,9 +205,10 @@ NPS/CSAT belongs to satisfaction surveys. MBR/QBR/general client meetings belong
 
 ### Operational in preview
 - Company-scoped tasks.
-- Manual task creation.
-- Due dates.
-- Assignee.
+- Manual task creation with description, assignee and optional opportunity link.
+- Team assignee selection from active workspace members.
+- Due dates, overdue and due-soon views.
+- Search/filter queue.
 - Open/Done.
 - Opportunity-linked tasks.
 - Stage-created tasks.
@@ -212,7 +222,9 @@ Future optimization: task priority, reminders/notifications and calendar integra
 ### Operational in preview
 - Company-scoped campaign planning.
 - Campaign name, sector, objective, owner and status.
-- Account enrollment foundations.
+- Account enrollment/removal.
+- Campaign status lifecycle: Planning, Active, Paused, Completed.
+- Campaigns reuse existing Account records; they never duplicate prospects.
 
 ### Provider gate
 Mass email sequence execution and inbound-reply synchronization remain gated until provider consent, suppression, rate-limit and compliance workflows are complete.
@@ -235,6 +247,9 @@ Mass email sequence execution and inbound-reply synchronization remain gated unt
 - Commercial amendments with versioned pricing snapshots.
 - Administrator approval for amendments.
 - Contract workspace from Contracts & Finance.
+- Private PDF upload/download with SHA-256 integrity checks.
+- Executed-PDF administrator verification.
+- Manual confirmation of genuinely executed agreements with audit evidence and workflow auto-advance.
 
 ### Provider/legal gate
 External electronic signing must stay disabled until Google/signing identity, HTTPS, key custody, malware scanning, evidence archive/WORM retention, legal review and end-to-end validation are complete. Internal commercial approval must never be represented as external execution.
@@ -268,9 +283,13 @@ Future optimization: file-backed acceptance evidence and structured delivery KPI
 - Partial/full payment recording.
 - Payment references and duplicate protection.
 - Outstanding-balance history.
-- Append-only accounting posting foundations.
-- Credit/reversal foundations in accounting modules.
-- Manual statement-row matching foundations.
+- Recurring monthly/quarterly/one-time billing schedules that prepare invoice drafts only.
+- Milestone-triggered billing schedules armed only after delivery acceptance evidence.
+- Reviewed overdue-reminder tasks and explicit approval/send flow.
+- Customer credit-note draft -> administrator approval -> PDF issue -> journal posting.
+- Append-only accounting journals with integrity/coverage checks.
+- Controlled reversal journals; original entries remain immutable.
+- Manual bank-statement-row import and payment reconciliation/matching.
 
 ### Production gates
 Tax determination remains human/accountant reviewed. SalesOS must not infer legal VAT/tax treatment. Accounting needs production migration/reconciliation and independent finance review before being treated as statutory books.
@@ -289,13 +308,14 @@ Future optimization: scheduled reports, controlled client distribution and riche
 
 ## 16. AI and external integrations
 
-### Implemented foundation / gated
-- AI opportunity assistant and research/demo architecture.
+### Operational / gated by provider state
+- Tenant-scoped opportunity research, lookalikes, contact ranking and outreach drafting using the safe demo provider when live AI is unavailable.
+- Reviewed outreach can be sent through the authenticated user's connected Gmail only when deployment sending is enabled.
+- Gmail connect/status/disconnect is available to independent company workspaces.
 - OpenAI provider configuration hooks.
 - Apollo provider configuration hooks.
 - Google Login.
-- Gmail sending connection.
-- Signing provider foundation.
+- Signing provider foundation plus operational manual executed-PDF evidence flow.
 
 ### Product rule
 No external provider is shown as "working" because a key exists. Product UI must distinguish:
@@ -313,6 +333,7 @@ Live OpenAI/Apollo enrichment and Gmail reply sync require provider credentials,
 - Removed forced Prospect -> Opportunity -> Contract -> Invoice commercial wizard.
 - Removed questionnaire builder duplication from individual client screens.
 - Removed duplicate NPS/CSAT manual-entry workflow from relationship reviews.
+- Removed duplicate manual MBR/QBR creation; formal MBR/QBR now uses the snapshot/report workflow only.
 - Removed obsolete Target Industries vs Target Customers duplication in company profile.
 - Removed mandatory finance identity fields from initial workspace onboarding.
 - Removed preview-box navigation and manual "back" links where the permanent SalesOS sidebar exists.
@@ -333,6 +354,28 @@ Live OpenAI/Apollo enrichment and Gmail reply sync require provider credentials,
 - Loading/empty/error states.
 - No artificial loading delays.
 - No browser-default dropdowns in the consolidated tenant workflow.
+- Native prompt/confirm dialogs removed from milestone acceptance and pipeline reset; both use branded modals.
+- Team & Settings is organized into Company & Team, Sales Workflow, Client Reporting, Integrations, and Security & Audit tabs.
+
+## 19. Current source-level completion checkpoint
+
+The consolidated company-workspace product now covers the full in-app lifecycle:
+- authentication + mandatory sign-in MFA + hard seven-day reauthentication;
+- company/team onboarding;
+- prospect/account/contact management;
+- configurable 11-stage pipeline;
+- opportunity intelligence/outreach;
+- contracting/document evidence;
+- delivery/client health/satisfaction;
+- MBR/QBR reports;
+- invoices/tax/payments/credits;
+- recurring and milestone billing;
+- accounting/reconciliation;
+- tasks/campaigns;
+- executive analytics;
+- integration/security/audit settings.
+
+This does **not** mean production certification. External providers and legal/operational controls below still have release gates.
 
 ## 19. Release gate checklist
 
