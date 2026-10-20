@@ -601,3 +601,13 @@ input:-webkit-autofill:focus {
 .signing-consent{align-items:flex-start;line-height:1.45;font-size:13px}.signing-consent input{margin-top:3px}.signing-submit{min-height:47px}
 .signing-complete{text-align:center;padding:clamp(24px,6vw,54px) 12px;display:flex;flex-direction:column;align-items:center;gap:11px}.signing-complete>span{width:58px;height:58px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#f0faf4;color:#258653}.signing-complete h2{font-size:25px;margin:4px 0 0}.signing-complete p{max-width:550px;margin:0;color:#707b86}
 @media(max-width:650px){.signing-card{border-radius:15px}.signing-header{align-items:flex-start}.signing-verified,.signing-document-meta{align-items:flex-start;flex-direction:column}.signing-pdf{min-height:330px;height:50vh}.signing-date-badge{align-self:flex-start}}
+
+
+/* Task execution queue */
+.tenant-tasks{display:flex;flex-direction:column;gap:20px}
+.task-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.task-summary-grid button{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid #e8ebef;border-radius:11px;background:#fff;text-align:left;color:#4a5560;transition:border-color .16s,background .16s,transform .16s}
+.task-summary-grid button:hover,.task-summary-grid button.active{border-color:#efb28d;background:#fff8f3;transform:translateY(-1px)}
+.task-summary-grid small,.task-summary-grid strong{display:block}.task-summary-grid small{font-size:10px;color:#7d8792}.task-summary-grid strong{font-size:20px;margin-top:2px}
+.task-toolbar{display:flex;gap:10px;align-items:center}.task-toolbar .brand-select{min-width:145px}.task-overdue{color:#b54337;font-weight:700}
+@media(max-width:760px){.task-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.task-toolbar{width:100%;align-items:stretch;flex-direction:column}.task-toolbar .brand-select{min-width:0;width:100%}}
