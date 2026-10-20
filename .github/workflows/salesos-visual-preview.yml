@@ -1,0 +1,131 @@
+name: SalesOS Visual Preview
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshot:
+    name: Browser screenshots (fictional staging data)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: seebot
+          POSTGRES_PASSWORD: screenshot_ci_only
+          POSTGRES_DB: seebot_salesos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U seebot -d seebot_salesos"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
+    env:
+      DATABASE_URL: postgresql://seebot:screenshot_ci_only@localhost:5432/seebot_salesos?schema=public
+      JWT_SECRET: screenshot-ci-only-jwt-key-never-use-in-production
+      ADMIN_EMAIL: preview-admin@example.invalid
+      ADMIN_PASSWORD: PreviewOnly_CI_2026!NoLiveData
+      ADMIN_NAME: Preview Administrator
+      SEED_DEMO_DATA: "true"
+      CORS_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - name: Check out application code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Generate database client
+        run: npm run db:generate
+      - name: Initialize disposable CI database
+        # Safe only for this fresh, isolated GitHub Actions PostgreSQL service.
+        # This must never point to a production or shared database.
+        run: npx prisma db push --schema packages/database/prisma/schema.prisma --skip-generate
+      - name: Seed fictional demo accounts
+        run: npm run db:seed
+      - name: Start real web and API development servers
+        run: |
+          nohup npm run dev > /tmp/salesos-preview-servers.log 2>&1 < /dev/null &
+          echo $! > /tmp/salesos-preview-pid
+          for i in $(seq 1 90); do
+            if curl --silent --fail http://localhost:4000/health >/dev/null && curl --silent --fail http://localhost:3000/login >/dev/null; then
+              echo "API and frontend both responding"
+              exit 0
+            fi
+            sleep 2
+          done
+          tail -100 /tmp/salesos-preview-servers.log
+          exit 1
+      - name: Install isolated browser test dependency
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Capture actual SalesOS screens
+        run: |
+          mkdir -p visual-preview
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('node:fs');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, deviceScaleFactor: 1 });
+            const base = 'http://localhost:3000';
+            const shots = [];
+            async function capture(path, name) {
+              await page.goto(base + path, { waitUntil: 'domcontentloaded', timeout: 60000 });
+              await page.waitForTimeout(1800);
+              await page.screenshot({ path: 'visual-preview/' + name + '.png', fullPage: true });
+              shots.push({ name, path, title: await page.title() });
+            }
+            try {
+              await capture('/login', '01-login');
+              await page.locator('input[type="email"]').fill(process.env.ADMIN_EMAIL);
+              await page.locator('input[type="password"]').fill(process.env.ADMIN_PASSWORD);
+              await page.locator('button[type="submit"]').click();
+              await page.waitForURL(url => !url.pathname.endsWith('/login'), { timeout: 30000 });
+              await capture('/dashboard', '02-dashboard');
+              await capture('/pipeline', '03-pipeline');
+              await capture('/prospects', '04-prospects');
+              await capture('/executive', '05-executive');
+              await page.goto(base + '/clients', { waitUntil: 'domcontentloaded' });
+              await page.waitForTimeout(1000);
+              const seed = page.getByRole('button', { name: /Create full demo lifecycle/i });
+              if (await seed.count()) {
+                await seed.click();
+                try { await page.waitForURL(/\/clients\/[^/]+$/, {timeout: 20000}); await page.waitForTimeout(1500); await page.screenshot({path:'visual-preview/06-client-detail.png',fullPage:true}); shots.push({name:'06-client-detail',path:page.url(),title:await page.title()}); }
+                catch (e) { console.log('Demo lifecycle not available for screenshot:',e.message); }
+              }
+              await capture('/clients', '07-clients');
+              fs.writeFileSync('visual-preview/manifest.json', JSON.stringify({description:'Actual SalesOS UI in disposable GitHub Actions, entirely fictional data',screens:shots},null,2));
+              console.log('Captured',shots.map(x=>x.name).join(', '));
+            } catch (error) {
+              await page.screenshot({path:'visual-preview/ERROR-current-screen.png',fullPage:true}).catch(()=>{});
+              throw error;
+            } finally {
+              await browser.close();
+            }
+          })().catch(err=>{console.error(err);process.exitCode=1;});
+          NODE
+      - name: Upload actual browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: salesos-browser-preview
+          path: visual-preview/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Print server errors if preview fails
+        if: failure()
+        run: |
+          if test -f /tmp/salesos-preview-servers.log; then tail -120 /tmp/salesos-preview-servers.log; fi
