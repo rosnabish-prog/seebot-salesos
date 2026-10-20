@@ -106,9 +106,17 @@ export class TenantBusinessController{
   const milestone=await this.db.deliveryMilestone.findFirst({where:{id:milestoneId,accountId:id}});if(!milestone)throw new BadRequestException('Delivery milestone not found.');
   const status=txt(body?.status,30).toUpperCase();if(!['PLANNED','IN_PROGRESS','SUBMITTED','ACCEPTED','REJECTED'].includes(status))throw new BadRequestException('Invalid milestone status.');
   const evidence=txt(body?.evidenceReference,500);if(status==='ACCEPTED'&&evidence.length<6)throw new BadRequestException('Acceptance evidence reference is required.');
-  const updated=await this.db.deliveryMilestone.update({where:{id:milestone.id},data:{status,actualAcceptedAt:status==='ACCEPTED'?new Date():null}});
-  await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_MILESTONE_STATUS',entityType:'DELIVERY_MILESTONE',entityId:milestone.id,detail:{organizationId:orgId,status,evidenceReference:evidence}}});
-  return updated;
+  const acceptedAt=status==='ACCEPTED'?new Date():null;
+  return this.db.$transaction(async tx=>{
+   const updated=await tx.deliveryMilestone.update({where:{id:milestone.id},data:{status,actualAcceptedAt:acceptedAt}});
+   let armedBillingSchedules=0;
+   if(status==='ACCEPTED'){
+    const result=await tx.billingSchedule.updateMany({where:{milestoneId:milestone.id,cadence:'MILESTONE',status:'ACTIVE',nextDueAt:null},data:{nextDueAt:acceptedAt}});
+    armedBillingSchedules=result.count;
+   }
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_MILESTONE_STATUS',entityType:'DELIVERY_MILESTONE',entityId:milestone.id,detail:{organizationId:orgId,status,evidenceReference:evidence,armedBillingSchedules}}});
+   return {...updated,armedBillingSchedules};
+  });
  }
  @Get(':orgId/clients/:id/renewals')async renewals(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){
   await this.scope.membership(req,orgId);await this.scope.account(orgId,id);
