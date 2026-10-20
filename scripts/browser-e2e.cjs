@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {spawn}=require('node:child_process');
 const path=require('node:path');
 const fs=require('node:fs');
-const {randomUUID}=require('node:crypto');
+const {randomUUID,randomBytes,createHash}=require('node:crypto');
 const {PrismaClient}=require('@prisma/client');
 const argon2=require('argon2');
 const {chromium}=require('playwright');
@@ -267,6 +267,28 @@ async function main(){
    const newSignup=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
    assert.equal(newSignup.organizationMemberships.length,0,'UI signup must not grant Seebot membership');
   }finally{await signupContext.close();}
+  // A genuinely verified one-use signup link is only first-factor identity proof.
+  // It MUST route to the same mandatory second-factor challenge.
+  const verificationContext=await browser.newContext(),verificationPage=await verificationContext.newPage();
+  try{
+    const signupEmail='ci-verified-signup-'+unique+'@example.invalid';
+    const rawToken=randomBytes(32).toString('base64url');
+    await db.signupChallenge.create({data:{
+      email:signupEmail,name:'CI Verified Signup User',
+      passwordHash:await argon2.hash(password),
+      tokenHash:createHash('sha256').update(rawToken).digest('hex'),
+      expiresAt:new Date(Date.now()+20*60_000)
+    }});
+    await verificationPage.goto('http://localhost:3000/verify-email?token='+encodeURIComponent(rawToken));
+    await verificationPage.waitForURL('**/two-factor',{timeout:15000});
+    const before=(await verificationPage.context().cookies()).find(x=>x.name==='salesos_session');
+    assert.equal(before,undefined,'Email verification must not grant a session before MFA.');
+    await completeMfa(verificationPage);
+    await verificationPage.waitForURL(/\\/workspaces\\?new=1/,{timeout:15000});
+    const after=(await verificationPage.context().cookies()).find(x=>x.name==='salesos_session');
+    assert.ok(after?.httpOnly,'After correct MFA, sign-in must create a protected server cookie.');
+    assert.equal((await db.signupChallenge.findUnique({where:{email:signupEmail}})),null,'Signup token must be one-use.');
+  }finally{await verificationContext.close();}
   console.log('PASS: signup, forgot-password configuration and Google OAuth states visible in UI.');
 
   // Multiple memberships require an explicit workspace choice on the next login.
