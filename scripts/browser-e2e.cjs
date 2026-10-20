@@ -241,6 +241,15 @@ async function main(){
    await signupPage.getByPlaceholder('name@company.com').fill(signupEmail);
    await signupPage.getByPlaceholder('At least 12 characters').fill(password);
    await signupPage.getByRole('button',{name:'Create account',exact:true}).click();
+   // Signup alone must NEVER set an authenticated workspace cookie.
+   await signupPage.getByText(/CI-only preview account created/).waitFor({timeout:10000});
+   const signupSession=(await signupPage.context().cookies()).find(c=>c.name==='salesos_session');
+   assert.equal(signupSession,undefined,'Signup must not issue an MFA-verified session.');
+   await signupPage.getByRole('link',{name:'Return to sign in'}).click();
+   await signupPage.getByPlaceholder('name@company.com').fill(signupEmail);
+   await signupPage.getByPlaceholder('Your password').fill(password);
+   await signupPage.getByRole('button',{name:'Sign in',exact:true}).click();
+   await completeMfa(signupPage);
    await signupPage.waitForURL(/\/workspaces\?new=1/,{timeout:15000});
    const newSignup=await db.user.findUniqueOrThrow({where:{email:signupEmail},include:{organizationMemberships:true}});
    assert.equal(newSignup.organizationMemberships.length,0,'UI signup must not grant Seebot membership');
