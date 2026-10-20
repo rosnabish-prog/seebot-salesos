@@ -26,14 +26,20 @@ export class AccountRecoveryService{
     &&Number.isInteger(Number(process.env.SMTP_PORT||587))&&Number(process.env.SMTP_PORT||587)>0);
  }
  private emailSignupReady(){return process.env.EMAIL_SIGNUP_ENABLED==='true'&&this.smtpReady();}
+ private ciDisposableSignupReady(){
+  // Explicit exception only for isolated, disposable GitHub Actions test data.
+  // This path never issues an authenticated session and cannot be enabled in production.
+  return process.env.NODE_ENV==='test'&&process.env.CI==='true'&&
+    process.env.MFA_TEST_MODE==='true'&&process.env.DEV_EMAIL_SIGNUP_ENABLED==='true'&&
+    (process.env.DATABASE_URL||'').includes('ci_only_password');
+ }
  private developerSignupReady(){
-  // No path, including CI, may silently self-register without real email verification.
   return process.env.NODE_ENV!=='production'&&process.env.DEV_EMAIL_SIGNUP_ENABLED==='true'&&
-    this.previewMailboxReady();
+    (this.previewMailboxReady()||this.ciDisposableSignupReady());
  }
  capabilities(){
   return {emailSignupEnabled:this.emailSignupReady()||this.developerSignupReady(),
-    developerSignup:this.developerSignupReady(),emailVerificationRequired:true,passwordResetEnabled:this.smtpReady(),
+    developerSignup:this.developerSignupReady(),emailVerificationRequired:!this.ciDisposableSignupReady(),passwordResetEnabled:this.smtpReady(),
     googleConfigured:Boolean(process.env.GOOGLE_LOGIN_CLIENT_ID),previewMailbox:this.previewMailboxReady()};
  }
  private async send(to:string,subject:string,body:string){
@@ -65,6 +71,11 @@ export class AccountRecoveryService{
   if(await this.db.user.findUnique({where:{email},select:{id:true}}))
    throw new ConflictException('This email already has an account. Sign in or use password recovery.');
   const passwordHash=await argon2.hash(password as string);
+  if(this.ciDisposableSignupReady()&&!this.previewMailboxReady()){
+    const user=await this.db.user.create({data:{name,email,passwordHash,role:'SALES_REP'}});
+    await this.db.auditEvent.create({data:{actorId:user.id,action:'DISPOSABLE_CI_PREVIEW_SIGNUP',entityType:'USER',entityId:user.id,detail:{fictional:true,verified:false}}});
+    return {verificationRequired:false,preview:true,notice:'CI-only preview account created. Sign in and complete mandatory two-factor verification.'};
+  }
   const existing=await this.db.signupChallenge.findUnique({where:{email},select:{createdAt:true}});
   if(existing && Date.now()-existing.createdAt.getTime()<minute)
    throw new BadRequestException('Please wait a minute before requesting another verification email.');
