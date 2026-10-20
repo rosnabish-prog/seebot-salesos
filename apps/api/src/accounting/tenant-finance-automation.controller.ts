@@ -27,11 +27,11 @@ export class TenantFinanceAutomationController{
    }),
    this.db.contract.findMany({
     where:{opportunity:{account:{organizationId:orgId}},status:{in:['DRAFT','SIGNED']}},
-    select:{id:true,title:true,status:true,currency:true,opportunity:{select:{account:{select:{id:true,name:true}},deliveryMilestones:{select:{id:true,title:true,status:true,dueAt:true}}}}},
+    select:{id:true,title:true,status:true,currency:true,opportunity:{select:{account:{select:{id:true,name:true}}}},milestones:{select:{id:true,title:true,status:true,dueAt:true}}},
     orderBy:{createdAt:'desc'},take:200
    })
   ]);
-  return {schedules,contracts:contracts.map(c=>({id:c.id,title:c.title,status:c.status,currency:c.currency,client:c.opportunity.account,milestones:c.opportunity.deliveryMilestones.filter(m=>m.status!=='REJECTED')}))};
+  return {schedules,contracts:contracts.map(c=>({id:c.id,title:c.title,status:c.status,currency:c.currency,client:c.opportunity.account,milestones:c.milestones.filter(m=>m.status!=='REJECTED')}))};
  }
  @Post(':orgId/contracts/:contractId/billing-schedules')async createSchedule(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('contractId')contractId:string,@Body()body:any){
   await this.finance(req,orgId);const contract=await this.scope.contract(orgId,contractId);
