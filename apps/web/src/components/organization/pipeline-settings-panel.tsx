@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import {RotateCcw,SlidersHorizontal,Plus,Trash2,DatabaseZap} from 'lucide-react';
-import {Badge,BrandSelect,Button,ErrorMessage,Field,Panel} from '@/components/ui';
+import {Badge,BrandSelect,Button,ErrorMessage,Field,Modal,Panel} from '@/components/ui';
 import {patch,request} from '@/lib/api';
 
 type FieldType='text'|'textarea'|'date'|'select'|'checkbox';
@@ -17,7 +17,7 @@ const autofill=[
 ];
 const makeKey=(label:string)=>label.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,50)||'custom_field';
 export function PipelineSettingsPanel({orgId}:{orgId:string}){
- const [config,setConfig]=useState<Config|null>(null),[selected,setSelected]=useState('ACCOUNT_RESEARCHED'),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+ const [config,setConfig]=useState<Config|null>(null),[selected,setSelected]=useState('ACCOUNT_RESEARCHED'),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[resetOpen,setResetOpen]=useState(false);
  useEffect(()=>{void request<Config>('/workspace-pipeline/'+orgId).then(c=>{setConfig(c);setSelected(c.stages[0]?.id||'ACCOUNT_RESEARCHED')}).catch(e=>setError(e instanceof Error?e.message:'Unable to load pipeline settings.'))},[orgId]);
  const stage=useMemo(()=>config?.stages.find(s=>s.id===selected)||null,[config,selected]);
  const autoFillOptions=useMemo(()=>{
@@ -33,7 +33,7 @@ export function PipelineSettingsPanel({orgId}:{orgId:string}){
  function updateField(index:number,patchData:Partial<FieldConfig>){if(!stage)return;updateStage({fields:stage.fields.map((f,i)=>i===index?{...f,...patchData}:f)})}
  function addField(){if(!stage)return;let key='custom_field_'+(stage.fields.length+1);const used=new Set(stage.fields.map(f=>f.key));while(used.has(key))key+='_x';updateStage({fields:[...stage.fields,{key,label:'New field',type:'text',required:false}]})}
  async function save(){if(!config)return;setBusy(true);setError('');setNotice('');try{const saved=await patch<Config>('/workspace-pipeline/'+orgId,config);setConfig(saved);setNotice('Pipeline settings saved. New and existing opportunities use these labels and evidence fields.')}catch(e){setError(e instanceof Error?e.message:'Unable to save pipeline settings.')}finally{setBusy(false)}}
- async function reset(){if(!confirm('Reset all 11 stage labels and evidence fields to SalesOS defaults?'))return;setBusy(true);setError('');setNotice('');try{const saved=await request<Config>('/workspace-pipeline/'+orgId,{method:'DELETE'});setConfig(saved);setSelected(saved.stages[0]?.id||'ACCOUNT_RESEARCHED');setNotice('Pipeline reset to the SalesOS defaults.')}catch(e){setError(e instanceof Error?e.message:'Unable to reset pipeline.')}finally{setBusy(false)}}
+ async function reset(){setBusy(true);setError('');setNotice('');try{const saved=await request<Config>('/workspace-pipeline/'+orgId,{method:'DELETE'});setConfig(saved);setSelected(saved.stages[0]?.id||'ACCOUNT_RESEARCHED');setNotice('Pipeline reset to the SalesOS defaults.');setResetOpen(false);}catch(e){setError(e instanceof Error?e.message:'Unable to reset pipeline.')}finally{setBusy(false)}}
  return <Panel title="Pipeline configuration" actions={<Badge>11 canonical stages</Badge>}>
   <div className="pipeline-settings-intro"><SlidersHorizontal size={19}/><div><strong>Customize the workflow without breaking reporting or automation.</strong><p>Stage IDs and ordering remain stable. You can rename stages, change evidence fields, and prefill fields from existing CRM data. System gates such as verified contacts, logged outreach and signed production contracts remain enforced.</p></div></div>
   <ErrorMessage message={error}/>{notice&&<div className="success-banner">{notice}</div>}
@@ -46,7 +46,8 @@ export function PipelineSettingsPanel({orgId}:{orgId:string}){
      {field.type==='select'&&<Field label="Dropdown options"><input value={(field.options||[]).join(', ')} onChange={e=>updateField(index,{options:e.target.value.split(',').map(v=>v.trim()).filter(Boolean)})} placeholder="Option A, Option B"/></Field>}
      <label className="checkbox-line"><input type="checkbox" checked={Boolean(field.required)} onChange={e=>updateField(index,{required:e.target.checked})}/>Required before automatic stage progression</label>
     </div>)}{stage.fields.length===0&&<div className="soft-callout"><DatabaseZap size={18}/>This stage has no custom evidence fields. Any built-in system gate still applies.</div>}</div>
-    <div className="ws-nav-buttons"><Button type="button" loading={busy} onClick={()=>void save()}>Save pipeline settings</Button><Button variant="secondary" type="button" disabled={busy} onClick={()=>void reset()}><RotateCcw size={15}/> Reset defaults</Button></div>
+    <div className="ws-nav-buttons"><Button type="button" loading={busy} onClick={()=>void save()}>Save pipeline settings</Button><Button variant="secondary" type="button" disabled={busy} onClick={()=>setResetOpen(true)}><RotateCcw size={15}/> Reset defaults</Button></div>
    </div></div>}
+ {resetOpen&&<Modal title="Reset pipeline configuration" onClose={()=>setResetOpen(false)} width={540}><div className="stack-16"><p className="muted small-text">This restores all 11 SalesOS stage names and evidence-field layouts to the product defaults. Existing opportunity history is preserved, but your workspace-specific field configuration will be replaced.</p><div className="modal-actions"><Button type="button" variant="secondary" onClick={()=>setResetOpen(false)}>Keep current workflow</Button><Button type="button" variant="danger" loading={busy} onClick={()=>void reset()}><RotateCcw size={15}/>Reset to defaults</Button></div></div></Modal>}
  </Panel>;
 }
