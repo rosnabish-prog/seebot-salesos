@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, 
 import { Response } from 'express';
 import { createHash,randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
-import { JwtService } from '@nestjs/jwt';
+import {MfaService} from '../auth/mfa.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthGuard, AuthRequest } from '../common/auth.guard';
 import { GoogleIdentityService } from '../integrations/google/google-identity.service';
@@ -13,7 +13,7 @@ const roles=['CEO','DIRECTOR','SALES_MANAGER','SALES_REP','TECHNICAL_REVIEWER'] 
 
 @Controller('employee-invitations')
 export class EmployeeInvitationController {
-  constructor(private db:PrismaService,private identity:GoogleIdentityService,private jwt:JwtService,private outbox:OutgoingMessageService){}
+  constructor(private db:PrismaService,private identity:GoogleIdentityService,private mfa:MfaService,private outbox:OutgoingMessageService){}
   @UseGuards(AuthGuard) @Post()
   async invite(@Req()req:AuthRequest,@Body()body:{email:string;name:string;role:string}){
     if(req.user.role!=='SUPER_ADMIN')throw new ForbiddenException('Only the workspace owner can invite employees.');
@@ -49,8 +49,6 @@ export class EmployeeInvitationController {
       await tx.auditEvent.create({data:{actorId:user.id,action:'EMPLOYEE_INVITATION_ACCEPTED',entityType:'USER',entityId:user.id,detail:{organizationId:invitation.organizationId,method:'GOOGLE'}}});
       return user;
     },{isolationLevel:'Serializable'});
-    const token=await this.jwt.signAsync({sub:result.id,role:result.role,pv:result.passwordVersion});
-    res.cookie('salesos_session',token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',maxAge:8*60*60*1000,path:'/'});
-    return {user:{id:result.id,email:result.email,name:result.name,role:result.role}};
+    return this.mfa.begin(result,res);
   }
 }
