@@ -16,8 +16,15 @@ export default function JoinWorkspace(){
  async function enter(endpoint:string,body:unknown){
   setBusy(true);setError('');
   try{
-   await post(endpoint,body);await refresh();
-   router.replace('/entry');
+   const result=await post<{organizationId:string;mfaRequired?:boolean;challengeId?:string;maskedEmail?:string;testCode?:string}>(endpoint,body);
+   if(result.mfaRequired&&result.challengeId){
+    // Google proves identity but does not complete the mandatory second factor.
+    sessionStorage.setItem('salesos_mfa',JSON.stringify({challengeId:result.challengeId,maskedEmail:result.maskedEmail,...(result.testCode?{testCode:result.testCode}:{})}));
+    router.replace('/two-factor');
+   }else{
+    await refresh();
+    router.replace('/entry');
+   }
   }catch(e){setError(e instanceof Error?e.message:'Could not accept the invitation.');}
   finally{setBusy(false);}
  }
