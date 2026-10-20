@@ -753,6 +753,8 @@ model ClientSurveyInvitation {
   type String // NPS | CSAT
   title String
   question String @db.Text
+  questions Json @default("[]")
+  answers Json @default("{}")
   tokenHash String @unique
   status String @default("DRAFT") // DRAFT | SENT | ANSWERED | EXPIRED | REVOKED
   isDemo Boolean @default(false)
