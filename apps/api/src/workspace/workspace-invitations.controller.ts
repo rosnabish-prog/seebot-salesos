@@ -1,26 +1,24 @@
 import {BadRequestException,Body,Controller,ForbiddenException,Get,Param,Post,Req,Res,UnauthorizedException,UseGuards} from '@nestjs/common';
-import type {Response} from 'express';
 import {createHash,randomBytes} from 'node:crypto';
 import argon2 from 'argon2';
 import nodemailer from 'nodemailer';
-import {JwtService} from '@nestjs/jwt';
 import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from './identity.guard';
 import type {AuthRequest} from '../common/auth.guard';
 import {GoogleIdentityService} from '../integrations/google/google-identity.service';
 import {OutgoingMessageService} from '../communications/outgoing-message.service';
 import {companyDomain} from './company-email';
+import {MfaService} from '../auth/mfa.service';
 
 type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 type GoogleInvite={token?:string;googleCredential?:string};
 const digest=(raw:string)=>createHash('sha256').update(raw).digest('hex');
 const validRoles=['ADMIN','MEMBER','FINANCE'];
-const cookieOptions=()=>({httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict' as const,maxAge:8*60*60*1000,path:'/'});
 
 /** A workspace invite is email-bound, single-use and never adds membership until accepted. */
 @Controller('workspace-invitations')
 export class WorkspaceInvitationsController{
- constructor(private db:PrismaService,private identity:GoogleIdentityService,private jwt:JwtService,private outbox:OutgoingMessageService){}
+ constructor(private db:PrismaService,private identity:GoogleIdentityService,private mfa:MfaService,private outbox:OutgoingMessageService){}
  private async admin(req:ScopedRequest,id:string){
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:{select:{status:true,name:true}}}});
   if(!member||member.status!=='ACTIVE'||!['ACTIVE','SETUP'].includes(member.organization.status)||!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Active workspace administrator required.');
@@ -114,21 +112,20 @@ export class WorkspaceInvitationsController{
    await tx.auditEvent.create({data:{actorId:person.id,action:'WORKSPACE_INVITATION_ACCEPTED',entityType:'WORKSPACE_INVITATION',entityId:inv.id,detail:{organizationId:inv.organizationId,role:inv.role}}});
    return person;
   },{isolationLevel:'Serializable'});
-  const token=await this.jwt.signAsync({sub:user.id,role:user.role,pv:user.passwordVersion,wid:inv.organizationId});
-  return {token,organizationId:inv.organizationId,user:{id:user.id,email:user.email,name:user.name,role:user.role}};
+  // Membership acceptance does not grant an authenticated session.
+  return {organizationId:inv.organizationId,user:{id:user.id,email:user.email,name:user.name,role:user.role}};
  }
  @UseGuards(IdentityGuard) @Post('accept-existing')
- async acceptExisting(@Req()req:ScopedRequest,@Res({passthrough:true})res:Response,@Body()body:{token?:string}){
+ async acceptExisting(@Req()req:ScopedRequest,@Body()body:{token?:string}){
   const result=await this.accept(String(body?.token||''),req.user.email);
-  res.cookie('salesos_session',result.token,cookieOptions());
   return {organizationId:result.organizationId,user:result.user};
  }
  @Post('accept-google')
- async acceptGoogle(@Body()body:GoogleInvite,@Res({passthrough:true})res:Response){
-  // Verify Google identity before creating a new user; email matches exactly.
+ async acceptGoogle(@Body()body:GoogleInvite){
+  // A verified Google identity + invitation does not bypass SalesOS email MFA.
   const google=await this.identity.verify(body?.googleCredential||'',process.env.GOOGLE_LOGIN_CLIENT_ID||'');
   const result=await this.accept(String(body?.token||''),google.email,{subject:google.subject,name:google.name});
-  res.cookie('salesos_session',result.token,cookieOptions());
-  return {organizationId:result.organizationId,user:result.user};
+  const challenge=await this.mfa.begin({id:result.user.id,email:result.user.email});
+  return {organizationId:result.organizationId,...challenge};
  }
 }
