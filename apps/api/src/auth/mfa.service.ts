@@ -1,5 +1,5 @@
 import {BadRequestException,Injectable,ServiceUnavailableException,UnauthorizedException} from '@nestjs/common';
-import {createHash,randomInt} from 'node:crypto';
+import {createHash,randomInt,timingSafeEqual} from 'node:crypto';
 import nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import {PrismaService} from '../prisma/prisma.service';
@@ -55,12 +55,18 @@ export class MfaService{
   if(typeof challengeId!=='string'||challengeId.length<10||!/^[0-9]{6}$/.test(code||''))throw new UnauthorizedException('Invalid verification code.');
   const challenge=await this.db.loginChallenge.findUnique({where:{id:challengeId},include:{user:true}});
   if(!challenge||challenge.consumedAt||challenge.expiresAt<=new Date()||!challenge.user.active)throw new UnauthorizedException('Verification code expired. Sign in again.');
-  if(challenge.attempts>=5)throw new UnauthorizedException('Too many incorrect codes. Sign in again.');
-  if(challenge.codeHash!==codeHash(challenge.id,code)){
-   await this.db.loginChallenge.update({where:{id:challenge.id},data:{attempts:{increment:1}}});
+  // Reserve the attempt ATOMICALLY before comparison. Parallel guesses may never
+  // exceed the server-side five-attempt limit, even across multiple API instances.
+  const claim=await this.db.loginChallenge.updateMany({
+   where:{id:challenge.id,consumedAt:null,expiresAt:{gt:new Date()},attempts:{lt:5}},
+   data:{attempts:{increment:1}}
+  });
+  if(claim.count!==1)throw new UnauthorizedException('Too many attempts or expired code. Sign in again.');
+  const expected=Buffer.from(challenge.codeHash,'hex');
+  const provided=Buffer.from(codeHash(challenge.id,code),'hex');
+  if(expected.length!==provided.length||!timingSafeEqual(expected,provided))
    throw new UnauthorizedException('Incorrect verification code.');
-  }
-  const consumed=await this.db.loginChallenge.updateMany({where:{id:challenge.id,consumedAt:null,expiresAt:{gt:new Date()}},data:{consumedAt:new Date()}});
+  const consumed=await this.db.loginChallenge.updateMany({where:{id:challenge.id,consumedAt:null,expiresAt:{gt:new Date()},attempts:{lte:5}},data:{consumedAt:new Date()}});
   if(consumed.count!==1)throw new UnauthorizedException('Verification code was already used.');
   await this.db.auditEvent.create({data:{actorId:challenge.userId,action:'LOGIN_MFA_VERIFIED',entityType:'USER',entityId:challenge.userId,detail:{method:'EMAIL'}}});
   return {id:challenge.user.id,email:challenge.user.email,name:challenge.user.name,role:challenge.user.role,passwordVersion:challenge.user.passwordVersion};
