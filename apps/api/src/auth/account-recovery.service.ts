@@ -113,6 +113,8 @@ export class AccountRecoveryService{
    const consumed=await tx.passwordResetRequest.updateMany({where:{id:request.id,usedAt:null,expiresAt:{gt:now()}},data:{usedAt:now()}});
    if(consumed.count!==1)throw new UnauthorizedException('Reset link was already used.');
    await tx.user.update({where:{id:request.userId},data:{passwordHash,passwordVersion:{increment:1}}});
+   // A pre-reset MFA code must not complete sign-in using the new password version.
+   await tx.loginChallenge.updateMany({where:{userId:request.userId,consumedAt:null},data:{expiresAt:now(),consumedAt:now()}});
    await tx.auditEvent.create({data:{actorId:request.userId,action:'PASSWORD_RESET_COMPLETED',entityType:'USER',entityId:request.userId,detail:{method:'EMAIL_RESET'}}});
   },{isolationLevel:'Serializable'});
   return {success:true};
