@@ -17,6 +17,6 @@ export default function VerifyEmail(){
   })
     .catch(err=>{if(active){setMessage(err instanceof Error?err.message:'Verification failed.');setFailed(true);}});
   return()=>{active=false;};
- },[router,refresh]);
+ },[router]);
  return <main className="login-scene"><section className="login-card-wrap" style={{width:'100%',minHeight:'100vh'}}><div className="login-card"><h2>Email verification</h2><p role="status">{message}</p>{failed&&<Link className="auth-text-link" href="/signup">Return to sign up</Link>}</div></section></main>;
 }
