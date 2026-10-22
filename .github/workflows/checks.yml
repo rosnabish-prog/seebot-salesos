@@ -58,6 +58,8 @@ jobs:
           node-version: "22"
       - name: Install monorepo dependencies
         run: npm install --no-audit --no-fund
+      - name: Verify Prisma's fast-check dependency
+        run: node -e "require('fast-check'); console.log('fast-check dependency OK')"
       - name: Build shared types
         run: npm run build -w @seebot/shared
       - name: Validate Prisma schema

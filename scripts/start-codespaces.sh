@@ -69,6 +69,22 @@ echo "Starting local PostgreSQL and Redis containers..."
 docker compose up -d --wait postgres redis mailpit
 echo "Installing dependencies and preparing local preview schema..."
 npm install --no-audit --no-fund
+echo "Verifying Prisma CLI dependencies before database generation..."
+node <<'NODE'
+for (const name of ['fast-check', 'effect']) {
+  try {
+    const resolved = require.resolve(name);
+    require(name);
+    console.log(name + ' OK: ' + resolved);
+  } catch (error) {
+    console.error('Broken or missing dependency: ' + name);
+    console.error(error && error.stack ? error.stack : String(error));
+    console.error('Try: npm install --include=dev --no-audit --no-fund');
+    process.exitCode = 1;
+    break;
+  }
+}
+NODE
 npm run db:generate
 # Local disposable development database only. Never use db push against customer data.
 npx prisma db push --schema packages/database/prisma/schema.prisma
