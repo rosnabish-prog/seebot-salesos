@@ -16,10 +16,17 @@ async function run() {
   console.log(`Admin account available: ${admin.email} (existing passwords are never reset by seed)`);
   // Safe internal-only bootstrap: existing SalesOS users join Seebot's workspace.
   // This is NOT public multi-tenancy. Existing account/opportunity routes are not tenant-scoped yet.
+  const existingSeebot=await prisma.organization.findUnique({where:{slug:'seebot'}});
   const seebot = await prisma.organization.upsert({where:{slug:'seebot'},update:{},create:{slug:'seebot',name:'Seebot',legalName:'Seebot',defaultCurrency:'GBP',timezone:'Europe/London'}});
-  const existingUsers = await prisma.user.findMany({select:{id:true,role:true}});
-  for(const member of existingUsers){
-    await prisma.organizationMembership.upsert({where:{organizationId_userId:{organizationId:seebot.id,userId:member.id}},update:{},create:{organizationId:seebot.id,userId:member.id,role:member.id===admin.id?'OWNER':['SUPER_ADMIN','SALES_MANAGER'].includes(member.role)?'ADMIN':'MEMBER'}});
+  // Only bootstrap legacy employees ON FIRST organization initialization. Never enroll new
+  // standalone signup users into Seebot when an operator reruns the seed.
+  if(!existingSeebot){
+    const existingUsers=await prisma.user.findMany({select:{id:true,role:true}});
+    for(const member of existingUsers){
+      await prisma.organizationMembership.upsert({where:{organizationId_userId:{organizationId:seebot.id,userId:member.id}},update:{},create:{organizationId:seebot.id,userId:member.id,role:member.id===admin.id?'OWNER':['SUPER_ADMIN','SALES_MANAGER'].includes(member.role)?'ADMIN':'MEMBER'}});
+    }
+  }else{
+    await prisma.organizationMembership.upsert({where:{organizationId_userId:{organizationId:seebot.id,userId:admin.id}},update:{},create:{organizationId:seebot.id,userId:admin.id,role:'OWNER'}});
   }
   await prisma.account.updateMany({where:{organizationId:null},data:{organizationId:seebot.id}});
   console.log('Seebot legacy records assigned to original workspace. Tenant-specific CRM API is separate.');

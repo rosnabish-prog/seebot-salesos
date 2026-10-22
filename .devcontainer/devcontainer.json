@@ -1,0 +1,20 @@
+{
+  "name": "Seebot SalesOS (Node 22 + Docker)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [3000, 8025],
+  "portsAttributes": {
+    "3000": {
+      "label": "SalesOS web app",
+      "onAutoForward": "notify"
+    },
+    "8025": {
+      "label": "Private Mailpit test inbox",
+      "onAutoForward": "notify"
+    }
+  },
+  "remoteUser": "node",
+  "postCreateCommand": "echo 'SalesOS environment ready. In the terminal run: bash scripts/start-codespaces.sh'"
+}

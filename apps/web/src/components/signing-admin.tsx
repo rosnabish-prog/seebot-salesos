@@ -18,6 +18,17 @@ export default function SigningAdmin({contractId,documents,contacts}:{contractId
  async function activate(){setBusy(true);setError('');try{
   const result=await post<{delivery:{status:string;messageId:string};notice:string}>(`/contracts/${contractId}/signing/${draftId}/activate`,{});setDelivery(result.notice);setDraftId('');await load();
  }catch(e:any){setError(e.message)}finally{setBusy(false)}}
+ async function downloadEvidence(envelopeId:string){
+  setError('');setBusy(true);
+  try{
+   const host=process.env.NEXT_PUBLIC_API_URL||'http://localhost:4000';
+   const response=await fetch(`${host}/api/contracts/${contractId}/signing/${envelopeId}/evidence-receipt`,{credentials:'include'});
+   if(!response.ok)throw Error('Evidence receipt is unavailable or has not passed verification.');
+   const blob=new Blob([await response.text()],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download=`signing-evidence-${envelopeId}.json`;a.click();
+   window.setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }catch(e:any){setError(e.message)}finally{setBusy(false)}
+ }
  async function revoke(id:string){setBusy(true);setError('');try{await post(`/contracts/${contractId}/signing/${id}/revoke`,{});setDelivery('');await load()}catch(e:any){setError(e.message)}finally{setBusy(false)}}
  return <section style={{borderTop:'1px solid #e5e7eb',paddingTop:20,marginTop:14,display:'grid',gap:12}}>
    <h3 style={{display:'flex',gap:8,alignItems:'center',margin:0}}><FileSignature color="#FF7A3D" size={19}/> Restricted Google Sign-in</h3>
@@ -34,6 +45,7 @@ export default function SigningAdmin({contractId,documents,contacts}:{contractId
    {delivery&&<div className="soft-callout"><AlertTriangle size={16}/>{delivery}</div>}
    {envelopes.map(e=><div key={e.id} style={{padding:12,border:'1px solid #e5e7eb',borderRadius:10}}><div><strong>{e.recipientName}</strong> · {e.recipientEmail} · <strong>{e.status}</strong></div><p className="muted small-text">Expires {fmtDate(e.expiresAt)} {e.signedAt?`· Signed ${fmtDate(e.signedAt)}`:''}</p>
      {e.audit.map(a=><div key={a.sequence} className="invoice-child-row"><small>#{a.sequence} · {new Date(a.occurredAt).toLocaleString()} · {a.type}{a.ipAddress?` · Recorded IP: ${a.ipAddress}`:''}</small></div>)}
+     {e.status==='SIGNED'&&<Button type="button" variant="secondary" disabled={busy} onClick={()=>void downloadEvidence(e.id)}>Download verified signing evidence</Button>}
      {['DRAFT','INVITED'].includes(e.status)&&<Button type="button" variant="secondary" disabled={busy} onClick={()=>revoke(e.id)}>Revoke invitation</Button>}
    </div>)}
  </section>;

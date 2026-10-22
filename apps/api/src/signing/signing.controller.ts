@@ -18,7 +18,7 @@ const validEmail=(v:unknown)=>typeof v==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.
 const sha256=(v:Buffer)=>createHash('sha256').update(v).digest('hex');
 function assertConfigured(){
   if(process.env.SIGNING_ENABLED!=='true') throw new ServiceUnavailableException('External signing is disabled until the integration is verified.');
-  if(!process.env.GOOGLE_SIGNING_CLIENT_ID||!process.env.SIGNING_AUDIT_KEY||process.env.SIGNING_AUDIT_KEY.length<32||!process.env.SIGNING_EVIDENCE_DIR||!process.env.SIGNING_EVIDENCE_PRIVATE_KEY_FILE||!/^https:\/\//.test(process.env.SIGNING_PUBLIC_BASE_URL||''))
+  if(!process.env.GOOGLE_SIGNING_CLIENT_ID||!process.env.SIGNING_AUDIT_KEY||process.env.SIGNING_AUDIT_KEY.length<32||!process.env.SIGNING_EVIDENCE_DIR||!process.env.SIGNING_EVIDENCE_PRIVATE_KEY_FILE||!process.env.SIGNING_EVIDENCE_PUBLIC_KEY_FILE||!/^https:\/\//.test(process.env.SIGNING_PUBLIC_BASE_URL||''))
     throw new ServiceUnavailableException('Secure signing configuration is incomplete.');
 }
 function auditKey(){const k=process.env.SIGNING_AUDIT_KEY;if(!k||k.length<32)throw new ServiceUnavailableException('Signing audit key not configured.');return k;}
@@ -249,6 +249,14 @@ export class SigningAdministrationController {
     await this.contract(id,req,false);requireManager(req.user);
     const env=await this.db.signingEnvelope.findFirst({where:{id:eid,contractId:id}});
     if(!env)throw new BadRequestException('Signing envelope unavailable.');const receipt=await this.evidence.archive(eid);const completion=await this.evidence.finalizeAfterEvidence(id).catch(()=>({finalized:false}));return {...receipt,contractFinalization:completion};
+  }
+  @Get(':id/signing/:envelopeId/evidence-receipt')async exportEvidenceReceipt(@Req()req:AuthRequest,@Param('id')id:string,@Param('envelopeId')eid:string,@Res({passthrough:true})res:Response){
+    await this.contract(id,req,false);
+    const envelope=await this.db.signingEnvelope.findFirst({where:{id:eid,contractId:id}});
+    if(!envelope)throw new BadRequestException('Signing envelope unavailable.');
+    res.setHeader('Cache-Control','private, no-store');
+    res.setHeader('X-Content-Type-Options','nosniff');
+    return this.evidence.exportReceipt(eid);
   }
   @Get(':id/signing/:envelopeId/verify-evidence')async verifyEvidence(@Req()req:AuthRequest,@Param('id')id:string,@Param('envelopeId')eid:string){
     await this.contract(id,req,false);

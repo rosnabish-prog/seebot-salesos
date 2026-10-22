@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthGuard,AuthRequest,ensureCanEdit,ensureOwner } from '../common/auth.guard';
 import { OutgoingMessageService } from '../communications/outgoing-message.service';
 import { SurveyType,SURVEY_TYPES,validateSurveyScore,surveyClassification,scoreSummary } from './survey-validation';
+import {standardQuestionnaire,validateAnswers,validateQuestionnaire,type SurveyQuestion} from './questionnaire';
 
 const hash=(token:string)=>createHash('sha256').update(token).digest('hex');
 const validEmail=(s:unknown)=>typeof s==='string'&&s.length<=254&&/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
@@ -21,26 +22,34 @@ export class PublicSurveysController {
   }
   @Get(':token') async view(@Param('token')token:string){
     const item=await this.find(token);
-    return {type:item.type,title:item.title,question:item.question,company:item.account.name,status:item.status,expiresAt:item.expiresAt,isDemo:item.isDemo};
+    let questionnaire:SurveyQuestion[];
+    try{questionnaire=validateQuestionnaire(item.questionnaire);}
+    catch{questionnaire=standardQuestionnaire((item.type==='CSAT'?'CSAT':'NPS'),item.question);}
+    return {type:item.type,title:item.title,question:item.question,questionnaire,company:item.account.name,status:item.status,expiresAt:item.expiresAt,isDemo:item.isDemo};
   }
-  @Post(':token/respond') async respond(@Param('token')token:string,@Body()body:{score:number;feedback?:string}){
+  @Post(':token/respond') async respond(@Param('token')token:string,@Body()body:{score?:number;answers?:Record<string,unknown>;feedback?:string}){
     const item=await this.find(token);
     if(item.status!=='SENT')throw new BadRequestException('Survey was already submitted.');
     if(typeof body?.feedback!=='string'&&body?.feedback!==undefined)throw new BadRequestException('Feedback must be text.');
     if((body.feedback||'').length>4000)throw new BadRequestException('Feedback must be 4000 characters or less.');
-    let score:number;
-    try{score=validateSurveyScore(item.type as SurveyType,body.score);}catch(e){throw new BadRequestException((e as Error).message);}
+    let questionnaire:SurveyQuestion[];
+    try{questionnaire=validateQuestionnaire(item.questionnaire);}
+    catch{questionnaire=standardQuestionnaire((item.type==='CSAT'?'CSAT':'NPS'),item.question);}
+    const rawAnswers=body?.answers&&typeof body.answers==='object'?body.answers:(body?.score!==undefined?{score:body.score}:{});
+    let parsed:{answers:Record<string,unknown>;score?:number;metric:'NPS'|'CSAT'|'NONE'};
+    try{parsed=validateAnswers(questionnaire,rawAnswers);}catch(e){throw new BadRequestException((e as Error).message);}
+    const score=parsed.score;
     await this.db.$transaction(async tx=>{
-      const changed=await tx.clientSurveyInvitation.updateMany({where:{id:item.id,status:'SENT',expiresAt:{gt:now()}},data:{status:'ANSWERED',respondedAt:now(),score,feedback:body.feedback?.trim()||null}});
+      const changed=await tx.clientSurveyInvitation.updateMany({where:{id:item.id,status:'SENT',expiresAt:{gt:now()}},data:{status:'ANSWERED',respondedAt:now(),score:score??null,answers:parsed.answers as any,feedback:body.feedback?.trim()||null}});
       if(changed.count!==1)throw new BadRequestException('Survey was already completed or expired.');
       // A survey is feedback, never evidence that an opportunity stage was completed.
-      if(!item.isDemo&&item.type==='NPS'&&score<=6){
+      if(!item.isDemo&&parsed.metric==='NPS'&&typeof score==='number'&&score<=6){
         const opp=await tx.opportunity.findFirst({where:{accountId:item.accountId},orderBy:{updatedAt:'desc'},select:{id:true}});
-        const account=await tx.account.findUniqueOrThrow({where:{id:item.accountId},select:{ownerId:true,name:true}});
-        await tx.task.create({data:{assigneeId:account.ownerId,opportunityId:opp?.id,title:`Client NPS follow-up: ${account.name}`,description:`Verified survey response: ${score}/10. Contact the client to discuss feedback.`,dueAt:new Date(Date.now()+2*86400000)}});
+        const account=await tx.account.findUniqueOrThrow({where:{id:item.accountId},select:{ownerId:true,name:true,organizationId:true}});
+        await tx.task.create({data:{organizationId:account.organizationId,assigneeId:account.ownerId,opportunityId:opp?.id,title:`Client NPS follow-up: ${account.name}`,description:`Verified survey response: ${score}/10. Contact the client to discuss feedback.`,dueAt:new Date(Date.now()+2*86400000)}});
       }
     },{isolationLevel:'Serializable'});
-    return {received:true,type:item.type,classification:surveyClassification(item.type as SurveyType,score)};
+    return {received:true,type:item.type,classification:parsed.metric==='NONE'||score===undefined?null:surveyClassification(parsed.metric as SurveyType,score)};
   }
 }
 

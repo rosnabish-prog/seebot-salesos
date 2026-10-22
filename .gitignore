@@ -1,0 +1,26 @@
+node_modules/
+.next/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+*.tsbuildinfo
+.DS_Store
+
+# Uploaded agreements, generated invoices, audit secrets, and local databases
+private-contract-documents/
+private-invoice-documents/
+private-signing-evidence/
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.db
+*.dump
+*.backup
+*.sql.gz
+playwright-report/
+test-results/

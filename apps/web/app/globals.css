@@ -303,3 +303,323 @@ input:-webkit-autofill:focus {
 
 /* v1.6.2 Accessible KPI metric definitions */
 .metric-info{display:inline-flex;vertical-align:middle;margin-left:5px;cursor:help;color:#9A5A3A;outline-offset:3px}.metric-info:focus-visible{outline:2px solid #FF7A3D;border-radius:50%}
+
+/* Self-service authentication: readable navigation and honest integration status. */
+.auth-text-link{color:var(--orange-deep);font-weight:700;text-decoration:underline;text-decoration-color:#ffc09b;text-underline-offset:3px}
+.auth-text-link:hover{text-decoration-color:var(--orange-deep)}
+.auth-preview-note{border:1px solid #ffe0c7;border-radius:10px;padding:12px 14px;background:#fff8f2;color:#764125;font-size:12px;line-height:1.65}
+.google-config-note{background:#f7f8fa;border:1px solid #e7e9ee;padding:12px;border-radius:9px;color:#646f7b;font-size:12px;line-height:1.5}
+
+
+/* SalesOS company onboarding and workspace settings — centered, responsive, brand-consistent. */
+.ws-page{min-height:100vh;background:radial-gradient(circle at 48% -16%,#fff0e7 0%,transparent 43%),#f9fafc;display:flex;justify-content:center;align-items:flex-start;padding:clamp(26px,5vh,62px) 22px 75px;color:#262e37;font-family:Afacad,Inter,Arial,sans-serif}
+.ws-container{width:min(100%,890px);margin:auto;display:flex;flex-direction:column;gap:21px}
+.ws-top{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:#747f89}
+.ws-back{display:inline-flex;align-items:center;gap:7px;font-weight:600}.ws-back:hover{color:#bc5425}
+.ws-kicker,.ws-step-label{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:1.2px;font-weight:800;color:#c05a29}
+.ws-card{background:#fff;border:1px solid #e8eaee;border-radius:20px;padding:clamp(22px,4vw,42px);box-shadow:0 16px 55px #25344a0b;min-width:0}
+.ws-centered{max-width:720px;width:100%;margin:0 auto;text-align:left}
+.ws-centered>.ws-emblem{margin:0 auto 19px}.ws-centered>.ws-step-label{display:flex;justify-content:center}
+.ws-centered>h1,.ws-centered>.ws-intro{text-align:center}
+.ws-emblem{display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:15px;background:#fff0e8;color:#c35120}
+.ws-card h1{font:750 clamp(25px,3.7vw,34px)/1.14 Afacad,Inter,sans-serif;letter-spacing:-.8px;margin:11px 0}
+.ws-intro{font-size:14px;line-height:1.6;color:#727b87;max-width:570px;margin:0 auto 22px}
+.ws-form,.ws-form-fields{display:flex;flex-direction:column;gap:17px}
+.ws-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px}
+.ws-page .field{gap:8px;min-width:0}
+.ws-page .field-label{font-size:13px;font-weight:700;color:#3a4450}
+.ws-page input:not([type=file]),.ws-page textarea{min-height:44px;border:1px solid #dfe4e9;background:#fff;border-radius:10px;padding:11px 13px;width:100%;font-size:14px;transition:box-shadow .18s,border-color .18s}
+.ws-page input:focus,.ws-page textarea:focus{border-color:#ef874e;box-shadow:0 0 0 3px #fa8b4c24}
+.ws-page input[type=file]{width:100%;max-width:100%;font-size:12px;color:#67717b;padding:10px;border:1px dashed #dfe4e9;border-radius:10px}
+.ws-page .brand-select{width:100%;position:relative;min-width:0}
+.ws-page .brand-select-trigger{min-height:44px;border-radius:10px;min-width:0}
+.ws-page .brand-select-menu{z-index:80;max-height:270px;overflow:auto}
+.ws-select-disabled{pointer-events:none;opacity:.65}
+.ws-page .btn-primary{background:#cd5c22;color:white;border-color:#cd5c22}
+.ws-page .btn-primary:hover{background:#ac4616}
+.ws-main-cta{min-height:45px!important}
+.ws-field-note{color:#84909c;font-size:12px;line-height:1.55;margin:3px 0 0}
+.ws-field-note strong{color:#9b481d}
+.ws-actions{display:flex;flex-direction:column;gap:11px;margin-top:20px}
+.ws-chip-section{width:100%}
+.ws-chip-input{min-height:54px;display:flex;align-items:center;align-content:center;gap:7px;flex-wrap:wrap;padding:9px;border:1px solid #dce1e8;border-radius:11px;background:white;cursor:text;transition:border-color .2s,box-shadow .2s}
+.ws-chip-input:focus-within{border-color:#f08b50;box-shadow:0 0 0 3px #fa8b4c22}
+.ws-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 7px 5px 10px;border:1px solid #ffdcc6;border-radius:7px;color:#a64b22;background:#fff1e9;font-size:12px;max-width:100%;overflow-wrap:anywhere}
+.ws-chip button{display:inline-flex;align-items:center;justify-content:center;background:none;border:0;color:#ae603e;padding:1px;border-radius:3px}
+.ws-chip button:hover{background:#ffdfce}
+.ws-page .ws-chip-input input{width:auto!important;flex:1 1 220px;min-width:155px;min-height:28px;border:0!important;box-shadow:none!important;padding:3px 4px!important;font-size:13px}
+.ws-inline-error{color:#b32b35;font-size:12px;margin:7px 0}
+.ws-notice{display:flex;gap:9px;align-items:center;border:1px solid #ccedda;color:#216544;background:#f3fbf6;padding:12px 15px;border-radius:12px;font-size:13px}
+.ws-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;border-bottom:1px solid #eaedf0;padding-bottom:21px;margin-bottom:25px}
+.ws-heading .ws-intro{margin:0;text-align:left}
+.ws-role-badge{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;border:1px solid #ffd4b5;background:#fff4ed;border-radius:99px;padding:7px 11px;color:#99501e;font-size:11px;font-weight:750}
+.ws-section-heading{display:flex;align-items:center;gap:10px;color:#c15f2d;margin:12px 0 18px}
+.ws-section-heading h2{font-size:17px;color:#343e49;font-weight:750}
+.ws-form-actions{display:flex;justify-content:flex-end;margin:5px 0 0}
+.ws-team{border-top:1px solid #eaedf0;margin-top:28px;padding-top:18px}
+.ws-members,.ws-invite-history{border:1px solid #ebedf0;border-radius:12px;overflow:hidden}
+.ws-member-row{display:flex;align-items:center;justify-content:space-between;gap:13px;padding:13px 16px;border-bottom:1px solid #f0f1f3;font-size:13px}
+.ws-member-row:last-child{border-bottom:0}
+.ws-member-row strong,.ws-member-row small{display:block}.ws-member-row small{font-size:11px;color:#84909c;margin-top:4px}
+.ws-status{color:#697782;font-size:11px;white-space:nowrap}
+.ws-disclosure{margin-top:14px;display:inline-flex;gap:8px;align-items:center;border:1px solid #ffd6c2;color:#ac4b1a;background:#fff6f1;border-radius:9px;padding:10px 13px;font-weight:700;font-size:12px}
+.ws-invite-inline{display:flex;flex-direction:column;gap:16px;border:1px solid #eff0f3;border-radius:12px;padding:20px;margin-top:12px}
+.ws-invite-history{margin-top:20px}.ws-invite-history h3{padding:15px 16px;margin:0;background:#fcfcfd}
+.ws-delivery{padding:13px 15px;margin-top:12px;background:#fafbfc;border:1px solid #e6eaee;border-radius:11px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.ws-delivery strong{font-size:13px}.ws-delivery small{color:#7a8490}
+.ws-copy-row{display:flex;align-items:center;gap:9px;min-width:0}.ws-copy-row input{min-width:0}.ws-copy-row .btn{flex-shrink:0}
+.ws-settings-footer{margin:26px 0 15px;display:flex;align-items:center;gap:9px;color:#8c929b;font-size:12px}
+.ws-workspace-list{display:flex;flex-direction:column;gap:11px;margin-top:17px}
+.ws-choice{display:flex;gap:11px;align-items:center;border:1px solid #eaedf0;border-radius:12px;padding:15px}.ws-choice>div{flex:1}.ws-choice strong,.ws-choice small{display:block}.ws-choice small{margin-top:5px;color:#929aa2}
+@media(max-width:650px){.ws-page{padding:16px 12px 45px}.ws-container{gap:14px}.ws-card{padding:22px 18px;border-radius:16px}.ws-two{grid-template-columns:1fr;gap:15px}.ws-heading{flex-direction:column}.ws-top .ws-kicker{font-size:9px;letter-spacing:.6px}.ws-member-row{flex-wrap:wrap}.ws-copy-row{flex-wrap:wrap}}
+
+
+/* Consistent vertical rhythm and select controls on the existing Seebot Settings screen. */
+.ws-legacy-settings-form{max-width:100%;gap:19px}
+.ws-legacy-settings-form .field-grid{gap:18px}
+.ws-legacy-settings-form .field{min-width:0;gap:8px}
+.ws-legacy-settings-form .field-label{font-weight:700;color:#424a57}
+.ws-legacy-settings-form input,.ws-legacy-settings-form textarea{min-height:43px;border-radius:10px}
+.ws-legacy-settings-form .brand-select{position:relative;width:100%}
+.ws-legacy-settings-form .brand-select-trigger{min-height:43px;border:1px solid #dfe4e9;border-radius:10px}
+.ws-legacy-settings-form .brand-select-menu{max-height:280px;overflow:auto;z-index:70}
+
+
+/* Company home and navigation after finishing onboarding. */
+.ws-nav-buttons{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.ws-nav-buttons .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.ws-top>.btn{display:inline-flex;gap:7px;align-items:center;justify-content:center;white-space:nowrap}
+.auth-existing-session{display:flex;flex-direction:column;align-items:flex-start;gap:9px;padding:14px 16px;margin-bottom:20px}
+.auth-existing-session p{margin:0;font-size:12px}
+.ws-overview .ws-intro{margin:0 0 24px;max-width:730px}
+.ws-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:25px 0}
+.ws-summary-grid>div{background:#fafbfc;border:1px solid #e9ecf0;border-radius:12px;padding:16px 18px;min-width:0}
+.ws-summary-grid small,.ws-summary-grid strong{display:block}
+.ws-summary-grid small{font-size:12px;color:#727e8a}
+.ws-summary-grid strong{font-size:25px;font-weight:750;line-height:1.25;margin-top:7px}
+.ws-home-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.ws-home-tile{display:flex;align-items:center;gap:12px;padding:19px 16px;border:1px solid #e7e9ee;border-radius:14px;min-width:0;transition:border-color .16s,background .16s,transform .16s}
+.ws-home-tile:hover{background:#fff8f3;border-color:#f0b18b;transform:translateY(-1px)}
+.ws-home-tile>svg:first-child{flex-shrink:0;color:#d2622b}
+.ws-home-tile>svg:last-child{flex-shrink:0;color:#929aa4}
+.ws-home-tile span{flex:1;min-width:0}
+.ws-home-tile strong,.ws-home-tile small{display:block}
+.ws-home-tile strong{font-size:15px}
+.ws-home-tile small{margin-top:5px;color:#81909d;line-height:1.45;font-size:12px}
+.ws-prospect-form .brand-select{position:relative}
+.ws-prospect-form .brand-select-trigger{min-height:43px}
+.ws-prospect-form .brand-select-menu{z-index:80}
+@media(max-width:650px){.ws-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ws-home-actions{grid-template-columns:1fr}.ws-top{align-items:flex-start}.ws-nav-buttons{gap:8px}}
+
+
+/* The original SalesOS shell, now shared in the isolated company preview. */
+.tenant-shell-company{display:flex;gap:11px;align-items:center;margin:8px 14px 17px;padding:13px 11px;background:#fff6f0;border:1px solid #ffdfce;border-radius:11px;color:#b95d29}
+.tenant-shell-company>svg{flex-shrink:0}
+.tenant-shell-company>div{min-width:0}
+.tenant-shell-company strong,.tenant-shell-company small{display:block;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tenant-shell-company strong{font-weight:750;font-size:14px;color:#424951}
+.tenant-shell-company small{font-size:11px;color:#ad7456;margin-top:3px}
+.tenant-switch-link{display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;margin-bottom:7px}
+.tenant-switch-link:hover{color:#c15d28}
+.tenant-app-shell .profile-bar .profile{min-width:0}
+.tenant-app-shell .profile-bar .profile-label small{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.tenant-page-content{max-width:100%;min-width:0}
+.tenant-dashboard,.tenant-kanban,.tenant-opportunity{display:flex;flex-direction:column;gap:19px}
+.tenant-dashboard .metrics-grid{margin-bottom:0}
+.tenant-preview-message{align-items:center;display:flex;gap:8px;background:#fff8f0;border:1px solid #ffdfc2;border-radius:10px;padding:10px 14px;color:#ae5f2b;font-size:12px}
+.tenant-dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:19px}
+.tenant-dashboard-grid>.panel{min-width:0}
+.tenant-recent-deals .record-row{align-items:center}
+.tenant-recent-deals .record-row div{min-width:0;flex:1}
+.tenant-recent-deals .record-row strong{font-size:13px}
+.tenant-recent-deals .record-row p{margin:4px 0;color:#677381}
+.tenant-recent-deals .record-row small{color:#919aa4}
+.tenant-panel-action{padding-top:13px}
+.tenant-panel-action .text-link{display:inline-flex;align-items:center;gap:5px}
+.tenant-kpi-rows{display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
+.tenant-kpi-rows>div{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:1px solid #eef0f3;padding-bottom:10px;font-size:13px}
+.tenant-kpi-rows span{color:#838d98}.tenant-kpi-rows strong{font-weight:700;text-align:right}
+.tenant-money-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px;border-bottom:1px solid #eff0f2}
+.tenant-requirements .record-row{font-size:12px;line-height:1.45;color:#7a4538}
+.tenant-kanban .toolbar{margin-bottom:0}
+.tenant-app-shell .ws-page{background:transparent;min-height:auto;padding:0;display:block}
+.tenant-app-shell .ws-container{max-width:100%;margin:0}
+.tenant-app-shell .ws-card{box-shadow:none}
+.tenant-app-shell .ws-top{display:none}
+.tenant-app-shell .ws-overview{max-width:100%}
+@media(max-width:960px){.tenant-dashboard-grid{grid-template-columns:1fr}}
+
+
+/* Keep account switching and sign out visible even with the complete SalesOS navigation. */
+.tenant-app-shell .sidebar{overflow:hidden}
+.tenant-app-shell .sidebar-head,.tenant-app-shell .sidebar-subhead,.tenant-app-shell .tenant-shell-company{flex-shrink:0}
+.tenant-app-shell .nav-list{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:15px}
+.tenant-app-shell .sidebar-bottom{flex:0 0 auto;margin-top:0;border-top:1px solid #edf0f1;background:#fff;padding-top:12px;padding-bottom:12px}
+.tenant-app-shell .sidebar-note{padding:9px 10px;margin-bottom:7px}
+.tenant-app-shell .sidebar-head{height:78px;padding-top:16px;padding-bottom:16px}
+@media(max-height:650px){.tenant-app-shell .sidebar-head{height:58px}.tenant-app-shell .tenant-shell-company{margin-top:0;margin-bottom:8px;padding:8px}.tenant-app-shell .nav-link{padding-top:9px;padding-bottom:9px}}
+
+
+/* v2 consolidation: satisfaction surveys, pipeline settings, client lifecycle, and restrained motion. */
+.tenant-settings-extras{display:grid;gap:20px;margin-top:20px}
+.security-policy-grid,.survey-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.security-policy-grid>div,.survey-summary-grid>div{border:1px solid #e8ebee;border-radius:12px;background:#fff;padding:15px 16px;min-width:0}
+.security-policy-grid strong,.survey-summary-grid strong,.survey-summary-grid span,.survey-summary-grid small{display:block}
+.security-policy-grid p,.survey-summary-grid small{margin:6px 0 0;color:#7d8792;font-size:12px;line-height:1.5}
+.survey-summary-grid strong{font-size:24px;line-height:1.15;margin-top:6px}
+.survey-summary-grid span{color:#6d7782;font-size:12px;font-weight:700}
+.tenant-survey-stack{display:grid;gap:18px;margin-top:20px}
+.survey-template-builder{display:grid;gap:18px}
+.survey-builder-list{display:grid;gap:12px}
+.survey-builder-question{border:1px solid #e7eaee;border-radius:13px;padding:16px;background:#fbfcfd;display:grid;gap:13px;animation:softRise .18s ease-out}
+.survey-builder-head,.pipeline-field-head,.pipeline-field-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.survey-history-score{font-size:18px;font-weight:750;text-align:right;margin:6px 0 0}
+.survey-public{min-height:100dvh;background:radial-gradient(circle at 50% -10%,#fff0e7 0,transparent 42%),#f8fafb;display:grid;place-items:center;padding:24px;font-family:Afacad,Inter,Arial,sans-serif}
+.survey-public-card{width:min(100%,680px);background:#fff;border:1px solid #e8ebee;border-radius:20px;box-shadow:0 18px 65px #28374b0d;padding:clamp(22px,4vw,38px)}
+.survey-public-brand{display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:1px solid #edf0f2;padding-bottom:18px;margin-bottom:24px}
+.survey-public-brand .official-wordmark{width:105px;height:auto}.survey-public-brand>span{font-size:11px;letter-spacing:1.15px;font-weight:800;color:#bd5828}
+.survey-public-heading{display:flex;gap:13px;align-items:flex-start;margin-bottom:26px}.survey-public-heading>div{min-width:0}
+.survey-public-heading small{color:#bc5a2a;font-weight:750;letter-spacing:.4px}.survey-public-heading h1{font-size:clamp(25px,4vw,34px);letter-spacing:-.6px;margin:5px 0 8px}.survey-public-heading p{color:#75808b;line-height:1.55;margin:0}
+.survey-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;background:#fff0e7;color:#c75a26;flex-shrink:0}
+.survey-questionnaire{display:grid;gap:20px}.survey-question{display:grid;grid-template-columns:34px 1fr;gap:12px;border-top:1px solid #f0f1f3;padding-top:18px}
+.survey-question-number{font-size:11px;font-weight:800;color:#c45d2c;padding-top:5px}.survey-question-help{display:block;color:#8a949e;font-size:11px;margin-bottom:8px}
+.survey-question textarea,.survey-questionnaire>label textarea{width:100%;border:1px solid #dfe4e9;border-radius:10px;padding:11px 13px;resize:vertical}
+.survey-rating,.survey-choice-row{display:flex;gap:7px;flex-wrap:wrap}.survey-rating button,.survey-choice-row button{min-width:42px;height:40px;border:1px solid #dce1e6;border-radius:9px;background:#fff;color:#3e4750;font-weight:700;transition:transform .14s,border-color .14s,background .14s,color .14s}
+.survey-rating button:hover,.survey-choice-row button:hover{transform:translateY(-1px);border-color:#ef9c70}.survey-rating button.selected,.survey-choice-row button.selected{background:#c95c26;border-color:#c95c26;color:#fff}
+.survey-options{display:grid;gap:8px}.survey-options label{display:flex;gap:9px;align-items:center;border:1px solid #e6e9ed;border-radius:9px;padding:10px 12px;cursor:pointer}.survey-options label:has(input:checked){border-color:#efaa83;background:#fff8f3}
+.survey-success{text-align:center;padding:30px 5px}.survey-success>span{display:flex;width:50px;height:50px;align-items:center;justify-content:center;border-radius:50%;background:#edf9f1;color:#298453;margin:0 auto 14px}.survey-success h1{margin:0 0 8px}.survey-success p{color:#77818c}
+.pipeline-settings-intro{display:flex;gap:11px;padding:14px 15px;background:#fff8f3;border:1px solid #ffe1cf;border-radius:12px;margin-bottom:18px}.pipeline-settings-intro svg{color:#c85d28;flex-shrink:0}.pipeline-settings-intro strong{font-size:13px}.pipeline-settings-intro p{margin:5px 0 0;color:#765f52;font-size:12px;line-height:1.5}
+.pipeline-settings-grid{display:grid;grid-template-columns:230px minmax(0,1fr);gap:20px;align-items:start}
+.pipeline-stage-list{display:grid;gap:6px;position:sticky;top:76px}.pipeline-stage-list button{display:grid;grid-template-columns:27px 1fr auto;align-items:center;gap:8px;text-align:left;border:1px solid transparent;background:#f8f9fa;border-radius:10px;padding:10px 11px;color:#5f6974;transition:background .14s,border-color .14s,transform .14s}.pipeline-stage-list button:hover{transform:translateX(1px);background:#fff7f1}.pipeline-stage-list button.active{background:#fff1e8;border-color:#ffd5bc;color:#9f451d}.pipeline-stage-list button span{font-size:10px;font-weight:800}.pipeline-stage-list button strong{font-size:12px}.pipeline-stage-list button small{font-size:10px;color:#929aa3}
+.pipeline-stage-editor,.pipeline-field-list{display:grid;gap:15px}.pipeline-field-head{margin-top:4px}.pipeline-field-head p{margin:4px 0 0}.pipeline-field-card{border:1px solid #e6e9ed;border-radius:13px;padding:16px;background:#fff;display:grid;gap:13px;animation:softRise .18s ease-out}
+.field-help{display:block;color:#89939e;font-size:11px;margin-bottom:7px}
+.client-lifecycle-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}.client-lifecycle-strip>div{border:1px solid #e8ebee;border-radius:12px;background:#fff;padding:14px 16px}.client-lifecycle-strip span,.client-lifecycle-strip strong{display:block}.client-lifecycle-strip span{font-size:11px;color:#87909a;margin-bottom:6px}
+.tenant-client-detail{display:grid;gap:18px}
+@keyframes softRise{from{opacity:.01;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.survey-builder-question,.pipeline-field-card{animation:none}.survey-rating button,.survey-choice-row button,.pipeline-stage-list button{transition:none}}
+@media(max-width:900px){.pipeline-settings-grid{grid-template-columns:1fr}.pipeline-stage-list{position:static;grid-template-columns:repeat(2,minmax(0,1fr))}.security-policy-grid,.survey-summary-grid{grid-template-columns:1fr}.client-lifecycle-strip{grid-template-columns:1fr}}
+@media(max-width:600px){.survey-question{grid-template-columns:1fr}.survey-question-number{padding:0}.pipeline-stage-list{grid-template-columns:1fr}.survey-public{padding:12px}.survey-public-card{border-radius:16px}.survey-public-brand{align-items:flex-start}}
+
+
+/* Client satisfaction and consolidated commercial workspace */
+.tenant-satisfaction,.commercial-hub{display:flex;flex-direction:column;gap:20px}
+.satisfaction-metrics{margin-bottom:0}
+.satisfaction-rating-list,.satisfaction-client-list,.survey-template-list{display:flex;flex-direction:column}
+.satisfaction-average{font-size:20px;font-weight:760;letter-spacing:-.3px;color:#c45d27;white-space:nowrap}
+.satisfaction-client-scores{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.survey-history-item{border:1px solid #e8ebee;border-radius:12px;background:#fff;overflow:hidden}
+.survey-history-item>summary{cursor:pointer;list-style:none;border:0}
+.survey-history-item>summary::-webkit-details-marker{display:none}
+.survey-history-item[open]>summary{background:#fff8f3}
+.survey-answer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 16px;border-top:1px solid #edf0f2}
+.survey-answer-grid>div{padding:11px 12px;border:1px solid #edf0f2;border-radius:9px;background:#fafbfc;min-width:0}
+.survey-answer-grid span,.survey-answer-grid strong{display:block}
+.survey-answer-grid span{font-size:11px;color:#77828d;margin-bottom:5px}
+.survey-answer-grid strong{font-size:13px;overflow-wrap:anywhere}
+.survey-template-list{margin-top:22px;border-top:1px solid #edf0f2}
+.survey-template-list .record-row{padding-left:0;padding-right:0}
+.commercial-hub>.metrics-grid{margin-bottom:0}
+@media(max-width:700px){.survey-answer-grid{grid-template-columns:1fr}.satisfaction-client-scores{justify-content:flex-start}}
+
+
+/* Consolidated prospect, commercial, finance and client-success interactions */
+.tenant-prospects,.tenant-client-detail{display:flex;flex-direction:column;gap:20px}
+.compact-search{min-width:min(270px,45vw)}
+.commercial-action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+.commercial-action-card{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid #e7eaee;border-radius:12px;padding:15px;background:#fff;color:#3d4650;transition:border-color .16s,background .16s,transform .16s}
+.commercial-action-card:hover,.commercial-action-card.active{border-color:#f0b38f;background:#fff8f3;transform:translateY(-1px)}
+.commercial-action-card>svg{flex-shrink:0;color:#c85b27}.commercial-action-card>svg:last-child{margin-left:auto;color:#9aa2aa}
+.commercial-action-card span{min-width:0;flex:1}.commercial-action-card strong,.commercial-action-card small{display:block}.commercial-action-card small{color:#818c96;margin-top:4px;line-height:1.35}
+.commercial-action-form{margin-top:16px;padding:18px;border:1px solid #e9ecef;border-radius:12px;background:#fcfcfd;display:flex;flex-direction:column;gap:16px}
+.finance-action-stack{display:flex;flex-direction:column;gap:17px;margin-top:16px}
+.finance-inline-action{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end;padding:15px;border:1px solid #e9ecef;border-radius:11px;background:#fafbfc}
+.finance-payment-grid{grid-template-columns:repeat(3,minmax(0,1fr)) auto}
+.finance-history-toggle{align-self:flex-start;background:none;border:0;padding:0}
+.finance-history{border:1px solid #e8ebee;border-radius:11px;overflow:hidden}
+.finance-history-total{display:flex;justify-content:space-between;gap:15px;padding:13px 15px;background:#fafbfc;border-bottom:1px solid #e8ebee}
+.client-health-score{display:flex;align-items:baseline;gap:6px;padding:10px 0 16px}.client-health-score>strong{font-size:38px;line-height:1;font-weight:780;letter-spacing:-1.4px}.client-health-score>span{color:#8a939d}.client-health-score>.badge{margin-left:auto}
+.compact-grid{gap:24px}.compact-grid h3{font-size:14px;margin:0 0 10px;color:#515b66}
+@media(max-width:820px){.commercial-action-grid{grid-template-columns:1fr}.finance-payment-grid,.finance-inline-action{grid-template-columns:1fr}.compact-search{min-width:0;width:100%}}
+
+
+/* Integration readiness */
+.integration-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.integration-card{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border:1px solid #e8ebee;border-radius:12px;padding:15px;background:#fff;transition:border-color .16s,transform .16s,box-shadow .16s}
+.integration-card:hover{border-color:#f0c1a4;transform:translateY(-1px);box-shadow:0 8px 24px #2a33400a}
+.integration-card strong{font-size:14px}.integration-card p{margin:5px 0 0;color:#7d8791;font-size:12px;line-height:1.45}
+.integration-state{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}.integration-state span{display:flex;align-items:center;gap:5px;color:#68747f;font-size:10px;font-weight:700}
+@media(max-width:760px){.integration-grid{grid-template-columns:1fr}}
+
+
+/* Final tenant product modules: accounting, campaigns, security, integrations and contracts */
+.integration-gmail-control{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px;margin:15px 0;border:1px solid #e8ebef;border-radius:12px;background:#fafbfc}
+.integration-gmail-control strong{font-size:14px}.integration-gmail-control p{margin:4px 0 0;color:#7f8994;font-size:12px}
+.accounting-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.accounting-health-grid>div{display:flex;flex-direction:column;gap:6px;min-width:0;padding:14px;border:1px solid #e8ebef;border-radius:11px;background:#fafbfc}
+.accounting-health-grid span{font-size:11px;color:#7c8791}.accounting-health-grid strong{font-size:19px}
+.accounting-reconciliation,.accounting-journal-list,.finance-credit-section,.finance-reminder-list,.finance-reminder-candidates{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.accounting-reconciliation h3,.accounting-journal-list h3,.finance-credit-section h3,.finance-reminder-list h3,.finance-reminder-candidates h3{font-size:14px;margin:0}
+.accounting-match-row>.ws-nav-buttons{flex:0 1 58%;justify-content:flex-end}.accounting-match-row .brand-select{min-width:250px}
+.campaign-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.campaign-controls{max-width:280px;margin:14px 0}
+.campaign-enrollment{border-top:1px solid #edf0f2;padding-top:14px;margin-top:14px}
+.campaign-account-chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 13px}
+.tenant-contract-detail{display:flex;flex-direction:column;gap:20px}
+.commercial-amendment-line{padding:15px;border:1px solid #e8ebef;border-radius:11px;background:#fafbfc}
+.security-policy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:15px 0}
+.security-policy-grid>div{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid #e8ebef;border-radius:11px;background:#fafbfc}
+.security-policy-grid svg{color:#c7602c;flex-shrink:0}.security-policy-grid small,.security-policy-grid strong{display:block}.security-policy-grid small{font-size:10px;color:#818b96}.security-policy-grid strong{font-size:13px;margin-top:3px}
+.audit-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 10px}.audit-toolbar .search-box{max-width:360px}
+.audit-event-list{display:flex;flex-direction:column;border:1px solid #e8ebef;border-radius:12px;overflow:hidden}
+.audit-event{border-bottom:1px solid #edf0f2}.audit-event:last-child{border-bottom:0}.audit-event summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;list-style:none}.audit-event summary::-webkit-details-marker{display:none}.audit-event summary p{margin:4px 0 0;color:#818b96;font-size:11px}.audit-event pre{margin:0;padding:14px 15px;background:#fafbfc;border-top:1px solid #edf0f2;overflow:auto;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}
+.personal-security-events{margin-top:20px}.personal-security-events h3{font-size:14px;margin:0 0 9px}
+.finance-credit-section{padding-top:14px;border-top:1px solid #edf0f2}
+@media(max-width:960px){.accounting-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.campaign-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.integration-gmail-control{align-items:flex-start;flex-direction:column}.security-policy-grid,.accounting-health-grid{grid-template-columns:1fr}.accounting-match-row>.ws-nav-buttons{flex-basis:100%;justify-content:flex-start}.accounting-match-row .brand-select{min-width:0;width:100%}.audit-toolbar{align-items:stretch;flex-direction:column}.audit-toolbar .search-box{max-width:none}}
+
+
+/* Company account workspace */
+.tenant-account-detail{display:flex;flex-direction:column;gap:20px}
+.account-next-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.account-next-actions .ws-home-tile{min-height:94px}
+@media(max-width:850px){.account-next-actions{grid-template-columns:1fr}}
+
+
+/* External signer portal — same visual language, isolated from authenticated app shell */
+.signing-public{min-height:100vh;background:radial-gradient(circle at 50% -20%,#fff0e6 0%,transparent 43%),#f8f9fb;padding:clamp(18px,4vw,44px) 14px;font-family:Afacad,Inter,Arial,sans-serif;color:#29323c}
+.signing-card{width:min(100%,900px);margin:0 auto;background:#fff;border:1px solid #e6e9ed;border-radius:20px;padding:clamp(20px,4vw,38px);box-shadow:0 20px 65px #27364a0d}
+.signing-header{display:flex;align-items:center;gap:14px;padding-bottom:20px;border-bottom:1px solid #edf0f2;margin-bottom:20px}
+.signing-emblem{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:14px;background:#fff1e8;color:#c55e2a;flex-shrink:0}
+.signing-header small{font-size:10px;letter-spacing:1.25px;font-weight:800;color:#c05c2a}.signing-header h1{font-size:clamp(24px,4vw,31px);line-height:1.08;margin:4px 0 0;letter-spacing:-.65px}.signing-header p{margin:5px 0 0;color:#7d8791;font-size:13px}
+.signing-auth,.signing-workspace,.signing-form{display:flex;flex-direction:column;gap:16px}.google-signing-target{min-height:44px;margin-top:5px}
+.signing-verified{display:flex;align-items:center;gap:8px;padding:11px 13px;border:1px solid #dcece3;border-radius:10px;background:#f6fbf8;color:#316448;font-size:13px}.signing-verified>span{flex:1}
+.signing-date-badge{padding:5px 8px;border:1px solid #d8e3dc;border-radius:99px;background:#fff;font-size:10px;font-weight:700;color:#66766d}
+.signing-document-meta{display:flex;justify-content:space-between;gap:14px;align-items:center;font-size:12px}.signing-document-meta span{color:#89929c;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.signing-pdf{width:100%;height:58vh;min-height:390px;border:1px solid #dfe3e8;border-radius:12px;background:#f4f5f6}
+.signing-form{margin-top:5px;padding-top:18px;border-top:1px solid #edf0f2}
+.signature-draw{display:flex;flex-direction:column;align-items:flex-start;gap:9px}.signature-draw canvas{touch-action:none;width:100%;height:160px;border:1px solid #dce1e6;border-radius:10px;background:#fff}
+.signing-consent{align-items:flex-start;line-height:1.45;font-size:13px}.signing-consent input{margin-top:3px}.signing-submit{min-height:47px}
+.signing-complete{text-align:center;padding:clamp(24px,6vw,54px) 12px;display:flex;flex-direction:column;align-items:center;gap:11px}.signing-complete>span{width:58px;height:58px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#f0faf4;color:#258653}.signing-complete h2{font-size:25px;margin:4px 0 0}.signing-complete p{max-width:550px;margin:0;color:#707b86}
+@media(max-width:650px){.signing-card{border-radius:15px}.signing-header{align-items:flex-start}.signing-verified,.signing-document-meta{align-items:flex-start;flex-direction:column}.signing-pdf{min-height:330px;height:50vh}.signing-date-badge{align-self:flex-start}}
+
+
+/* Task execution queue */
+.tenant-tasks{display:flex;flex-direction:column;gap:20px}
+.task-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.task-summary-grid button{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid #e8ebef;border-radius:11px;background:#fff;text-align:left;color:#4a5560;transition:border-color .16s,background .16s,transform .16s}
+.task-summary-grid button:hover,.task-summary-grid button.active{border-color:#efb28d;background:#fff8f3;transform:translateY(-1px)}
+.task-summary-grid small,.task-summary-grid strong{display:block}.task-summary-grid small{font-size:10px;color:#7d8792}.task-summary-grid strong{font-size:20px;margin-top:2px}
+.task-toolbar{display:flex;gap:10px;align-items:center}.task-toolbar .brand-select{min-width:145px}.task-overdue{color:#b54337;font-weight:700}
+@media(max-width:760px){.task-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.task-toolbar{width:100%;align-items:stretch;flex-direction:column}.task-toolbar .brand-select{min-width:0;width:100%}}
+
+
+/* Organized workspace settings */
+.tenant-settings-page{display:flex;flex-direction:column;gap:20px}
+.settings-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;align-items:start}
+.settings-nav{position:sticky;top:18px;display:flex;flex-direction:column;gap:5px;padding:8px;border:1px solid #e7eaee;border-radius:13px;background:#fff}
+.settings-nav button{display:flex;align-items:center;gap:9px;width:100%;border:0;border-radius:9px;padding:10px 11px;background:transparent;color:#65707a;text-align:left;font:inherit;font-size:13px;font-weight:650;transition:background .16s,color .16s,transform .16s}
+.settings-nav button:hover,.settings-nav button.active{background:#fff4ed;color:#b95324;transform:translateX(1px)}
+.settings-content{min-width:0}.settings-content>.panel:first-child{margin-top:0}
+.ws-page-embedded{min-height:0;background:transparent;padding:0}.ws-page-embedded .ws-container{width:100%;max-width:none;margin:0;padding:0}.ws-page-embedded .ws-card{box-shadow:none}.ws-page-embedded .ws-manager{margin:0}
+@media(max-width:840px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.settings-nav button:hover,.settings-nav button.active{transform:none}}
+@media(max-width:520px){.settings-nav{grid-template-columns:1fr}}

@@ -5,18 +5,20 @@ import { AuthGuard,AuthRequest,allowManageAll,ensureCanEdit } from '../common/au
 export class TasksController {
   constructor(private db:PrismaService){}
   @Get() list(@Req()req:AuthRequest) {
-    return this.db.task.findMany({where:allowManageAll(req.user)?{}:{assigneeId:req.user.id},include:{assignee:{select:{id:true,name:true}},opportunity:{select:{id:true,title:true,account:{select:{name:true}}}}},orderBy:[{status:'asc'},{dueAt:'asc'}],take:250});
+    return this.db.task.findMany({where:{organizationId:req.user.organizationId,...(allowManageAll(req.user)?{}:{assigneeId:req.user.id})},include:{assignee:{select:{id:true,name:true}},opportunity:{select:{id:true,title:true,account:{select:{name:true}}}}},orderBy:[{status:'asc'},{dueAt:'asc'}],take:250});
   }
   @Post() async create(@Req()req:AuthRequest,@Body()body:{title:string;description?:string;dueAt?:string;opportunityId?:string;assigneeId?:string}) {
     if(['CEO','DIRECTOR','TECHNICAL_REVIEWER'].includes(req.user.role))throw new BadRequestException('Read-only role.');
     if(!body.title?.trim())throw new BadRequestException('Task title required.');
     let assigneeId=allowManageAll(req.user)&&body.assigneeId?body.assigneeId:req.user.id;
-    if(body.opportunityId){const opp=await this.db.opportunity.findUnique({where:{id:body.opportunityId}});if(!opp)throw new BadRequestException('Opportunity not found.');ensureCanEdit(req.user,opp.ownerId);}
+    if(body.opportunityId){const opp=await this.db.opportunity.findUnique({where:{id:body.opportunityId}});if(!opp||!(await this.db.account.findFirst({where:{id:opp.accountId,organizationId:req.user.organizationId},select:{id:true}})))throw new BadRequestException('Opportunity not found.');ensureCanEdit(req.user,opp.ownerId);}
+    const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:req.user.organizationId!,userId:assigneeId}},select:{status:true}});
+    if(member?.status!=='ACTIVE')throw new BadRequestException('Assignee is not an active member of this workspace.');
     const dueAt=body.dueAt?new Date(body.dueAt):undefined;if(dueAt&&Number.isNaN(dueAt.valueOf()))throw new BadRequestException('Invalid date.');
-    return this.db.task.create({data:{title:body.title.trim(),description:body.description,dueAt,opportunityId:body.opportunityId||null,assigneeId}});
+    return this.db.task.create({data:{organizationId:req.user.organizationId,title:body.title.trim(),description:body.description,dueAt,opportunityId:body.opportunityId||null,assigneeId}});
   }
   @Patch(':id') async update(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:{status?:'OPEN'|'DONE'|'CANCELLED';dueAt?:string|null;title?:string;description?:string}) {
-    const task=await this.db.task.findUnique({where:{id}});if(!task)throw new BadRequestException('Task not found.');ensureCanEdit(req.user,task.assigneeId);
+    const task=await this.db.task.findUnique({where:{id}});if(!task||task.organizationId!==req.user.organizationId)throw new BadRequestException('Task not found.');ensureCanEdit(req.user,task.assigneeId);
     if(body.status!==undefined&&!['OPEN','DONE','CANCELLED'].includes(body.status))throw new BadRequestException('Invalid status.');
     const data:any={};if(body.status!==undefined){data.status=body.status;data.completedAt=body.status==='DONE'?new Date():null;}
     if(body.dueAt!==undefined){const due=body.dueAt?new Date(body.dueAt):null;if(due&&Number.isNaN(due.valueOf()))throw new BadRequestException('Invalid due date.');data.dueAt=due;}

@@ -9,14 +9,14 @@ export class InvoiceRemindersController {
   constructor(private db:PrismaService,private outgoing:OutgoingMessageService){}
   private async snapshot(id:string,req:AuthRequest){
     const i=await this.db.invoice.findUnique({where:{id},include:{account:true,payments:true,adjustments:true}});
-    if(!i)throw new BadRequestException('Invoice not found.');ensureOwner(req.user,i.account.ownerId);
+    if(!i||i.account.organizationId!==req.user.organizationId)throw new BadRequestException('Invoice not found.');ensureOwner(req.user,i.account.ownerId);
     const paid=i.payments.reduce((sum,p)=>sum+Number(p.amount),0)+i.adjustments.filter(a=>a.status==='APPROVED'&&a.kind==='CREDIT_NOTE').reduce((sum,a)=>sum+Number(a.amount),0);
     const state=reminderEligibility({id:i.id,number:i.number,currency:i.currency,total:Number(i.total),paid,dueAt:i.dueAt,status:i.status,isDemo:i.isDemo,billingEmail:i.billingEmail},new Date());
     return {invoice:i,state};
   }
   @Get('due') async due(@Req()req:AuthRequest){
     if(!allowManageAll(req.user))throw new BadRequestException('Manager permissions required.');
-    const now=new Date();const invoices=await this.db.invoice.findMany({where:{isDemo:false,status:{in:['SENT','PARTIALLY_PAID']},dueAt:{lt:now},...(allowManageAll(req.user)?{}:{account:{ownerId:req.user.id}})},include:{account:{select:{id:true,name:true,ownerId:true}},payments:true,adjustments:true},take:250});
+    const now=new Date();const invoices=await this.db.invoice.findMany({where:{isDemo:false,status:{in:['SENT','PARTIALLY_PAID']},dueAt:{lt:now},account:{organizationId:req.user.organizationId}},include:{account:{select:{id:true,name:true,ownerId:true}},payments:true,adjustments:true},take:250});
     return invoices.map(i=>({id:i.id,accountId:i.accountId,account:i.account.name,number:i.number,currency:i.currency,dueAt:i.dueAt,recipient:i.billingEmail,...reminderEligibility({id:i.id,number:i.number,currency:i.currency,total:Number(i.total),paid:i.payments.reduce((sum,p)=>sum+Number(p.amount),0)+i.adjustments.filter(a=>a.status==='APPROVED'&&a.kind==='CREDIT_NOTE').reduce((sum,a)=>sum+Number(a.amount),0),dueAt:i.dueAt,status:i.status,isDemo:i.isDemo,billingEmail:i.billingEmail},now)})).filter(i=>i.eligible);
   }
   @Get(':id/demo-preview') async previewDemo(@Req()req:AuthRequest,@Param('id')id:string){

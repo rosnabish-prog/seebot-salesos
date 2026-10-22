@@ -1,115 +1,70 @@
-> **v1.6.5 DEVELOPMENT PREVIEW:** Account tenant ownership, sequential signing evidence and receivables corrections. This is NOT public multi-tenant or production-ready. Read [docs/RELEASE_V1_6_5.md](docs/RELEASE_V1_6_5.md).
+# Seebot SalesOS
 
-> **v1.6.4 Commercial & Workspace Setup preview:** Read [docs/RELEASE_V1_6_4.md](docs/RELEASE_V1_6_4.md). Organization setup is supported, but public multi-company CRM remains disabled until tenant isolation passes security tests.
+**Status: consolidated development preview — not approved for production or real customer records.**
 
-> **v1.6.3 Offline Client Success:** See [docs/RELEASE_V1_6_3.md](docs/RELEASE_V1_6_3.md) for the new MBR/QBR PDF, client health, renewal tasks, multi-line invoices, local reminder review and critical security limitations.
+SalesOS is a B2B sales, contracting, delivery, client-success and receivables workspace, built with **Next.js 15**, **NestJS 10**, **TypeScript**, **Prisma**, and **PostgreSQL 16**.
 
-> **v1.5 Preview:** See [Unified Client Lifecycle release notes](docs/RELEASE_V1_5_PREVIEW.md) for installation, demo client management, contract document storage, invoices and executive reporting.
+The maintained product specification and implementation audit are in [Product Consolidation Audit](docs/PRODUCT_CONSOLIDATION_AUDIT.md) and [Product Orchestration v2](docs/PRODUCT_ORCHESTRATION_V2.md). Earlier `RELEASE_V1_*.md` documents describe historical milestones, **not the current authentication/security behavior**.
 
-> **v1.3 release notice:** If upgrading an existing Windows installation, read [docs/RELEASE_V1_3.md](docs/RELEASE_V1_3.md) first, back up PostgreSQL and use `UPDATE_SEEBOT_WINDOWS.cmd` from the ZIP root. Do not overwrite `.env` or reset the database. This is a development preview, not a production release.
+## Canonical end-to-end product flow
 
-# Seebot SalesOS — First Working Development Milestone
+1. Register a work identity with verification, or accept a verified invitation; authenticate using password or configured Google login.
+2. Complete **email one-time-code MFA on every sign-in**. Sessions have an absolute seven-day reauthentication boundary. Email signup verification alone does not create a session.
+3. Create one company workspace (or join an invitation), configure optional business details, and invite employees with roles and membership controls.
+4. Create one canonical **Account** (customer company), with reusable contacts and an initial **Opportunity**. One Account may have multiple opportunities and engagements.
+5. Move opportunities through the canonical **11-stage** pipeline using evidence, configured labels/fields and permitted auto-pull from existing records. Contract and authorization checks cannot be bypassed by manager overrides.
+6. At **Pilot Contracted**, the existing Account appears in Client Management as **Contracting**. At **Closed Won**, it becomes **Customer**. Do **not** create a second company or duplicate contacts.
+7. Track contract proposals, scoped pricing, approved agreements, private PDFs, delivery milestones, acceptance evidence, tasks, and account issues.
+8. Collect client satisfaction through **NPS, CSAT and reusable custom questionnaires**, then produce approved MBR/QBR snapshots and review renewal/expansion opportunities.
+9. Prepare reviewed invoices, issue PDFs after finance controls, record partial/full payments, credits and journal entries, and reconcile receivables. Real tax treatment requires independent professional review.
 
-A **real full-stack implementation scaffold and vertical slice** for Seebot's private B2B sales operations app. It uses the user's approved light-theme screenshot layout, Seebot orange (`#FF7A3D`), a Kanban-first pipeline, comments, evidence-based automatic stage advancement, and dashboards with smooth cubic Bézier trends.
+## Key security and integration rules
 
-> **Status: development milestone, NOT a production release.** The source code was created in a restricted environment with no network access to npm and no Docker runtime. Dependencies could not be installed, the database migration could not be executed here, and live end-to-end testing has **not** been completed. See `docs/BUILD_STATUS.md` for what is functional in source versus incomplete.
+- Legacy Seebot-only CRM routes remain separated from independent organizations; do **not** remove tenant checks or activate multi-tenant production without authorization testing.
+- MFA is mandatory after password login, Google login and new-team invitation acceptance. Signup links prove an email address **but do not issue sessions**. Repeated OTP attempts are atomically limited; outstanding codes are revoked after password change/reset.
+- Administrator direct provisioning of employee passwords is disabled by default. Use the verified employee/workspace invitation flows.
+- Private development previews use **fictional data** only. The preview's email capture (Mailpit) is not real mailbox or corporate ownership verification.
+- Live electronic signing, regulated accounting/tax determination, bulk outbound messaging and real provider integrations remain **gated** until credentials, operational checks and legal/security controls are approved.
+- Sensitive server cookies are HttpOnly and Secure on HTTPS production deployments; keep ports private and secrets outside Git.
 
-## Stack
+## Open and inspect the product using GitHub Codespaces
 
-- Next.js 15 + React 19 + TypeScript frontend, responsive light-theme CSS and Lucide icons.
-- NestJS 10 + TypeScript REST API, cookie-based login and access checks.
-- PostgreSQL 16 + Prisma ORM, append-only stage visits/transitions, persistent comments.
-- Optional Redis container reserved for future notification / background jobs.
-- npm workspaces monorepo with a shared stage-definition package.
+No local PowerShell setup is required for this private preview.
 
-## Quick start (developer machine with Node 20+, npm, Docker)
+1. Open **Code → Codespaces** in this repository. Start a Codespace from branch `feature/ci-isolation-finance-audit`.
+2. In its terminal, run `bash scripts/start-codespaces.sh` from the repository root.
+3. The helper configures a **disposable** local PostgreSQL/Redis/Mailpit environment, an isolated private `.env`, and a fictional admin account. Never connect this helper to live records.
+4. In the Codespace **Ports** tab, keep **3000** (app) and **8025** (test email inbox) **Private**; open the forwarded HTTPS URL for port 3000.
+5. Sign in with the preview admin credentials printed by the helper, and retrieve the mandatory OTP from the private Mailpit inbox on port 8025.
 
-```bash
-# from repository root
-cp .env.example .env
-# IMPORTANT: edit .env; set strong unique JWT_SECRET and ADMIN_PASSWORD.
-# For example, generate secrets using a cryptographic password manager.
+See [Codespaces Authentication Preview](docs/CODESPACES_AUTH_PREVIEW.md) and [Multi-tenant Enablement](docs/MULTITENANT_ENABLEMENT.md).
 
-docker compose up -d postgres redis
-npm install
-npm run db:generate
-npm run db:migrate       # first run will ask for the migration name
-npm run db:seed          # bootstraps ADMIN_EMAIL (safe to rerun)
-npm run dev
-```
+## Automated verification
 
-Visit **http://localhost:3000** and log in using the credentials you configured in `.env`.
+GitHub Actions runs [build and database checks](.github/workflows/checks.yml):
 
-The API runs on **http://localhost:4000/api**. Health check at **http://localhost:4000/health**.
+- Prisma schema validation plus review-only generated SQL baseline.
+- Disposable PostgreSQL schema setup and client generation.
+- Shared types, NestJS and Next.js TypeScript checks and builds.
+- Source and policy tests; independent signing-evidence verification/tamper rejection.
+- Real cross-tenant HTTP checks using **two** isolated organizations.
+- Browser E2E from verified identity and MFA through company setup, prospect, client feedback, contracts, invoice preparation and finance approval.
+- Downloadable real browser screenshots and a migration-review SQL artifact.
 
-**Database migration:** This initial repository contains the schema but not a pre-generated migration. Run `npm run db:migrate` on your development environment; review and commit generated migrations before production use. Never use `prisma db push` as a production migration workflow.
+The workflow uses a newly created disposable CI database. `prisma db push` is used **only** in that disposable environment, **never on live PostgreSQL**.
 
-### Demo data
+A green CI run is a development quality gate, not proof of production readiness.
 
-Set `SEED_DEMO_DATA=true` only when you want an explicitly fictional demonstration account. The seed uses `example-vision.invalid` and does not pretend real companies are Seebot customers.
+## Release prerequisites
 
-## Implemented source workflows
+Before production, complete and independently verify:
 
-1. Admin-created email/password users with server-side Argon2id hashes, role assignment, and HttpOnly session cookies.
-2. Create prospect -> normalized-domain duplicate check -> account + initial opportunity + first stage visit.
-3. Kanban board across eleven stages, drag to request a validated transition, list view, account detail.
-4. Dynamic stage evidence forms. Saving all required evidence triggers *automatic* movement to the next stage.
-5. Non-form gates: verified contact, logged outreach, positive response, sent pilot proposal, signed pilot SOW, accepted pilot results, and signed production agreement.
-6. Each stage visit has comments and timestamps; old stage history stays intact.
-7. Log contacts, outbound activity, responses, proposals, and signed contract metadata.
-8. Pause/nurture or close lost with reason; manager reopening and audited stage override on API.
-9. Tasks, follow-ups, campaign records and admin team directory.
-10. Live database-backed rep and executive dashboards, KPI cards, Bézier trend charts and stage/industry distributions.
+- Rehearsed baseline + incremental Prisma migrations against a protected copy of existing data, tested backups and restores, and reconciliation.
+- Reviewed root dependency lockfile and deterministic builds, vulnerability review, application observability and access/audit retention.
+- Distributed password/OTP abuse prevention, account recovery and multifactor recovery, security review and penetration testing.
+- Complete production tenant boundary and permission review, including nested IDs, exports, documents and asynchronous jobs.
+- Actual OAuth/SMTP/Gmail provider credentials, sending consent, and observed delivery/retry errors.
+- Secure document object storage, malware scanning, signing evidence custody, legal e-sign review, and jurisdiction-specific finance/tax review.
+- Accessible responsive visual QA, permanent HTTPS staging deployment, browser/UAT regression and production rollback plan.
 
-## Auto-advance examples
-
-- **Account Researched**: company research summary, service hypothesis, source, and next action all saved -> moves to Decision-Maker Identified.
-- **Decision-Maker Identified**: verified contact with role, source and business contact channel -> moves to Outreach Initiated.
-- **Outreach Initiated**: follow-up date saved **and** an outbound activity logged -> moves to Interest Established.
-- **Interest Established**: positive response logged **and** interest details saved -> moves to Discovery Completed.
-- **Pilot Proposed**: a proposal with fee, criteria, and SENT/ACCEPTED status -> moves to Pilot Contracted.
-- **Production Negotiated**: commercially documented terms and signed production agreement with minimum commitment -> Closed Won. Managers cannot bypass signed-production evidence.
-
-Automatic advancement is processed inside a Prisma serializable transaction using an optimistic version check, with transition history recorded for audit.
-
-## Repository map
-
-```text
-apps/
-  web/       Next.js login, dashboard, executive, prospects, pipeline, opportunity workspace, tasks, campaigns, settings
-  api/       NestJS controllers, workflow service, authorization, analytics
-packages/
-  shared/    11 pipeline stages and metadata for dynamic evidence forms
-  database/  Prisma schema and admin seed
-infrastructure/ deployment guidance
-.github/     planned CI example
- docs/       architecture, status, remaining work, acceptance checklist
-```
-
-## Important security limitations (pre-production blockers)
-
-- **No invitation email or password reset yet**. Admin creates users with a temporary password; do not roll out real users until enforced rotation/reset is implemented.
-- **No MFA**. Add for leadership and admin accounts before production.
-- **No login attempt rate limiting or lockout**. Add and test before internet exposure.
-- **No verified file upload pipeline**. Contract evidence is a manually entered reference, not an uploaded/verified signature; production signing/approval evidence must be validated.
-- **No fine-grained director/department scoping**. Managers/directors currently use global reads; implement scoped permissions before granting such roles to isolated divisions.
-- **No outbound email integration, notification worker or campaign automation**. Activity logs are entered manually.
-- **No export/redaction/retention management or secure object storage yet**.
-- Tests, coverage and staging deployment are **not complete**; see `docs/BUILD_STATUS.md`.
-
-## Product-specific design decisions
-
-- All major panels and KPI cards are **white/light**; orange icons, active states, CTAs. Text on white cards is charcoal for readability. White text on the bright orange `#FF7A3D` is inaccessible for normal body text.
-- Charts use smooth cubic Bézier curves, never abrupt point-to-point trend lines. Stage progress is a grid of steps, not a flat timeline.
-- `Closed Won` is the last stage. Account expansion is a separate future opportunity, not a forced stage after closing.
-- Estimated pipeline values and signed commitments are never mixed, and different currencies are displayed separately.
-
-For detailed routes and scope, see `docs/API_REFERENCE.md` and `docs/PRODUCT_SPEC_V1_2.md`.
-
-## Next milestone
-
-Complete installation and local runtime smoke tests; then implement secure staff invitation/reset, genuine file storage, role scoping, drag/transition workflow tests, campaign-prospect membership, and production-grade observability and backup verification.
-
-
-### v1.6.2 Preview
-See [`docs/RELEASE_V1_6_2.md`](docs/RELEASE_V1_6_2.md) for the NPS/CSAT invitation, overdue invoice reminder and integration readiness workflows, limitations and migration procedure.
+Track acceptance evidence in [SalesOS release checklist #4](https://github.com/rosnabish-prog/seebot-salesos/issues/4). The full consolidated implementation is in [Pull Request #1](https://github.com/rosnabish-prog/seebot-salesos/pull/1) until its release gates have passed. Do **not** merge or deploy divergent product branches independently.

@@ -6,8 +6,10 @@ export type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 @Injectable()
 export class TenantScopeService{
  constructor(private db:PrismaService){}
+ preview(){return process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true';}
+ enabled(){return this.preview()||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true');}
  async membership(req:ScopedRequest,organizationId:string,write=false){
-  if(process.env.TENANT_SCOPED_CRM_PREVIEW!=='true'||process.env.NODE_ENV==='production')throw new ForbiddenException('Tenant CRM is disabled pending complete cross-tenant verification.');
+  if(!this.enabled())throw new ForbiddenException('Tenant CRM is disabled for this deployment.');
   if(req.selectedWorkspace!==organizationId)throw new ForbiddenException('The organization must be selected in the current session.');
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId,userId:req.user.id}},include:{organization:{select:{status:true}}}});
   if(!member||member.status!=='ACTIVE'||!['SETUP','ACTIVE'].includes(member.organization.status))throw new ForbiddenException('Active company membership required.');
@@ -30,5 +32,5 @@ export class TenantScopeService{
   const i=await this.db.invoice.findFirst({where:{id,account:{organizationId}},include:{account:true}});
   if(!i)throw new NotFoundException('Invoice unavailable in this workspace.');return i;
  }
- assertFictional(domain:string){if(!domain.endsWith('.example')&&!domain.endsWith('.invalid'))throw new BadRequestException('Preview workspaces support fictional customers only.');}
+ assertFictional(domain:string){if(this.preview()&&!domain.endsWith('.example')&&!domain.endsWith('.invalid'))throw new BadRequestException('Preview workspaces support fictional customers only.');}
 }

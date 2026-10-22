@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const ts=require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript');
+const ts=require('typescript');
 function tsToCjs(relative){const src=fs.readFileSync(path.join(__dirname,'../src',relative),'utf8');const {outputText,diagnostics}=ts.transpileModule(src,{fileName:relative,reportDiagnostics:true,compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});assert.equal((diagnostics||[]).filter(x=>x.category===1).length,0);return outputText;}
 function pure(relative){const js=tsToCjs(relative),m={exports:{}};Function('exports','module',js)(m.exports,m);return m.exports;}
 const p=pure('accounting/journal-policy.ts');

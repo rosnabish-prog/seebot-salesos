@@ -27,7 +27,7 @@ export class AccountsController {
     const account=await this.db.$transaction(async tx=> {
       const a=await tx.account.create({data:{organizationId:seebot.id,name:body.name.trim(),domain,website:`https://${domain}`,industry:body.industry,hypothesis,priority:(['LOW','MEDIUM','HIGH'].includes(body.priority||'')?body.priority:'MEDIUM') as any,ownerId}});
       const opportunity=await tx.opportunity.create({data:{accountId:a.id,title:`${a.name} — Initial Engagement`,ownerId,serviceLine:body.industry,stageVisits:{create:{stage:'ACCOUNT_RESEARCHED',evidence:hypothesis?{opportunityHypothesis:hypothesis}:{}}}}});
-      await tx.task.create({data:{opportunityId:opportunity.id,assigneeId:ownerId,title:`Stage: Complete account research — ${a.name}`,description:'Fill the Research checklist in the opportunity workspace.'}});
+      await tx.task.create({data:{organizationId:seebot.id,opportunityId:opportunity.id,assigneeId:ownerId,title:`Stage: Complete account research — ${a.name}`,description:'Fill the Research checklist in the opportunity workspace.'}});
       await tx.auditEvent.create({data:{actorId:req.user.id,entityType:'ACCOUNT',entityId:a.id,action:'ACCOUNT_CREATED',detail:{domain}}});
       return a;
     });

@@ -82,7 +82,7 @@ export class ClientSuccessController {
    const plan=await this.db.renewalPlan.upsert({where:{contractId},create:{contractId,ownerId:c.opportunity.ownerId,nextReviewAt:reviewAt,notes:'Confirm client objectives, existing pricing and renewal options.'},update:{nextReviewAt:reviewAt}});
    const taskTitle=`Renewal review: ${c.title}`;
    const existing=await this.db.task.findFirst({where:{opportunityId:c.opportunityId,title:taskTitle,status:'OPEN'}});
-   if(!existing)await this.db.task.create({data:{assigneeId:c.opportunity.ownerId,opportunityId:c.opportunityId,title:taskTitle,dueAt:reviewAt,description:'Review the contract expiry, service performance, client satisfaction and renewal proposal.'}});
+   if(!existing)await this.db.task.create({data:{organizationId:req.user.organizationId,assigneeId:c.opportunity.ownerId,opportunityId:c.opportunityId,title:taskTitle,dueAt:reviewAt,description:'Review the contract expiry, service performance, client satisfaction and renewal proposal.'}});
    await this.db.auditEvent.create({data:{actorId:req.user.id,action:'RENEWAL_REVIEW_SCHEDULED',entityType:'CONTRACT',entityId:contractId,detail:{nextReviewAt:reviewAt.toISOString()}}});
    return {plan,createdTask:!existing};
  }

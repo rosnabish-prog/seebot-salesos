@@ -1,16 +1,54 @@
 import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { Prisma, Opportunity } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { STAGES, STAGE_INDEX, STAGE_FIELDS, StageId } from '@seebot/shared';
+import { STAGES, STAGE_INDEX, StageId } from '@seebot/shared';
+import {defaultPipelineConfig,parsePipelineConfig,parsePriorStageSource,stageConfig,type PipelineConfig} from '../workspace/pipeline-config';
 @Injectable()
 export class OpportunityWorkflowService {
   constructor(private db:PrismaService) {}
 
+  private async pipeline(tx:Prisma.TransactionClient|PrismaService,opp:Opportunity):Promise<PipelineConfig>{
+    const account=await tx.account.findUnique({where:{id:opp.accountId},select:{organizationId:true}});
+    if(!account?.organizationId)return defaultPipelineConfig();
+    const settings=await tx.workspaceSettings.findUnique({where:{organizationId:account.organizationId},select:{pipelineConfig:true}});
+    return parsePipelineConfig(settings?.pipelineConfig);
+  }
+
+  private async prefill(tx:Prisma.TransactionClient|PrismaService,opp:Opportunity,config:PipelineConfig,evidence:Record<string,unknown>){
+    const stage=stageConfig(config,opp.stage);if(!stage)return {};
+    const wanted=stage.fields.filter(field=>field.autoFill&&!String(evidence[field.key]??'').trim());
+    if(!wanted.length)return {};
+    const [account,contact,contract]=await Promise.all([
+      tx.account.findUnique({where:{id:opp.accountId},select:{name:true,website:true,industry:true,country:true,hypothesis:true}}),
+      tx.contact.findFirst({where:{accountId:opp.accountId,optedOut:false},orderBy:[{verified:'desc'},{createdAt:'asc'}],select:{name:true,email:true,title:true}}),
+      tx.contract.findFirst({where:{opportunityId:opp.id},orderBy:{createdAt:'desc'},select:{title:true,status:true}})
+    ]);
+    const values:Record<string,unknown>={
+      'account.name':account?.name,'account.website':account?.website,'account.industry':account?.industry,'account.country':account?.country,'account.hypothesis':account?.hypothesis,
+      'opportunity.title':opp.title,'opportunity.serviceLine':opp.serviceLine,'opportunity.currency':opp.currency,
+      'primaryContact.name':contact?.name,'primaryContact.email':contact?.email,'primaryContact.title':contact?.title,
+      'latestContract.title':contract?.title,'latestContract.status':contract?.status
+    };
+    const priorSources=wanted.map(field=>field.autoFill?parsePriorStageSource(field.autoFill):null).filter(Boolean) as {stageId:string;fieldKey:string}[];
+    if(priorSources.length){
+      const visits=await tx.stageVisit.findMany({where:{opportunityId:opp.id,stage:{in:[...new Set(priorSources.map(source=>source.stageId))]}},orderBy:{enteredAt:'desc'},select:{stage:true,evidence:true}});
+      for(const source of priorSources){
+       const visit=visits.find(v=>v.stage===source.stageId),priorEvidence=(visit?.evidence&&typeof visit.evidence==='object'&&!Array.isArray(visit.evidence)?visit.evidence:{}) as Record<string,unknown>;
+       values[`stage.${source.stageId}.${source.fieldKey}`]=priorEvidence[source.fieldKey];
+      }
+    }
+    const out:Record<string,string>={};
+    for(const field of wanted){const value=field.autoFill?values[field.autoFill]:undefined;if(value!==undefined&&value!==null&&String(value).trim())out[field.key]=String(value);}
+    return out;
+  }
+
   async requirements(tx:Prisma.TransactionClient,opp:Opportunity,visit:{evidence:unknown},stage=opp.stage):Promise<string[]> {
     const id=stage as StageId;
-    if(!(id in STAGE_FIELDS))return ['Invalid stage'];
+    if(!(id in STAGE_INDEX))return ['Invalid stage'];
+    const config=await this.pipeline(tx,opp),configured=stageConfig(config,id);
+    if(!configured)return ['Invalid stage'];
     const evidence=(visit.evidence && typeof visit.evidence==='object' && !Array.isArray(visit.evidence) ?visit.evidence:{}) as Record<string,unknown>;
-    const missing=STAGE_FIELDS[id].filter(f=>f.required && (typeof evidence[f.key]!=='string' || !(evidence[f.key] as string).trim())).map(f=>f.label);
+    const missing=configured.fields.filter(f=>f.required && (typeof evidence[f.key]!=='string' || !(evidence[f.key] as string).trim())).map(f=>f.label);
     if(Object.values(evidence).some(v=>typeof v==='string' && /DEMO ONLY|DEMO_ONLY/i.test(v)))missing.push('Fictional demo data cannot be submitted as genuine stage evidence');
     if(id==='ACCOUNT_RESEARCHED' && typeof evidence.companySummary==='string' && evidence.companySummary.includes('Independent company research is still required.')) missing.push('Replace the demo CRM outline with verified research findings');
     if(id==='DECISION_MAKER_IDENTIFIED') {
@@ -46,18 +84,21 @@ export class OpportunityWorkflowService {
     if(!opportunity)throw new BadRequestException('Opportunity not found');
     const visit=await this.db.stageVisit.findFirst({where:{opportunityId:oppId,exitedAt:null},orderBy:{enteredAt:'desc'}});
     if(!visit)throw new BadRequestException('Active stage visit missing');
+    const config=await this.pipeline(this.db,opportunity);
     const missing=await this.requirements(this.db,opportunity,visit);
-    return {missing,ready:missing.length===0,evidence:visit.evidence,visitId:visit.id};
+    const evidence=(visit.evidence&&typeof visit.evidence==='object'&&!Array.isArray(visit.evidence)?visit.evidence:{}) as Record<string,unknown>;
+    const prefill=await this.prefill(this.db,opportunity,config,evidence);
+    return {missing,ready:missing.length===0,evidence:visit.evidence,prefill,visitId:visit.id,stage:stageConfig(config,opportunity.stage)};
   }
 
   /** Stage updates and supporting evidence are saved atomically with an auto-transition where eligible. */
   async saveEvidence(oppId:string,actorId:string,patch:Record<string,unknown>) {
-    const known=STAGE_FIELDS;
     return this.db.$transaction(async tx=> {
       const opp=await tx.opportunity.findUnique({where:{id:oppId}});
       if(!opp||opp.status!=='OPEN')throw new BadRequestException('Open opportunity not found.');
       const stage=opp.stage as StageId;
-      const allowed=new Set(known[stage]?.map(f=>f.key)||[]);
+      const config=await this.pipeline(tx,opp),configured=stageConfig(config,stage);
+      const allowed=new Set(configured?.fields.map(f=>f.key)||[]);
       for(const key of Object.keys(patch))if(!allowed.has(key))throw new BadRequestException(`Unrecognized field: ${key}`);
       const visit=await tx.stageVisit.findFirst({where:{opportunityId:oppId,exitedAt:null},orderBy:{enteredAt:'desc'}});
       if(!visit)throw new BadRequestException('Active stage visit missing.');
@@ -84,10 +125,16 @@ export class OpportunityWorkflowService {
     await tx.stageVisit.create({data:{opportunityId:opp.id,stage}});
     await tx.task.updateMany({where:{opportunityId:opp.id,status:'OPEN',title:{startsWith:'Stage:'}},data:{status:'DONE',completedAt:new Date()}});
     if(stage!=='CLOSED_WON') {
-      const stageName=STAGES.find(s=>s.id===stage)?.label||stage;
-      await tx.task.create({data:{opportunityId:opp.id,assigneeId:opp.ownerId,title:`Stage: Complete ${stageName}`,description:'Complete required evidence and activities to advance this opportunity.'}});
+      const config=await this.pipeline(tx,opp);
+      const stageName=stageConfig(config,stage)?.label||STAGES.find(s=>s.id===stage)?.label||stage;
+      await tx.task.create({data:{organizationId:(await tx.account.findUnique({where:{id:opp.accountId},select:{organizationId:true}}))?.organizationId,opportunityId:opp.id,assigneeId:opp.ownerId,title:`Stage: Complete ${stageName}`,description:'Complete required evidence and activities to advance this opportunity.'}});
     }
     await tx.stageTransition.create({data:{opportunityId:opp.id,fromStage:opp.stage,toStage:stage,actorId,reason,automated}});
+    // Client Management is a relationship view over the SAME Account record, never a duplicate company.
+    // Once contracting begins, keep the relationship visible even if the opportunity is later moved backward for correction.
+    if(STAGE_INDEX[stage]>=STAGE_INDEX.PILOT_CONTRACTED&&stage!=='CLOSED_WON'){
+      await tx.account.updateMany({where:{id:opp.accountId,status:{not:'Customer'}},data:{status:'Contracting'}});
+    }
     if(stage==='CLOSED_WON') {
       const contract=await tx.contract.findFirst({where:{opportunityId:opp.id,type:'PRODUCTION_OTHER',status:'SIGNED'},orderBy:{signedAt:'desc'}});
       if(contract?.committedAmount)await tx.opportunity.update({where:{id:opp.id},data:{contractedAmount:contract.committedAmount,currency:contract.currency||opp.currency}});

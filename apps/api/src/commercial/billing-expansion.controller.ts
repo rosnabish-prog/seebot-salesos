@@ -7,9 +7,9 @@ import {canApproveCustomerCredit} from '../accounting/receivable-policy';
 @UseGuards(AuthGuard) @Controller('commercial')
 export class BillingExpansionController {
  constructor(private db:PrismaService){}
- private async invoice(req:AuthRequest,id:string,edit=false){const i=await this.db.invoice.findUnique({where:{id},include:{account:true,payments:true,adjustments:true}});if(!i)throw new BadRequestException('Invoice not found.');if(edit)ensureCanEdit(req.user,i.account.ownerId);else ensureOwner(req.user,i.account.ownerId);return i;}
- private async contract(req:AuthRequest,id:string,edit=false){const c=await this.db.contract.findUnique({where:{id},include:{opportunity:true}});if(!c)throw new BadRequestException('Contract not found.');if(edit)ensureCanEdit(req.user,c.opportunity.ownerId);else ensureOwner(req.user,c.opportunity.ownerId);return c;}
- @Get('invoices/:id/adjustments')async adjustments(@Req()req:AuthRequest,@Param('id')id:string){await this.invoice(req,id);return this.db.invoiceAdjustment.findMany({where:{invoiceId:id},include:{document:{select:{id:true,number:true,issuedAt:true}}},orderBy:{createdAt:'desc'}});}
+ private async invoice(req:AuthRequest,id:string,edit=false){const i=await this.db.invoice.findUnique({where:{id},include:{account:true,payments:true,adjustments:true}});if(!i||i.account.organizationId!==req.user.organizationId)throw new BadRequestException('Invoice not found.');if(edit)ensureCanEdit(req.user,i.account.ownerId);else ensureOwner(req.user,i.account.ownerId);return i;}
+ private async contract(req:AuthRequest,id:string,edit=false){const c=await this.db.contract.findUnique({where:{id},include:{opportunity:true}});if(!c||!(await this.db.account.findFirst({where:{id:c.opportunity.accountId,organizationId:req.user.organizationId},select:{id:true}})))throw new BadRequestException('Contract not found.');if(edit)ensureCanEdit(req.user,c.opportunity.ownerId);else ensureOwner(req.user,c.opportunity.ownerId);return c;}
+ @Get('invoices/:id/adjustments')async adjustments(@Req()req:AuthRequest,@Param('id')id:string){await this.invoice(req,id);return this.db.invoiceAdjustment.findMany({where:{invoiceId:id},include:{creditNoteDocument:{select:{id:true,number:true,issuedAt:true}}},orderBy:{createdAt:'desc'}});}
  @Post('invoices/:id/adjustments') async createCredit(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:any){
   const inv=await this.invoice(req,id,true);
   if(inv.isDemo&&body?.isDemo!==true)throw new BadRequestException('Demo adjustments must be explicitly labeled.');

@@ -1,5 +1,10 @@
+import {TenantInvoicesController} from './accounting/tenant-invoices.controller';
+import {TenantFinanceAutomationController} from './accounting/tenant-finance-automation.controller';
+import {TenantCreditNotesController} from './accounting/tenant-credit-notes.controller';
+import {TaxRulesController} from './accounting/tax-rules.controller';
 import {TaxReviewController} from './accounting/tax-review.controller';
 import {TenantScopeService} from './workspace/tenant-scope.service';
+import {PipelineSettingsController} from './workspace/pipeline-settings.controller';
 import {TenantBusinessController} from './workspace/tenant-business.controller';
 import {JournalService} from './accounting/journal.service';
 import {JournalController} from './accounting/journal.controller';
@@ -16,18 +21,22 @@ import {DeliveryController} from './delivery/delivery.controller';
 import {ReviewWorkflowController} from './reporting/review-workflow.controller';
 import {ExecutiveDrilldownsController} from './reporting/executive-drilldowns.controller';
 import {WorkspacesController} from './workspace/workspaces.controller';
+import {WorkspaceInvitationsController} from './workspace/workspace-invitations.controller';
 import {IdentityGuard} from './workspace/identity.guard';
 import {LocalReminderJobsController} from './invoices/local-reminder-jobs.controller';
 import { ClientSuccessController } from './client-success/client-success.controller';
+import {TenantClientSuccessController} from './client-success/tenant-client-success.controller';
 import { IntegrationStatusController } from './integrations/status/integration-status.controller';
 import { InvoiceRemindersController } from './invoices/reminders.controller';
 import { PublicSurveysController,ClientSurveysController } from './surveys/surveys.controller';
+import {TenantSurveysController} from './surveys/tenant-surveys.controller';
 import { EmployeeInvitationController } from './organizations/employee-invitation.controller';
 import { InvoicePdfController } from './invoices/invoice-pdf.controller';
 import { InvoicePdfService } from './invoices/invoice-pdf.service';
 import { GoogleLoginController } from './auth/google-login.controller';
 import { GoogleIdentityService } from './integrations/google/google-identity.service';
 import { GmailConnectionController } from './integrations/google/gmail-connection.controller';
+import {TenantGmailConnectionController} from './integrations/google/tenant-gmail-connection.controller';
 import { GmailConnectionService } from './integrations/google/gmail-connection.service';
 import { OutgoingMessageService } from './communications/outgoing-message.service';
 import { OutgoingMessageController } from './communications/outgoing-message.controller';
@@ -35,10 +44,13 @@ import { ExternalSigningController, SigningAdministrationController } from './si
 import { Module } from '@nestjs/common';
 import { OrganizationsController } from './organizations/organizations.controller';
 import { ContractPricingController } from './contracts/contract-pricing.controller';
+import {TenantContractsController} from './contracts/tenant-contracts.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthGuard } from './common/auth.guard';
 import { AuthService } from './auth/auth.service';
+import { AccountRecoveryService } from './auth/account-recovery.service';
+import {MfaService} from './auth/mfa.service';
 import { AuthController } from './auth/auth.controller';
 import { UsersController } from './users/users.controller';
 import { AccountsController } from './accounts/accounts.controller';
@@ -49,13 +61,14 @@ import { CampaignsController } from './campaigns/campaigns.controller';
 import { DashboardController } from './dashboard/dashboard.controller';
 import { IndustriesController } from './industries/industries.controller';
 import { IntelligenceController } from './intelligence/intelligence.controller';
+import {TenantIntelligenceController} from './intelligence/tenant-intelligence.controller';
 import { DemoIntelligenceProvider } from './intelligence/demo-provider';
 import { ClientsController, ClientDemoController } from './clients/clients.controller';
 import { OpportunityAIController } from './opportunities/opportunity-ai.controller';
 import { DemoOpportunityAssistant } from './opportunities/opportunity-ai.demo';
 @Module({
-  imports:[JwtModule.register({secret:process.env.JWT_SECRET,signOptions:{expiresIn:'8h'}})],
-  controllers:[TaxReviewController,TenantBusinessController,JournalController,TenantAccountsController,WorkspaceLogoController,CreditNotePdfController,ReportTemplatesController,FinanceAutomationController,DemoLifecycleController,ContractsExpansionController,BillingExpansionController,DeliveryController,ReviewWorkflowController,ExecutiveDrilldownsController,WorkspacesController,LocalReminderJobsController,ClientSuccessController,IntegrationStatusController,InvoiceRemindersController,PublicSurveysController,ClientSurveysController,EmployeeInvitationController,InvoicePdfController,GoogleLoginController,GmailConnectionController,OutgoingMessageController,ExternalSigningController,SigningAdministrationController,OrganizationsController,ContractPricingController,AuthController,UsersController,AccountsController,OpportunitiesController,TasksController,CampaignsController,DashboardController,IndustriesController,IntelligenceController,OpportunityAIController,ClientsController,ClientDemoController],
-  providers:[TenantScopeService,JournalService,EvidenceArchiveService,IdentityGuard,InvoicePdfService,GoogleIdentityService,GmailConnectionService,OutgoingMessageService,PrismaService,AuthGuard,AuthService,OpportunityWorkflowService,DemoIntelligenceProvider,DemoOpportunityAssistant]
+  imports:[JwtModule.register({secret:process.env.JWT_SECRET,signOptions:{expiresIn:'7d'}})],
+  controllers:[TenantCreditNotesController,TenantFinanceAutomationController,TenantGmailConnectionController,TenantIntelligenceController,TenantContractsController,TenantClientSuccessController,PipelineSettingsController,TenantSurveysController,WorkspaceInvitationsController,TenantInvoicesController,TaxRulesController,TaxReviewController,TenantBusinessController,JournalController,TenantAccountsController,WorkspaceLogoController,CreditNotePdfController,ReportTemplatesController,FinanceAutomationController,DemoLifecycleController,ContractsExpansionController,BillingExpansionController,DeliveryController,ReviewWorkflowController,ExecutiveDrilldownsController,WorkspacesController,LocalReminderJobsController,ClientSuccessController,IntegrationStatusController,InvoiceRemindersController,PublicSurveysController,ClientSurveysController,EmployeeInvitationController,InvoicePdfController,GoogleLoginController,GmailConnectionController,OutgoingMessageController,ExternalSigningController,SigningAdministrationController,OrganizationsController,ContractPricingController,AuthController,UsersController,AccountsController,OpportunitiesController,TasksController,CampaignsController,DashboardController,IndustriesController,IntelligenceController,OpportunityAIController,ClientsController,ClientDemoController],
+  providers:[MfaService,AccountRecoveryService,TenantScopeService,JournalService,EvidenceArchiveService,IdentityGuard,InvoicePdfService,GoogleIdentityService,GmailConnectionService,OutgoingMessageService,PrismaService,AuthGuard,AuthService,OpportunityWorkflowService,DemoIntelligenceProvider,DemoOpportunityAssistant]
 })
 export class AppModule {}

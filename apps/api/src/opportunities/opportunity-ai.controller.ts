@@ -22,7 +22,7 @@ export class OpportunityAIController {
   constructor(private db:PrismaService,private demo:DemoOpportunityAssistant){}
   private async opportunity(req:AuthRequest,id:string,edit=false){
     const opp=await this.db.opportunity.findUnique({where:{id},include:{account:{include:{contacts:true}}}});
-    if(!opp)throw new NotFoundException('Opportunity not found.');
+    if(!opp||opp.account.organizationId!==req.user.organizationId)throw new NotFoundException('Opportunity not found.');
     edit?ensureCanEdit(req.user,opp.ownerId):ensureOwner(req.user,opp.ownerId);
     return opp;
   }

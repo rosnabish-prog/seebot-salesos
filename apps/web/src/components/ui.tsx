@@ -37,6 +37,7 @@ export function Modal({title,children,onClose,width=520}:{title:string;children:
  return createPortal(<div className="modal-shade" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)closeRef.current();}}><div ref={ref} className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{maxWidth:width}}><div className="modal-top"><h2 id={titleId}>{title}</h2><button type="button" className="icon-button" onClick={()=>closeRef.current()} aria-label="Close dialog"><X size={20}/></button></div>{children}</div></div>,document.body);
 }
 /** Consistent dropdown used in filters and sales forms, independent of native OS menu styling. */
+function selectLabel(node:ReactNode):string{if(typeof node==='string'||typeof node==='number')return String(node);if(Array.isArray(node))return node.map(selectLabel).join('');if(isValidElement(node))return selectLabel((node.props as {children?:ReactNode}).children);return '';}
 export function BrandSelect({children,value,onValueChange,className='',required=false,ariaLabel}:{children:ReactNode;value:string|number;onValueChange:(value:string)=>void;className?:string;required?:boolean;ariaLabel?:string}){
  const [open,setOpen]=useState(false);
  const ref=useRef<HTMLDivElement>(null);
@@ -44,7 +45,7 @@ export function BrandSelect({children,value,onValueChange,className='',required=
  const listId=useId();
  const options=Children.toArray(children).filter(isValidElement).map(child=>{
    const props=child.props as {value?:string|number;children?:ReactNode;disabled?:boolean};
-   const label=typeof props.children==='string'||typeof props.children==='number'?String(props.children):String(props.value??'');
+   const label=selectLabel(props.children).trim()||String(props.value??'');
    return {value:String(props.value??label),label,disabled:props.disabled===true};
  });
  const selected=options.find(o=>o.value===String(value));

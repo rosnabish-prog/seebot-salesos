@@ -36,7 +36,8 @@ export class InvoicePdfService {
     const number=await this.db.$transaction(async tx=>{
       await tx.invoiceSequence.upsert({where:{organizationId_year:{organizationId:issuer.id,year}},create:{organizationId:issuer.id,year,nextNumber:1},update:{}});
       const counter=await tx.invoiceSequence.update({where:{organizationId_year:{organizationId:issuer.id,year}},data:{nextNumber:{increment:1}}});
-      const number=`SBS-${year}-${String(counter.nextNumber-1).padStart(6,'0')}`;
+      const prefix=issuer.slug==='seebot'?'SBS':`ORG-${issuer.slug.toUpperCase()}`;
+      const number=`${prefix}-${year}-${String(counter.nextNumber-1).padStart(6,'0')}`;
       await tx.invoice.update({where:{id:invoiceId},data:{number}});
       await tx.auditEvent.create({data:{actorId,action:'INVOICE_NUMBER_RESERVED',entityType:'INVOICE',entityId:invoiceId,detail:{number}}});
       return number;
@@ -48,6 +49,8 @@ export class InvoicePdfService {
     text('INVOICE',22,true);text(issuer.legalName,13,true);
     text(issuer.billingAddress,10);if(issuer.taxRegistrationNumber)text(`Tax registration: ${issuer.taxRegistrationNumber}`);
     text(`Tax treatment: ${invoice.taxReview.treatment} (${invoice.taxReview.jurisdiction})`);
+    if(invoice.taxReview.ruleCodeSnapshot)text(`Tax rule: ${invoice.taxReview.ruleCodeSnapshot} · ${invoice.taxReview.ratePercentSnapshot||0}%`);
+    if(invoice.taxReview.ruleInvoiceNoteSnapshot)text(`Tax note: ${invoice.taxReview.ruleInvoiceNoteSnapshot}`);
     y-=12;text(`Invoice: ${number}`,12,true);text(`Issued (UTC): ${new Date().toISOString().slice(0,10)}`);text(`Due: ${new Date(invoice.dueAt).toISOString().slice(0,10)}`);
     text(`Billed to: ${invoice.account.name}`,11,true);text(invoice.account.billingAddress);
     if(invoice.account.taxRegistrationNumber)text(`Customer tax ID: ${invoice.account.taxRegistrationNumber}`);

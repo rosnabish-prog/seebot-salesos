@@ -1,0 +1,8 @@
+code,name,jurisdiction,treatment,ratePercent,status,invoiceNote
+UK_STANDARD,UK VAT Standard,GB,STANDARD,,DRAFT,Finance must confirm applicable rate and supply category
+UK_REDUCED,UK VAT Reduced,GB,REDUCED,,DRAFT,Finance must confirm applicable rate and supply category
+UK_ZERO,UK VAT Zero Rated,GB,ZERO,0,DRAFT,Finance must establish zero-rating eligibility
+UK_EXEMPT,UK VAT Exempt,GB,EXEMPT,0,DRAFT,Finance must confirm exemption applies
+UK_OUTSIDE,UK Outside Scope,GB,OUT_OF_SCOPE,0,DRAFT,Finance must confirm outside-scope treatment
+UK_REVERSE,UK Reverse Charge,GB,REVERSE_CHARGE,0,DRAFT,Finance must confirm eligibility and required invoice wording
+INTL_MANUAL,Other Jurisdiction,XX,OTHER_MANUAL,,DRAFT,Finance must determine tax jurisdiction and rate

@@ -1,0 +1,106 @@
+name: SalesOS build and database checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: seebot
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: seebot_salesos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U seebot -d seebot_salesos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://seebot:ci_only_password@localhost:5432/seebot_salesos?schema=public
+      JWT_SECRET: CI_ONLY_RANDOM_TEST_SECRET_NOT_FOR_PRODUCTION_0123456789
+      CORS_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      API_PORT: "4000"
+      NODE_ENV: test
+      SIGNING_ENABLED: "false"
+      GMAIL_SENDING_ENABLED: "false"
+      SURVEYS_ENABLED: "false"
+      TENANT_SCOPED_CRM_PREVIEW: "false"
+      SEED_DEMO_DATA: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install monorepo dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build shared types
+        run: npm run build -w @seebot/shared
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema=packages/database/prisma/schema.prisma
+      - name: Generate SQL baseline for migration review (never apply to a live database)
+        run: |
+          mkdir -p artifacts/database
+          npx prisma migrate diff --from-empty --to-schema-datamodel packages/database/prisma/schema.prisma --script > artifacts/database/schema-baseline-review.sql
+          test -s artifacts/database/schema-baseline-review.sql
+      - name: Upload review-only schema baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: salesos-database-schema-review
+          path: artifacts/database/schema-baseline-review.sql
+          retention-days: 7
+      - name: Apply schema to disposable PostgreSQL test database
+        run: npx prisma db push --schema=packages/database/prisma/schema.prisma
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=packages/database/prisma/schema.prisma
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit and policy tests
+        run: npm run test
+      - name: Build API and Next.js frontend
+        run: npm run build
+      - name: Independently verify signing evidence and tampering
+        run: node scripts/test-signing-evidence.cjs
+      - name: Cross-tenant API isolation over HTTP
+        run: node scripts/tenant-isolation-e2e.cjs
+      - name: Install browser for end-to-end checks
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E for company onboarding and finance
+        run: node scripts/browser-e2e.cjs
+      - name: Save real browser screenshots for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: salesos-consolidated-browser-screens
+          path: artifacts/salesos-e2e-screens/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Confirm pending real-world security gates
+        run: |
+          test "$SIGNING_ENABLED" = false
+          test "$TENANT_SCOPED_CRM_PREVIEW" = false
+          echo "Real signing and tenant preview remain disabled in CI."

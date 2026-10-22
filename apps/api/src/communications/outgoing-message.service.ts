@@ -36,6 +36,11 @@ export class OutgoingMessageService {
       const env=await this.db.signingEnvelope.findUnique({where:{id:draft.entityId}});
       if(!env||env.status!=='INVITED'||env.revokedAt||env.expiresAt<=new Date())throw new BadRequestException('Signing invitation was revoked, completed or expired.');
     }
+    if(draft.category==='WORKSPACE_INVITATION'){
+      const invitation=await this.db.workspaceInvitation.findUnique({where:{id:draft.entityId}});
+      if(!invitation||invitation.status!=='PENDING'||invitation.expiresAt<=new Date()||invitation.organizationId!==draft.organizationId||invitation.email!==draft.recipientEmail)
+        throw new BadRequestException('Workspace invitation is no longer valid.');
+    }
     if(draft.category==='EMPLOYEE_INVITATION'){
       const inv=await this.db.employeeInvitation.findUnique({where:{id:draft.entityId}});
       if(!inv||inv.status!=='PENDING'||inv.expiresAt<=new Date())throw new BadRequestException('Employee invitation has already been used or has expired.');

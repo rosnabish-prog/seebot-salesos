@@ -93,15 +93,14 @@ export class OpportunitiesController {
     if(!body.title?.trim()||!['NDA','MSA','SOW','DPA','PRODUCTION_OTHER'].includes(body.type)||!['DRAFT','SIGNED','PENDING_SIGNATURE','EXPIRED','TERMINATED'].includes(body.status))throw new BadRequestException('Valid contract details required.');
     if(body.status==='SIGNED')throw new BadRequestException('Create a draft, upload the executed PDF, verify it, then confirm the signing in Client Management.');
     if((body.signatureDueAt&&!Number.isFinite(new Date(body.signatureDueAt).getTime()))||(body.expiresAt&&!Number.isFinite(new Date(body.expiresAt).getTime())))throw new BadRequestException('Invalid contract dates.');
-    if(body.status==='SIGNED'&&!body.evidenceReference?.trim())throw new BadRequestException('Signing evidence reference required.');
-    if(body.type==='PRODUCTION_OTHER'&&body.status==='SIGNED'&&(body.committedAmount===undefined||!Number.isFinite(body.committedAmount)||body.committedAmount<0||!/^[A-Z]{3}$/.test(body.currency||'')))throw new BadRequestException('Signed production agreement requires a committed value and currency.');
+
     if(body.parentContractId){
       if(body.type!=='SOW')throw new BadRequestException('Only SOW agreements may reference an MSA.');
       const master=await this.db.contract.findFirst({where:{id:body.parentContractId,type:'MSA',opportunity:{accountId:(await this.db.opportunity.findUnique({where:{id}}))?.accountId}}});
       if(!master)throw new BadRequestException('Parent MSA must belong to the same client account.');
     }
     const opp=await this.db.opportunity.findUnique({where:{id},include:{account:{select:{isDemo:true}}}});
-    const contract=await this.db.contract.create({data:{opportunityId:id,title:body.title,type:body.type,status:body.status,isDemo:Boolean(opp?.account.isDemo),evidenceReference:body.evidenceReference||null,committedAmount:body.committedAmount,currency:body.currency,signedAt:body.status==='SIGNED'?new Date():null,signatureDueAt:body.signatureDueAt?new Date(body.signatureDueAt):null,expiresAt:body.expiresAt?new Date(body.expiresAt):null,parentContractId:body.parentContractId||null}});
+    const contract=await this.db.contract.create({data:{opportunityId:id,title:body.title,type:body.type,status:body.status,isDemo:Boolean(opp?.account.isDemo),evidenceReference:body.evidenceReference||null,committedAmount:body.committedAmount,currency:body.currency,signedAt:null,signatureDueAt:body.signatureDueAt?new Date(body.signatureDueAt):null,expiresAt:body.expiresAt?new Date(body.expiresAt):null,parentContractId:body.parentContractId||null}});
     await this.flow.tryAutoAdvance(id,req.user.id);return contract;
   }
 }

@@ -94,6 +94,9 @@ model User {
   googleOAuthStates GoogleOAuthState[]
   createdInvitations EmployeeInvitation[]
   issuedSurveys ClientSurveyInvitation[]
+  passwordResetRequests PasswordResetRequest[]
+  loginChallenges LoginChallenge[]
+  surveyTemplates ClientSurveyTemplate[] @relation("SurveyTemplateCreator")
 }
 model Account {
   id String @id @default(cuid())
@@ -216,6 +219,8 @@ model StageComment {
 }
 model Task {
   id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict)
   title String
   description String?
   status TaskStatus @default(OPEN)
@@ -227,6 +232,7 @@ model Task {
   createdAt DateTime @default(now())
   completedAt DateTime?
   @@index([assigneeId,status,dueAt])
+  @@index([organizationId,status])
 }
 model Activity {
   id String @id @default(cuid())
@@ -286,6 +292,8 @@ model Contract {
 }
 model Campaign {
   id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict)
   name String
   sector String
   status String @default("PLANNING")
@@ -294,6 +302,7 @@ model Campaign {
   owner User @relation(fields:[ownerId],references:[id])
   createdAt DateTime @default(now())
   accounts CampaignAccount[]
+  @@index([organizationId,createdAt])
 }
 model Industry {
   id String @id @default(cuid())
@@ -532,6 +541,8 @@ model ClientIssue {
 // have been changed to enforce membership + organization ownership.
 model Organization {
   id String @id @default(cuid())
+  createdById String?
+  @@index([createdById])
   slug String @unique
   name String
   legalName String?
@@ -559,7 +570,11 @@ model Organization {
   outgoingMessages OutgoingMessage[]
   accountingJournals AccountingJournal[]
   bankStatementRows BankStatementRow[]
+  taxRules TaxRule[]
+  tasks Task[]
+  campaigns Campaign[]
   employeeInvitations EmployeeInvitation[]
+  surveyTemplates ClientSurveyTemplate[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -743,9 +758,13 @@ model ClientSurveyInvitation {
   createdById String
   createdBy User @relation(fields:[createdById],references:[id])
   recipientEmail String
-  type String // NPS | CSAT
+  type String // NPS | CSAT | CUSTOM
   title String
   question String @db.Text
+  templateId String?
+  template ClientSurveyTemplate? @relation(fields:[templateId],references:[id],onDelete:SetNull)
+  questionnaire Json @default("[]")
+  answers Json?
   tokenHash String @unique
   status String @default("DRAFT") // DRAFT | SENT | ANSWERED | EXPIRED | REVOKED
   isDemo Boolean @default(false)
@@ -757,8 +776,26 @@ model ClientSurveyInvitation {
   createdAt DateTime @default(now())
   @@index([accountId,createdAt])
   @@index([status,expiresAt])
+  @@index([templateId])
 }
 
+model ClientSurveyTemplate {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  name String
+  description String? @db.Text
+  type String @default("CUSTOM") // CUSTOM | NPS | CSAT
+  questions Json @default("[]")
+  active Boolean @default(true)
+  createdById String
+  createdBy User @relation("SurveyTemplateCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  invitations ClientSurveyInvitation[]
+  @@unique([organizationId,name])
+  @@index([organizationId,active])
+}
 
 // v1.6.3 — internal client success reporting, no outside API required.
 // Reports capture an immutable data snapshot at generation time.
@@ -855,6 +892,7 @@ model InvoiceAdjustment {
  approvedById String?
  approvedAt DateTime?
  createdAt DateTime @default(now())
+ creditNoteDocument CreditNoteDocument?
  @@index([invoiceId,status])
 }
 model InvoiceRecipient {
@@ -920,6 +958,7 @@ model WorkspaceSettings {
  targetIndustries Json @default("[]")
  plan String @default("ALL_FEATURES_UNLOCKED")
  setupComplete Boolean @default(false)
+ pipelineConfig Json @default("{}")
  updatedAt DateTime @updatedAt
 }
 model WorkspaceInvitation {
@@ -1017,6 +1056,28 @@ model BankStatementRow {
 }
 
 // Human-reviewed tax snapshot. This records decisions, it does not decide VAT jurisdiction.
+model TaxRule {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  code String
+  name String
+  jurisdiction String
+  treatment String
+  ratePercent Decimal @db.Decimal(9,4)
+  invoiceNote String? @db.Text
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  status String @default("DRAFT") // DRAFT | APPROVED | ARCHIVED
+  createdById String
+  approvedById String?
+  approvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId,code])
+  @@index([organizationId,status,jurisdiction])
+}
+
 model InvoiceTaxReview {
   id String @id @default(cuid())
   invoiceId String @unique
@@ -1028,5 +1089,45 @@ model InvoiceTaxReview {
   reviewedTax Decimal @db.Decimal(18,2)
   reviewedTotal Decimal @db.Decimal(18,2)
   reviewedById String
+  taxRuleId String?
+  ruleCodeSnapshot String?
+  ruleInvoiceNoteSnapshot String? @db.Text
+  ratePercentSnapshot Decimal? @db.Decimal(9,4)
   reviewedAt DateTime @default(now())
 }
+
+model SignupChallenge {
+ id String @id @default(cuid())
+ email String @unique
+ name String
+ passwordHash String
+ tokenHash String @unique
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+}
+
+model PasswordResetRequest {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ tokenHash String @unique
+ expiresAt DateTime
+ usedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([userId,expiresAt])
+}
+
+
+model LoginChallenge {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ codeHash String
+ method String @default("EMAIL")
+ expiresAt DateTime
+ attempts Int @default(0)
+ consumedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([userId,expiresAt])
+}
+

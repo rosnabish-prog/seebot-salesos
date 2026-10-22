@@ -9,6 +9,9 @@ async function main() {
   });
   const assigned=await db.account.updateMany({where:{organizationId:null},data:{organizationId:organization.id}});
   console.log(`Assigned ${assigned.count} previously unscoped legacy accounts to the Seebot organization.`);
+  const scopedTasks=await db.task.updateMany({where:{organizationId:null},data:{organizationId:organization.id}});
+  const scopedCampaigns=await db.campaign.updateMany({where:{organizationId:null},data:{organizationId:organization.id}});
+  console.log(`Migrated ${scopedTasks.count} legacy tasks and ${scopedCampaigns.count} campaigns into Seebot.`);
   const users = await db.user.findMany({select:{id:true,role:true}});
   for (const user of users) {
     await db.organizationMembership.upsert({
