@@ -1,6 +1,6 @@
 # SalesOS Product Consolidation Audit
 
-**Branch:** `feature/ci-isolation-finance-audit`  
+**Canonical source:** `main` (consolidated from `feature/ci-isolation-finance-audit` via PR #1)  
 **Purpose:** canonical product architecture after consolidating legacy Seebot CRM features with independent company workspaces.
 
 This document is a source-level product audit, not a production certification. A feature marked **Operational in preview** is wired through tenant-scoped API + UI and covered by project tests where noted. Provider-dependent features remain explicitly gated until their external systems are configured and independently validated.
