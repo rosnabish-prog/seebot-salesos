@@ -3,7 +3,7 @@
 ## Refresh an already running Codespace
 
 1. Stop `npm run dev` in the Codespace terminal with **Ctrl+C**.
-2. Confirm the feature branch: `git branch --show-current` should display `feature/ci-isolation-finance-audit`.
+2. Confirm the canonical branch: `git branch --show-current` should display `main`. If you are on the old feature branch, run `git fetch origin && git switch main && git pull --ff-only` before starting the preview.
 3. Run `git pull --ff-only`, then `bash scripts/start-codespaces.sh`.
 4. This checks Docker, starts PostgreSQL, Redis and **Mailpit**, updates the local-only `.env` and applies the schema to the disposable development database.
 5. Open **port 3000**, visibility **Private**, from the Codespaces **Ports** tab. Do not make ports 3000, 4000 or 8025 public.
