@@ -31,7 +31,7 @@ The maintained product specification and implementation audit are in [Product Co
 
 No local PowerShell setup is required for this private preview.
 
-1. Open **Code → Codespaces** in this repository. Start a Codespace from branch `feature/ci-isolation-finance-audit`.
+1. Open **Code → Codespaces** in this repository. Start a Codespace from the default `main` branch (the consolidated source is now merged).
 2. In its terminal, run `bash scripts/start-codespaces.sh` from the repository root.
 3. The helper configures a **disposable** local PostgreSQL/Redis/Mailpit environment, an isolated private `.env`, and a fictional admin account. Never connect this helper to live records.
 4. In the Codespace **Ports** tab, keep **3000** (app) and **8025** (test email inbox) **Private**; open the forwarded HTTPS URL for port 3000.
@@ -67,4 +67,4 @@ Before production, complete and independently verify:
 - Secure document object storage, malware scanning, signing evidence custody, legal e-sign review, and jurisdiction-specific finance/tax review.
 - Accessible responsive visual QA, permanent HTTPS staging deployment, browser/UAT regression and production rollback plan.
 
-Track acceptance evidence in [SalesOS release checklist #4](https://github.com/rosnabish-prog/seebot-salesos/issues/4). The full consolidated implementation is in [Pull Request #1](https://github.com/rosnabish-prog/seebot-salesos/pull/1) until its release gates have passed. Do **not** merge or deploy divergent product branches independently.
+Track acceptance evidence in [SalesOS release checklist #4](https://github.com/rosnabish-prog/seebot-salesos/issues/4). The source from [Pull Request #1](https://github.com/rosnabish-prog/seebot-salesos/pull/1) is now merged into `main`. Older overlapping PRs #2/#3 were closed without merging their incompatible implementations. Keep all real signing, tenant production activation and finance/legal provider gates disabled until separately certified.
