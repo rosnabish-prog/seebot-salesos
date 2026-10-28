@@ -59,3 +59,19 @@ UPDATE "OrganizationMembership" m SET "role"='OWNER'
 FROM "Organization" o WHERE m."organizationId"=o.id AND m."userId"=o."createdById"
  AND m.status='ACTIVE' AND m.role='ADMIN'
  AND NOT EXISTS (SELECT 1 FROM "OrganizationMembership" x WHERE x."organizationId"=o.id AND x.role='OWNER' AND x.status='ACTIVE');
+
+-- Preserve the tenant lineage of historical legacy mail before enforcing scoped retries.
+WITH lineage AS (
+ SELECT 'OUTREACH_DRAFT' AS kind,d.id,a."organizationId" FROM "OutreachDraft" d JOIN "Account" a ON a.id=d."accountId"
+ UNION ALL SELECT 'INVOICE',i.id,a."organizationId" FROM "Invoice" i JOIN "Account" a ON a.id=i."accountId"
+ UNION ALL SELECT 'CLIENT_SURVEY',s.id,a."organizationId" FROM "ClientSurveyInvitation" s JOIN "Account" a ON a.id=s."accountId"
+ UNION ALL SELECT 'WORKSPACE_INVITATION',i.id,i."organizationId" FROM "WorkspaceInvitation" i
+ UNION ALL SELECT 'EMPLOYEE_INVITATION',i.id,i."organizationId" FROM "EmployeeInvitation" i
+ UNION ALL SELECT 'CONTRACT',c.id,a."organizationId" FROM "Contract" c JOIN "Opportunity" o ON o.id=c."opportunityId" JOIN "Account" a ON a.id=o."accountId"
+ UNION ALL SELECT 'SIGNING_ENVELOPE',e.id,a."organizationId" FROM "SigningEnvelope" e JOIN "Contract" c ON c.id=e."contractId" JOIN "Opportunity" o ON o.id=c."opportunityId" JOIN "Account" a ON a.id=o."accountId"
+)
+UPDATE "OutgoingMessage" m SET "organizationId"=l."organizationId" FROM lineage l
+WHERE m."organizationId" IS NULL AND m."entityType"=l.kind AND m."entityId"=l.id AND l."organizationId" IS NOT NULL;
+-- Link old unsent drafts only when account context is unambiguous. Never invent sales activities.
+WITH single_open AS (SELECT "accountId",MIN(id) AS id FROM "Opportunity" WHERE status='OPEN' GROUP BY "accountId" HAVING COUNT(*)=1)
+UPDATE "OutreachDraft" d SET "opportunityId"=o.id FROM single_open o WHERE d."opportunityId" IS NULL AND d.status='DRAFT' AND d."accountId"=o."accountId";

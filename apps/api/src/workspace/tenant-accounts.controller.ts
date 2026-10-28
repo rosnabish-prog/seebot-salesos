@@ -1,3 +1,4 @@
+import {OpportunityWorkflowService} from '../opportunities/workflow.service';
 import {TenantScopeService} from './tenant-scope.service';
 import {WorkspaceAccessService} from './workspace-access.service';
 import {BadRequestException,Body,Controller,ForbiddenException,Get,Param,Patch,Post,Req,UseGuards} from '@nestjs/common';
@@ -9,7 +10,7 @@ type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 /** Separate tenant-safe prospect API. Never route another tenant through the legacy CRM controllers. */
 @UseGuards(IdentityGuard) @Controller('workspace-crm')
 export class TenantAccountsController {
- constructor(private db:PrismaService,private scope:TenantScopeService){}
+ constructor(private db:PrismaService,private scope:TenantScopeService,private workflow:OpportunityWorkflowService){}
  private async authorize(req:ScopedRequest,orgId:string,write=false){return this.scope.membership(req,orgId,write);}
  private domain(website:string){let url:URL;try{url=new URL(website);}catch{throw new BadRequestException('Use a valid HTTPS company website.');}
   if(url.protocol!=='https:'||!url.hostname.includes('.')||url.username||url.password)throw new BadRequestException('Valid HTTPS website required.');return url.hostname.toLowerCase().replace(/^www\./,'');}
@@ -67,10 +68,13 @@ export class TenantAccountsController {
   await this.scope.membership(req,orgId,'sales');await this.scope.account(orgId,accountId);
   const contact=await this.db.contact.findFirst({where:{id:contactId,accountId}}),reference=String(body?.reference||'').trim();
   if(!contact||contact.optedOut||!contact.email&&!contact.linkedinUrl||reference.length<10||reference.length>1000)throw new BadRequestException('Contact channel and a verification source/reference of 10–1000 characters required.');
-  return this.db.$transaction(async tx=>{
+  const verified=await this.db.$transaction(async tx=>{
    const verified=await tx.contact.update({where:{id:contactId},data:{verified:true,verificationReference:reference,verifiedAt:new Date(),verifiedById:req.user.id}});
    await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_CONTACT_VERIFIED',entityType:'CONTACT',entityId:contactId,detail:{organizationId:orgId,accountId,reference}}});return verified;
   });
+  const opportunities=await this.db.opportunity.findMany({where:{accountId,status:'OPEN',stage:'DECISION_MAKER_IDENTIFIED'},select:{id:true}});
+  for(const opportunity of opportunities)await this.workflow.tryAutoAdvance(opportunity.id,req.user.id);
+  return verified;
  }
  @Patch(':orgId/accounts/:accountId/contacts/:contactId')async updateContact(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Param('contactId')contactId:string,@Body()body:any){await this.authorize(req,orgId,true);
   const account=await this.db.account.findFirst({where:{id:accountId,organizationId:orgId},select:{id:true}});if(!account)throw new BadRequestException('Account unavailable in this workspace.');

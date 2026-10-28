@@ -25,6 +25,7 @@ function prisma(db,args){execFileSync(process.execPath,[require.resolve('prisma/
 function verify(db){
  assert.match(sql(db,['-Atc',`SELECT "name" FROM "Organization" WHERE id='migration-org'`]),/Migration Fixture/);
  assert.match(sql(db,['-Atc',`SELECT role FROM "OrganizationMembership" WHERE "organizationId"='migration-org'`]),/OWNER/);
+ assert.equal(sql(db,['-Atc',`SELECT "organizationId" FROM "OutgoingMessage" WHERE id='migration-message'`]).trim(),'migration-org');
  assert.equal(sql(db,['-Atc',`SELECT count(*) FROM "LoginChallenge" WHERE "consumedAt" IS NULL`]).trim(),'0');
  execFileSync(process.execPath,[require.resolve('prisma/build/index.js'),'migrate','diff','--from-url',db,'--to-schema-datamodel',schema,'--exit-code'],{stdio:['ignore','pipe','pipe']});
 }
@@ -37,6 +38,8 @@ try{
   INSERT INTO "User" (id,email,"passwordHash",name,"updatedAt") VALUES ('migration-user','owner@migration.example','NOT_A_LOGIN_HASH','Migration Owner',NOW());
   INSERT INTO "Organization" (id,slug,name,"createdById","updatedAt") VALUES ('migration-org','migration-fixture','Migration Fixture','migration-user',NOW());
   INSERT INTO "OrganizationMembership" ("organizationId","userId",role) VALUES ('migration-org','migration-user','ADMIN');
+  INSERT INTO "WorkspaceInvitation" (id,"organizationId",email,name,"tokenHash","expiresAt","createdById") VALUES ('migration-invite','migration-org','invitee@migration.example','Migration Invitee','fixture-only-token-hash',NOW()+INTERVAL '1 day','migration-user');
+  INSERT INTO "OutgoingMessage" (id,"createdById","recipientEmail",subject,"bodyText",category,"entityType","entityId","idempotencyKey","updatedAt") VALUES ('migration-message','migration-user','invitee@migration.example','Fictional pending invite','Fictional test message','WORKSPACE_INVITATION','WORKSPACE_INVITATION','migration-invite','migration-fixture-mail',NOW());
   INSERT INTO "LoginChallenge" (id,"userId","codeHash","expiresAt") VALUES ('old-migration-challenge','migration-user','not-valid',NOW()+INTERVAL '1 hour');
  `]);
  prisma(url(names[1]),['migrate','resolve','--applied',baseline]);
