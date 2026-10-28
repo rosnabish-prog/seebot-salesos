@@ -114,3 +114,51 @@ jobs:
           test "$SIGNING_ENABLED" = false
           test "$TENANT_SCOPED_CRM_PREVIEW" = false
           echo "Real signing and tenant preview remain disabled in CI."
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: seebot
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: salesos_container_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U seebot -d salesos_container_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://seebot:ci_only_password@127.0.0.1:5432/salesos_container_ci?schema=public
+      JWT_SECRET: CI_ONLY_CONTAINER_SECRET_NOT_FOR_PRODUCTION_0123456789
+      MFA_CODE_SECRET: CI_ONLY_CONTAINER_MFA_SECRET_NOT_FOR_PRODUCTION_0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build migration and non-root runtime images
+        run: |
+          docker build --target build --build-arg API_INTERNAL_URL=http://127.0.0.1:4000 -t salesos-ci-migrate .
+          docker build --target runtime --build-arg API_INTERNAL_URL=http://127.0.0.1:4000 -t salesos-ci-runtime .
+      - name: Migrate disposable database
+        run: docker run --rm --network host -e DATABASE_URL salesos-ci-migrate npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma
+      - name: Start non-root API, web and worker
+        run: |
+          docker run -d --name salesos-api --network host --read-only --tmpfs /tmp -e DATABASE_URL -e JWT_SECRET -e MFA_CODE_SECRET -e CORS_ORIGIN=https://container-ci.example salesos-ci-runtime node apps/api/dist/main.js
+          docker run -d --name salesos-web --network host --read-only --tmpfs /tmp --tmpfs /app/apps/web/.next/cache:uid=1000,gid=1000 salesos-ci-runtime npm run start -w @seebot/web
+          docker run -d --name salesos-worker --network host --read-only --tmpfs /tmp -e DATABASE_URL salesos-ci-runtime node apps/api/dist/worker.js
+      - name: Observe readiness, web proxy and worker preparation
+        run: |
+          curl --retry 30 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:4000/ready
+          curl --retry 30 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:3000/login > /tmp/salesos-login.html
+          test "$(curl -s -o /tmp/salesos-unauthorized.json -w '%{http_code}' http://127.0.0.1:3000/api/workspaces)" = 401
+          test "$(docker inspect -f '{{.State.Running}}' salesos-worker)" = true
+          docker run --rm --network host -e DATABASE_URL salesos-ci-runtime node -e 'const {PrismaClient}=require("@prisma/client");const db=new PrismaClient();(async()=>{for(let i=0;i<30;i++){if(await db.backgroundJob.count({where:{kind:"MAINTENANCE",status:"SUCCEEDED"}})){await db.$disconnect();return;}await new Promise(r=>setTimeout(r,1000));}throw Error("Worker did not complete maintenance");})().catch(e=>{console.error(e);process.exit(1)})'
+      - name: Container logs
+        if: always()
+        run: |
+          docker logs salesos-api || true
+          docker logs salesos-web || true
+          docker logs salesos-worker || true
+      - name: Stop containers
+        if: always()
+        run: docker rm -f salesos-api salesos-web salesos-worker || true

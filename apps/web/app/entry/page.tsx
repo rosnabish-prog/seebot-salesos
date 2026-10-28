@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {useAuth,executive} from '@/context/auth';
 import {post,request} from '@/lib/api';
-type Workspace={id:string;crmEnabled:boolean;tenantCrmEnabled:boolean};
+type Workspace={status:string;id:string;crmEnabled:boolean;tenantCrmEnabled:boolean};
 type Selection={crmEnabled:boolean;tenantCrmEnabled:boolean};
 export default function WorkspaceEntry(){
  const router=useRouter(),{user,loading}=useAuth(),[error,setError]=useState('');
@@ -16,7 +16,7 @@ export default function WorkspaceEntry(){
     const list=await request<Workspace[]>('/workspaces');
     if(cancelled)return;
     if(!list.length){router.replace('/workspaces?new=1');return;}
-    if(list.length>1){router.replace('/workspaces');return;}
+    if(list.length>1||list[0].status==='SUSPENDED'){router.replace('/workspaces');return;}
     const workspace=list[0];
     const selected=await post<Selection>(`/workspaces/${workspace.id}/select`,{});
     if(cancelled)return;

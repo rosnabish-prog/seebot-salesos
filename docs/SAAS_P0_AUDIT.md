@@ -47,7 +47,7 @@ FINANCE can operate billing/reminders and issue approved credits; credit approva
 
 ## Authentication operations
 
-Counters use PostgreSQL across replicas and contain HMAC-derived identifiers instead of raw IP/email values. Deploy behind the configured trusted proxy count; never trust arbitrary forwarded headers. Expired `AuthRateLimit` rows should be purged by an operational retention job, e.g. a scheduled `DELETE ... WHERE expiresAt < NOW()`, after the required abuse-analysis retention period.
+Counters use PostgreSQL across replicas and contain HMAC-derived identifiers instead of raw IP/email values. Deploy behind the configured trusted proxy count; never trust arbitrary forwarded headers. The separate operations worker purges counters expired for more than seven days. Run and monitor the worker; a stopped worker does not perform cleanup. See [SaaS operations](SAAS_OPERATIONS.md).
 
 Recovery codes contain 128 bits of randomness, are stored as user-bound hashes, shown once and never emailed or logged. Setup requires an authenticated session, a recent sign-in or password confirmation, and a fresh email OTP bound specifically to setup. Recovery follows password/Google first-factor authentication and atomically consumes one code plus the login challenge; all older sessions/challenges are invalidated. A working mailbox is still required for initial account creation, password reset and recovery-code rotation. Authenticator/TOTP, enterprise SSO and managed recovery support remain separate work.
 

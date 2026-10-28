@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import 'dotenv/config';
 import helmet from 'helmet';
+import {randomUUID} from 'node:crypto';
 import cookieParser from 'cookie-parser';
 import { NestFactory } from '@nestjs/core';
 import { BadRequestException } from '@nestjs/common';
@@ -15,6 +16,12 @@ async function bootstrap(){
   if(!Number.isInteger(proxyHops)||proxyHops<0||proxyHops>4)throw Error('TRUST_PROXY_HOPS must be 0–4 for your trusted reverse-proxy topology.');
   app.getHttpAdapter().getInstance().set('trust proxy',proxyHops);
   app.use(helmet());app.use(cookieParser());
+  app.use((req:any,res:any,next:any)=>{
+    const requestId=randomUUID(),started=performance.now();
+    res.setHeader('X-Request-Id',requestId);
+    res.once('finish',()=>console.log(JSON.stringify({event:'http_request',requestId,method:req.method,route:req.route?.path||'/unmatched',status:res.statusCode,durationMs:Math.round(performance.now()-started)})));
+    next();
+  });
   const allowedOrigin=process.env.CORS_ORIGIN||'http://localhost:3000';
   const allowedOrigins=new Set([allowedOrigin]);
   if(process.env.NODE_ENV!=='production'){
