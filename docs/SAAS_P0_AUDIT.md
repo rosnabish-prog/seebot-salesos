@@ -13,6 +13,7 @@ Scope: independent organization workspaces, multiple organization ownership per 
 | P0 | Outgoing messages recheck current membership, suppression, entity lineage and attachments before delivery | Removed members cannot send; recipient/entity mismatch rejected before provider invocation |
 | P0 | Organization name, services and initiating employee used in tenant outreach; revisions preserve tenant signature | Generation and revision contain the selected tenant name, not hardcoded Seebot branding |
 | P0 | Versioned immutable baseline and incremental migration, committed npm lockfile, deterministic CI | Fresh deploy, existing-data upgrade and restore-before-upgrade rehearsal on disposable PostgreSQL |
+| P0 | Patched mail/upload/build dependencies and single plain-address validation | Dependency audit plus real local SMTP and multipart upload regression checks |
 | P0 | PostgreSQL atomic shared authentication counters, per-identity/IP/challenge limits and resend cooldown | Independent service instances cannot exceed the shared allowance; limit failure returns 429, database outage fails closed |
 | P0 | Single-use offline recovery codes, email OTP setup reauthentication, atomic consumption, password-version binding | Wrong-purpose challenge and replay rejected; recovery invalidates existing sessions |
 

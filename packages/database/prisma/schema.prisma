@@ -544,9 +544,7 @@ model ClientIssue {
 }
 
 
-// v1.6.0 FOUNDATION — ONE ACTIVE SEEBOT WORKSPACE ONLY.
-// Do not enable additional organization logins until all existing record endpoints
-// have been changed to enforce membership + organization ownership.
+// Independent workspaces use tenant-scoped APIs. Legacy CRM routes remain pinned to Seebot.
 model Organization {
   id String @id @default(cuid())
   createdById String?

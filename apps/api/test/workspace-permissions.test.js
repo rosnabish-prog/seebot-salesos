@@ -21,3 +21,9 @@ test('selected tenant, membership status and organization status all constrain a
  member={...member,status:'ACTIVE',organization:{status:'SUSPENDED'}};await assert.rejects(access.require(req,'a'));
  member=null;await assert.rejects(access.require(req,'a'));
 });
+
+const {isPlainEmail}=require('../src/common/email.ts');
+test('mail addresses reject display names, comments, lists and header injection',()=>{
+ for(const value of ['owner@company.example','first.last+finance@sub.company.example'])assert.equal(isPlainEmail(value),true);
+ for(const value of ['Owner <owner@company.example>','owner(comment)@company.example','one,two@company.example','a@company.example\r\nBcc:x@evil.example','a..b@company.example','a@-company.example','a@company..example'])assert.equal(isPlainEmail(value),false,value);
+});

@@ -28,7 +28,7 @@
     "google-auth-library": "^9.15.1",
     "pdf-lib": "^1.17.1",
     "@aws-sdk/client-s3": "^3.913.0",
-    "nodemailer": "^7.0.9"
+    "nodemailer": "^10.2.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

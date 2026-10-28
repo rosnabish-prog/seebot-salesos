@@ -76,6 +76,8 @@ jobs:
           path: artifacts/database/schema-baseline-review.sql
           retention-days: 7
       - name: Rehearse migration upgrade and backup restoration on disposable PostgreSQL
+        env:
+          PG_SERVICE_CONTAINER: ${{ job.services.postgres.id }}
         run: node scripts/migration-rehearsal.cjs
       - name: Deploy versioned schema to disposable PostgreSQL test database
         run: npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma

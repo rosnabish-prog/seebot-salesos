@@ -1,3 +1,4 @@
+import {isPlainEmail} from '../common/email';
 import {WorkspaceAccessService,type WorkspacePermission} from '../workspace/workspace-access.service';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -60,7 +61,7 @@ export class OutgoingMessageService {
     return organizationId;
   }
   async draft(userId:string,request:OutgoingRequest){
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(request.recipientEmail)||request.recipientEmail.length>254)throw new BadRequestException('Valid recipient email required.');
+    if(!isPlainEmail(request.recipientEmail))throw new BadRequestException('Valid recipient email required.');
     if(!request.subject?.trim()||request.subject.length>250||/[\r\n]/.test(request.subject)||!request.bodyText?.trim()||request.bodyText.length>30000)throw new BadRequestException('Invalid email content.');
     const organizationId=await this.authorize(userId,request);
     const record=await this.db.outgoingMessage.upsert({

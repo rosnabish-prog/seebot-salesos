@@ -1,3 +1,4 @@
+import {isPlainEmail} from '../../common/email';
 import { BadRequestException, ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { createHash, randomBytes } from 'node:crypto';
@@ -53,7 +54,7 @@ export class GmailConnectionService {
     if(process.env.GMAIL_SENDING_ENABLED!=='true')throw new ServiceUnavailableException('Gmail sending is disabled until verified.');
     const connection=await this.db.gmailConnection.findUnique({where:{userId}});
     if(!connection||connection.status!=='CONNECTED')throw new ServiceUnavailableException('Connect your Gmail account first.');
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)||/[\r\n]/.test(subject))throw new BadRequestException('Invalid recipient or email subject.');
+    if(!isPlainEmail(recipientEmail)||/[\r\n]/.test(subject))throw new BadRequestException('Invalid recipient or email subject.');
     const client=this.oauth();client.setCredentials({refresh_token:decryptSecret(connection.refreshTokenEncrypted)});
     const encodeHeader=(v:string)=>/[^\x20-\x7E]/.test(v)?`=?UTF-8?B?${Buffer.from(v).toString('base64')}?=`:v;
     // MIME lines use CRLF. Body is encoded so untrusted text cannot inject mail headers.

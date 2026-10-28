@@ -77,7 +77,7 @@ Optional and deferred:
 - tax registration
 - logo
 
-Team invitation is optional. Creator becomes workspace Administrator. A user cannot create a second company workspace; additional workspace access comes through invitations.
+Team invitation is optional. The creator becomes workspace Owner. One verified company-email identity may own multiple independent company workspaces and join other teams by invitation.
 
 ## 5. 11-stage opportunity spine
 
