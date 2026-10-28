@@ -23,7 +23,16 @@ export class TenantContractsController{
   return contract;
  }
  private async admin(req:ScopedRequest,orgId:string){
-  const member=await this.scope.membership(req,orgId,true);if(!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator approval required.');return member;
+  return this.scope.membership(req,orgId,'admin');
+ }
+ @Patch(':orgId/:contractId/commercial')async commercial(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('contractId')contractId:string,@Body()body:any){
+  await this.editable(req,orgId,contractId);
+  const amount=String(body?.committedAmount??'');
+  if(!/^\d{1,12}(?:\.\d{1,2})?$/.test(amount)||Number(amount)<=0||!/^[A-Z]{3}$/.test(body?.currency||''))throw new BadRequestException('Positive committed value and ISO currency required.');
+  return this.db.$transaction(async tx=>{
+   const contract=await tx.contract.update({where:{id:contractId},data:{committedAmount:amount,currency:body.currency}});
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_CONTRACT_COMMERCIAL_UPDATED',entityType:'CONTRACT',entityId:contractId,detail:{organizationId:orgId,committedAmount:amount,currency:body.currency}}});return contract;
+  });
  }
  @Get(':orgId/:contractId/pricing')async pricing(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('contractId')contractId:string){
   await this.scope.membership(req,orgId);await this.scope.contract(orgId,contractId);

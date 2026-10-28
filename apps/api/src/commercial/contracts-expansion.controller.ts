@@ -8,7 +8,7 @@ export class ContractsExpansionController {
  constructor(private db:PrismaService){}
  private async check(req:AuthRequest,id:string,edit=false){
   const c=await this.db.contract.findUnique({where:{id},include:{opportunity:true}});
-  if(!c)throw new BadRequestException('Contract not found.');
+  if(!c||!await this.db.account.findFirst({where:{id:c.opportunity.accountId,organizationId:req.user.organizationId},select:{id:true}}))throw new BadRequestException('Contract not found.');
   if(edit)ensureCanEdit(req.user,c.opportunity.ownerId);else ensureOwner(req.user,c.opportunity.ownerId);
   return c;
  }

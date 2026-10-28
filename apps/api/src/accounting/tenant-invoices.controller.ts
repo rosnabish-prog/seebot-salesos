@@ -1,3 +1,4 @@
+import {WorkspaceAccessService} from '../workspace/workspace-access.service';
 import {BadRequestException,Body,Controller,ForbiddenException,Get,Param,Post,Req,Res,StreamableFile,UseGuards} from '@nestjs/common';
 import type {Response} from 'express';
 import {PrismaService} from '../prisma/prisma.service';
@@ -12,12 +13,8 @@ type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 /** Tenant finance endpoints never delegate authorization to a global role. */
 @UseGuards(IdentityGuard) @Controller('workspace-finance')
 export class TenantInvoicesController{
- constructor(private db:PrismaService,private pdf:InvoicePdfService,private outbox:OutgoingMessageService){}
- private async finance(req:ScopedRequest,orgId:string){
-  if(req.selectedWorkspace!==orgId)throw new ForbiddenException('Select the issuing organization.');
-  const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}},include:{organization:{select:{status:true}}}});
-  if(!member||member.status!=='ACTIVE'||!['SETUP','ACTIVE'].includes(member.organization.status)||!['OWNER','ADMIN','FINANCE'].includes(member.role))throw new ForbiddenException('Organization finance approval required.');
- }
+ constructor(private db:PrismaService,private access:WorkspaceAccessService,private pdf:InvoicePdfService,private outbox:OutgoingMessageService){}
+ private async finance(req:ScopedRequest,orgId:string){return this.access.require(req,orgId,'finance');}
  private async invoice(orgId:string,id:string){
   const inv=await this.db.invoice.findFirst({where:{id,account:{organizationId:orgId}},include:{account:true,taxReview:true,document:true,payments:true,adjustments:true,recipients:true}});
   if(!inv)throw new BadRequestException('Invoice unavailable in this workspace.');

@@ -13,7 +13,7 @@ export class ClientSuccessController {
  constructor(private db:PrismaService){}
  private async client(req:AuthRequest,id:string,edit=false){
    const account=await this.db.account.findUnique({where:{id}});
-   if(!account || account.status!=='Customer')throw new BadRequestException('Client not found.');
+   if(!account || account.organizationId!==req.user.organizationId || account.status!=='Customer')throw new BadRequestException('Client not found.');
    if(edit)ensureCanEdit(req.user,account.ownerId);else ensureOwner(req.user,account.ownerId);
    return account;
  }

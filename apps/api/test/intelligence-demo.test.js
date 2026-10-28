@@ -24,7 +24,7 @@ test('opted out contacts never appear as contactable',()=>{
 test('revision preserves meaningful draft text and is explicitly demo',()=>{
  const draft=p.draft({name:'Example Company',industry:'AI',hypothesis:'test'},{name:'Jane Test',title:'Head of Data'});
  assert.match(draft.body,/Jane/);assert.match(draft.warning,/DEMO/);
- const changed=p.revise(draft.subject,draft.body,'more technical');assert.match(changed.body,/reviewer calibration/);
+ const branded=p.draft({name:'Prospect',industry:'AI',hypothesis:''},{name:'Jane',title:'Buyer'},{name:'Tenant Alpha',services:['Consulting'],signature:'Alex · Tenant Alpha'});assert.match(branded.body,/Tenant Alpha/);assert.doesNotMatch(branded.body,/Seebot/);const changed=p.revise(branded.subject,branded.body,'shorter',{name:'Tenant Alpha',signature:'Alex · Tenant Alpha'});assert.match(changed.body,/Alex · Tenant Alpha/);assert.doesNotMatch(changed.body,/Seebot/);
 });
 test('reply classifier handles suppression ahead of positive interest',()=>{
  assert.equal(p.analyze('Interested, but please unsubscribe').classification,'OPT_OUT');

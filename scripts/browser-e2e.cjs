@@ -53,7 +53,7 @@ async function main(){
  const web=launch(process.execPath,[nextBin,'start','-p','3000','-H','127.0.0.1'],{NEXT_PUBLIC_API_URL:'http://localhost:4000'},path.resolve('apps/web'));
  await ready('http://127.0.0.1:4000/health',api);
  await ready('http://127.0.0.1:3000/login',web);
- const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+ const browser=await chromium.launch({headless:true,args:['--no-sandbox'],...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})});
  try{
   const page=await browser.newPage({baseURL:'http://localhost:3000'});
   await page.goto('/');
@@ -74,12 +74,12 @@ async function main(){
   await completeMfa(page);
   await page.waitForURL('**/dashboard',{timeout:15000});
   await screenshot(page,'02-dashboard');
-  // Existing Seebot staff cannot create a second company. Simulate receiving another team's invitation.
+  // Seed a second workspace to exercise the chooser independently of creation.
   const name='CI Browser Organization '+unique;
   await db.organization.create({data:{slug:'ci-browser-'+unique,name,status:'SETUP',memberships:{create:{userId:user.id,role:'ADMIN',status:'ACTIVE'}}}});
   await page.goto('/workspaces');
   await page.getByRole('heading',{name:'Company workspaces'}).waitFor();
-  await page.getByText('Creating another company is not available.').waitFor();
+  await page.getByRole('button',{name:'Create another organization'}).waitFor();
   const row=page.locator('.ws-choice').filter({hasText:name});
   await row.getByRole('button',{name:'Open'}).click();
   await page.waitForURL(/\/workspaces\/[^/]+$/,{timeout:15000});
@@ -104,8 +104,10 @@ async function main(){
   await page.getByText(prospect,{exact:true}).waitFor({timeout:10000});
   const relationshipAccount=await db.account.findFirstOrThrow({where:{name:prospect}});
   const relationshipOpportunity=await db.opportunity.findFirstOrThrow({where:{accountId:relationshipAccount.id},orderBy:{createdAt:'asc'}});
-  await db.opportunity.update({where:{id:relationshipOpportunity.id},data:{stage:'PILOT_CONTRACTED'}});
-  await db.account.update({where:{id:relationshipAccount.id},data:{status:'Contracting'}});
+  await require('./tenant-sales-journey.cjs').reachContracting(async(method,route,body)=>{
+   const response=await page.request.fetch('http://localhost:4000/api'+route,{method,data:body,headers:{Origin:'http://localhost:3000'}});
+   assert.ok(response.ok(),method+' '+route+' '+await response.text());return response.json();
+  },relationshipAccount.organizationId,relationshipAccount.id,relationshipOpportunity.id);
   await page.getByRole('link',{name:'Client Satisfaction'}).click();
   await page.getByRole('heading',{name:'Client Satisfaction',exact:true}).waitFor();
   await screenshot(page,'05-client-satisfaction');
@@ -204,7 +206,7 @@ async function main(){
    await newPage.getByPlaceholder('https://company.com').fill('https://fresh-'+unique+'.example');
    await newPage.getByRole('button',{name:'Create workspace'}).click();
    await newPage.getByRole('heading',{name:'Bring your team to '+ownName}).waitFor({timeout:15000});
-   const ownerMembership=await db.organizationMembership.findFirst({where:{userId:guest.id,role:'ADMIN'},include:{organization:true}});
+   const ownerMembership=await db.organizationMembership.findFirst({where:{userId:guest.id,role:'OWNER'},include:{organization:true}});
    assert.ok(ownerMembership,'New creator becomes the workspace administrator.');
    assert.equal(ownerMembership.organization.name,ownName);
    const invitedEmail='ci-invite-browser-'+unique+'@example.invalid';

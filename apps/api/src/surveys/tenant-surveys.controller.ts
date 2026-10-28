@@ -15,9 +15,7 @@ const contractingStages=['PILOT_CONTRACTED','PILOT_DELIVERED','PRODUCTION_NEGOTI
 export class TenantSurveysController{
  constructor(private db:PrismaService,private scope:TenantScopeService,private mail:OutgoingMessageService){}
  private async admin(req:ScopedRequest,orgId:string){
-  const member=await this.scope.membership(req,orgId,true);
-  if(!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator required.');
-  return member;
+  return this.scope.membership(req,orgId,'admin');
  }
  private async clientAccount(req:ScopedRequest,orgId:string,accountId:string,write=false){
   await this.scope.membership(req,orgId,write);

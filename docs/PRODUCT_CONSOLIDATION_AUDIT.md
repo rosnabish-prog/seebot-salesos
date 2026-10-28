@@ -55,8 +55,8 @@ There must be no separate "business preview" experience or mandatory prospect/co
 - Cross-tenant negative tests for tenant APIs.
 
 ### Production gates
-- MFA recovery codes / second enrolled factor.
-- Distributed login/MFA rate limiting instead of process-local controls.
+- Authenticator-app MFA / a second enrolled factor. Single-use recovery codes are now implemented.
+- Operational tuning and monitoring of the PostgreSQL-backed distributed authentication limits.
 - SSO/SAML/SCIM for larger customers.
 - Device/session management and explicit "sign out other devices".
 - Independent penetration test and security monitoring.
@@ -65,8 +65,8 @@ There must be no separate "business preview" experience or mandatory prospect/co
 
 ### Operational in preview
 - Company workspaces with generated internal slug separate from display name.
-- One company creation per user; additional workspace access by invitation.
-- Creator is ADMIN and cannot accidentally create a second company.
+- Multiple company ownership per company-email identity; additional workspace access by invitation.
+- Creator is OWNER and may create multiple independent company workspaces.
 - Company profile and logo.
 - Optional billing/tax identity collected only when finance features need it.
 - Team invitations, roles, revocation and membership controls.
@@ -402,3 +402,5 @@ SalesOS should feel like one continuous operating system:
 **Authenticate -> Select company -> Sell -> Qualify -> Contract -> Deliver -> Measure satisfaction -> Bill -> Collect -> Review -> Renew / Expand.**
 
 Every module reads and writes the same underlying company relationship. Information entered once should be auto-pulled where appropriate, not requested again in a later workflow.
+
+Current P0 changes and test evidence are maintained in [SAAS_P0_AUDIT.md](SAAS_P0_AUDIT.md).

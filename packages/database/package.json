@@ -8,7 +8,8 @@
     "migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio",
-    "bootstrap:organization": "tsx prisma/bootstrap-seebot-organization.ts"
+    "bootstrap:organization": "tsx prisma/bootstrap-seebot-organization.ts",
+    "deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",

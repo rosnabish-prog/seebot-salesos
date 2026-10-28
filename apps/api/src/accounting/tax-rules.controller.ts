@@ -1,3 +1,4 @@
+import {WorkspaceAccessService} from '../workspace/workspace-access.service';
 import {BadRequestException,Body,Controller,ForbiddenException,Get,Param,Patch,Post,Req,Res,UseGuards} from '@nestjs/common';
 import type {Response} from 'express';
 import {Prisma} from '@prisma/client';
@@ -11,13 +12,8 @@ type ScopeRequest=AuthRequest & {selectedWorkspace?:string|null};
 /** Organization-owned tax catalogue. Rules are created as drafts and cannot be used until approved. */
 @UseGuards(IdentityGuard) @Controller('workspace-tax')
 export class TaxRulesController{
- constructor(private db:PrismaService){}
- private async finance(req:ScopeRequest,orgId:string){
-  if(req.selectedWorkspace!==orgId)throw new ForbiddenException('Select the invoice issuing workspace.');
-  const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}},include:{organization:{select:{status:true}}}});
-  if(!member||member.status!=='ACTIVE'||!['SETUP','ACTIVE'].includes(member.organization.status)||!['OWNER','ADMIN','FINANCE'].includes(member.role))throw new ForbiddenException('Active finance membership is required.');
-  return member;
- }
+ constructor(private db:PrismaService,private access:WorkspaceAccessService){}
+ private async finance(req:ScopeRequest,orgId:string){return this.access.require(req,orgId,'finance');}
  @Get(':orgId/rules')async list(@Req()req:ScopeRequest,@Param('orgId')orgId:string){
   await this.finance(req,orgId);
   return this.db.taxRule.findMany({where:{organizationId:orgId},orderBy:[{jurisdiction:'asc'},{code:'asc'}],take:500});

@@ -11,7 +11,7 @@ export class DemoIntelligenceProvider {
       fitHypothesis:account.hypothesis,
       possibleServices:['Data annotation and quality control (hypothesis)','Structured evaluation and human review (hypothesis)'],
       unknowns:['Actual AI/data workflow','Vendor purchasing authority','Budget and project timing','Technical or compliance requirements'],
-      sources:[{label:'Seebot CRM account record',type:'INTERNAL',verified:false}],
+      sources:[{label:'CRM account record',type:'INTERNAL',verified:false}],
       warning:'DEMO ONLY — derived from existing CRM fields, not web research. Do not treat hypotheses as verified company facts.'
     };
   }
@@ -33,17 +33,18 @@ export class DemoIntelligenceProvider {
     };
     return {rankings:contacts.map(p=>({contactId:p.id,name:p.name,title:p.title,score:score(p),reason:p.optedOut?'Contact opted out. Do not send outreach.':`Heuristic based on job title (${p.title}) and recorded verification; purchasing authority is unknown.`,canContact:!p.optedOut&&Boolean(p.email)})).sort((a,b)=>b.score-a.score),warning:'DEMO ONLY — role-title heuristic, not externally validated, and not a prediction of response probability.'};
   }
-  draft(account:{name:string;industry:string;hypothesis:string},contact:{name:string;title:string}){
-    const first=(contact.name.trim().split(/\s+/)[0]||'there');
-    return {subject:`Exploring data quality support for ${account.name}`,body:`Hi ${first},\n\nI'm reaching out from Seebot. We help teams with specialist data annotation, evaluation, and quality assurance.\n\nI wanted to understand whether external support for data workflows might be relevant to your team. Would you be open to a short conversation?\n\nBest,\nSeebot Sales Team`,warning:'DEMO DRAFT. It does not imply knowledge of this person or their company beyond the saved CRM record.'};
+  draft(account:{name:string;industry:string;hypothesis:string},contact:{name:string;title:string},sender:{name:string;services?:string[];signature?:string}={name:'Your company'}){
+    const first=contact.name.trim().split(/\s+/)[0]||'there';
+    const services=sender.services?.length?'Our services include '+sender.services.join(', ')+'.':'I would like to discuss whether our services could support your team.';
+    return {subject:`Exploring a potential partnership with ${account.name}`,body:`Hi ${first},\n\nI'm reaching out from ${sender.name}. ${services}\n\nWould you be open to a short conversation about your team's requirements?\n\nBest,\n${sender.signature||sender.name+' Sales Team'}`,warning:'DEMO DRAFT. Review before sending. No independent research has been performed.'};
   }
-  revise(subject:string,body:string,instruction:string){
+  revise(subject:string,body:string,instruction:string,sender?:{name:string;signature?:string}){
     const i=instruction.toLowerCase();
     if(i.includes('short')){
-      return {subject,body:body.split('\n').filter(x=>x.trim()).slice(0,3).join('\n\n')+'\n\nBest,\nSeebot Sales Team'};
+      const closing=body.lastIndexOf('\n\nBest,\n');
+      const signature=sender?'\n\nBest,\n'+(sender.signature||sender.name+' Sales Team'):closing>=0?body.slice(closing):'';
+      return {subject,body:body.split('\n\n').slice(0,2).join('\n\n')+signature};
     }
-    if(i.includes('technical'))return {subject:`Technical discussion: ${subject}`,body:body.replace('specialist data annotation, evaluation, and quality assurance','annotation workflows, dataset quality checks, structured evaluation, and reviewer calibration')};
-    if(i.includes('natural')||i.includes('friendly'))return {subject:subject.replace('Exploring','A quick question about'),body:body.replace("I'm reaching out from Seebot.","I'm with Seebot and thought I'd reach out.")};
     return {subject,body:`${body.trim()}\n\n[DEMO REVISION REQUEST: ${instruction.trim()}]`};
   }
   analyze(body:string){

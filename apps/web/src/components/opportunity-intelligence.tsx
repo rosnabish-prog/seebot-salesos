@@ -10,7 +10,7 @@ type Draft={id:string;subject:string;body:string;status:string;contactId:string|
 type Message={id:string;direction:string;mode:string;body:string;subject:string;analysis?:any;createdAt:string};
 type Overview={account:{id:string;name:string};contacts:Contact[];runs:Run[];drafts:Draft[];messages:Message[];mode:string};
 type GmailStatus={configured:boolean;sendingEnabled:boolean;connection:{googleEmail:string;status:string}|null};
-export function OpportunityIntelligence({accountId,section,editable,orgId}:{accountId:string;section:'research'|'contacts'|'outreach';editable:boolean;orgId?:string}){
+export function OpportunityIntelligence({accountId,section,editable,orgId,opportunityId}:{accountId:string;section:'research'|'contacts'|'outreach';editable:boolean;orgId?:string;opportunityId?:string}){
   const accountBase=orgId?'/workspace-intelligence/'+orgId+'/accounts/'+accountId:'/intelligence/accounts/'+accountId;
   const draftBase=(draftId:string)=>orgId?'/workspace-intelligence/'+orgId+'/drafts/'+draftId:'/intelligence/drafts/'+draftId;
   const [data,setData]=useState<Overview|null>(null),[gmail,setGmail]=useState<GmailStatus|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -40,7 +40,7 @@ export function OpportunityIntelligence({accountId,section,editable,orgId}:{acco
     {section==='outreach'&&<>
       <div className="opp-ai-conversation-grid"><div className="opp-ai-conversation-col">
         <label className="field"><span className="field-label">Recipient</span><BrandSelect value={recipient} onValueChange={setRecipient} ariaLabel="Choose email recipient"><option value="">Choose an existing contact</option>{data.contacts.filter(c=>c.email&&!c.optedOut).map(c=><option key={c.id} value={c.id}>{c.name} — {c.email}</option>)}</BrandSelect></label>
-        <Button type="button" disabled={!editable||busy||!recipient} onClick={()=>perform(()=>post<Draft>(accountBase+'/drafts',{contactId:recipient}),'Editable demo email draft created.',choose)}><Sparkles size={15}/> Generate email draft</Button>
+        <Button type="button" disabled={!editable||busy||!recipient} onClick={()=>perform(()=>post<Draft>(accountBase+'/drafts',{contactId:recipient,...(opportunityId?{opportunityId}:{})}),'Editable demo email draft created.',choose)}><Sparkles size={15}/> Generate email draft</Button>
         <div className="opp-ai-suggestions"><strong>Saved drafts</strong>{data.drafts.map(d=><button type="button" key={d.id} className={`opp-ai-draft-pick ${selectedDraft===d.id?'selected':''}`} onClick={()=>choose(d)}><span>{d.subject}</span><small>{d.status==='DRAFT'?'Editable':'Simulated sent'} · v{d.version}</small></button>)}{!data.drafts.length&&<p className="muted">No drafts generated for this company.</p>}</div>
       </div><div className="opp-ai-conversation-col">
         {active?<><div className="opp-ai-title"><span><Mail size={16}/> Email editor</span><Badge>{active.status}</Badge></div><label className="field"><span className="field-label">Subject</span><input value={subject} onChange={e=>setSubject(e.currentTarget.value)} disabled={active.status!=='DRAFT'}/></label><label className="field"><span className="field-label">Email body</span><textarea rows={9} value={emailBody} onChange={e=>setEmailBody(e.currentTarget.value)} disabled={active.status!=='DRAFT'}/></label>

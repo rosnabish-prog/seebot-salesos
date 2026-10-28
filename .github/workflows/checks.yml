@@ -57,7 +57,7 @@ jobs:
         with:
           node-version: "22"
       - name: Install monorepo dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Verify Prisma's fast-check dependency
         run: node -e "require('fast-check'); console.log('fast-check dependency OK')"
       - name: Build shared types
@@ -75,8 +75,10 @@ jobs:
           name: salesos-database-schema-review
           path: artifacts/database/schema-baseline-review.sql
           retention-days: 7
-      - name: Apply schema to disposable PostgreSQL test database
-        run: npx prisma db push --schema=packages/database/prisma/schema.prisma
+      - name: Rehearse migration upgrade and backup restoration on disposable PostgreSQL
+        run: node scripts/migration-rehearsal.cjs
+      - name: Deploy versioned schema to disposable PostgreSQL test database
+        run: npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma
       - name: Generate Prisma client
         run: npx prisma generate --schema=packages/database/prisma/schema.prisma
       - name: Typecheck
@@ -89,6 +91,8 @@ jobs:
         run: node scripts/test-signing-evidence.cjs
       - name: Cross-tenant API isolation over HTTP
         run: node scripts/tenant-isolation-e2e.cjs
+      - name: Complete tenant sales lifecycle and P0 security regressions
+        run: node scripts/saas-p0-e2e.cjs
       - name: Install browser for end-to-end checks
         run: npx playwright install --with-deps chromium
       - name: Browser E2E for company onboarding and finance

@@ -10,7 +10,7 @@ The maintained product specification and implementation audit are in [Product Co
 
 1. Register a work identity with verification, or accept a verified invitation; authenticate using password or configured Google login.
 2. Complete **email one-time-code MFA on every sign-in**. Sessions have an absolute seven-day reauthentication boundary. Email signup verification alone does not create a session.
-3. Create one company workspace (or join an invitation), configure optional business details, and invite employees with roles and membership controls.
+3. Create company workspaces you own (or join an invitation), configure optional business details, and invite employees with roles and membership controls.
 4. Create one canonical **Account** (customer company), with reusable contacts and an initial **Opportunity**. One Account may have multiple opportunities and engagements.
 5. Move opportunities through the canonical **11-stage** pipeline using evidence, configured labels/fields and permitted auto-pull from existing records. Contract and authorization checks cannot be bypassed by manager overrides.
 6. At **Pilot Contracted**, the existing Account appears in Client Management as **Contracting**. At **Closed Won**, it becomes **Customer**. Do **not** create a second company or duplicate contacts.
@@ -68,3 +68,9 @@ Before production, complete and independently verify:
 - Accessible responsive visual QA, permanent HTTPS staging deployment, browser/UAT regression and production rollback plan.
 
 Track acceptance evidence in [SalesOS release checklist #4](https://github.com/rosnabish-prog/seebot-salesos/issues/4). The source from [Pull Request #1](https://github.com/rosnabish-prog/seebot-salesos/pull/1) is now merged into `main`. Older overlapping PRs #2/#3 were closed without merging their incompatible implementations. Keep all real signing, tenant production activation and finance/legal provider gates disabled until separately certified.
+
+## SaaS P0 hardening
+
+One verified company-email identity may own multiple independent organizations. Personal email providers remain blocked. Tenant roles are OWNER, ADMIN, MEMBER, FINANCE and read-only VIEWER (reserved for controlled provisioning). Global Seebot staff roles never grant access to an independent organization.
+
+See [SaaS P0 implementation and remaining release gates](docs/SAAS_P0_AUDIT.md) and [versioned database deployment](docs/DATABASE_MIGRATIONS.md). New installations use `npm ci`, `npm run db:generate`, and reviewed `prisma migrate deploy`; never `db push` against persistent data.

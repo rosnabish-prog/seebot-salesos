@@ -3,6 +3,8 @@ import type {Response} from 'express';
 import {JwtService} from '@nestjs/jwt';
 import {PrismaService} from '../prisma/prisma.service';
 import type {AuthRequest} from '../common/auth.guard';
+import {WorkspaceAccessService} from './workspace-access.service';
+import {companyDomain} from './company-email';
 import {IdentityGuard} from './identity.guard';
 import {generateCompanySlug} from './workspace-policy';
 import {randomBytes} from 'node:crypto';
@@ -11,7 +13,7 @@ import {assertWebsiteEmailMatch} from './company-email';
 import {setWorkspaceCookie} from '../auth/session';
 @UseGuards(IdentityGuard) @Controller('workspaces')
 export class WorkspacesController{
- constructor(private db:PrismaService,private jwt:JwtService){}
+ constructor(private db:PrismaService,private jwt:JwtService,private access:WorkspaceAccessService){}
  @Get('selected')async selected(@Req()req:AuthRequest & {selectedWorkspace?:string|null}){
   const id=req.selectedWorkspace;
   if(!id)return {selected:null,legacyAllowed:false};
@@ -33,28 +35,21 @@ export class WorkspacesController{
    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${req.user.id} FOR UPDATE`;
    const user=await tx.user.findUnique({where:{id:req.user.id},select:{email:true,active:true}});
    if(!user?.active)throw new ForbiddenException('An active, verified account is required.');
-   assertWebsiteEmailMatch(user.email,website);
-   const existing=await tx.organizationMembership.findFirst({where:{userId:req.user.id,status:'ACTIVE',organization:{status:{in:['ACTIVE','SETUP']}}},select:{organizationId:true}});
-   const priorCreator=await tx.organization.findFirst({where:{createdById:req.user.id},select:{id:true}});
-   if(existing||priorCreator)throw new ForbiddenException('You already belong to a company workspace. Creating another workspace is not available.');
+   companyDomain(user.email);
+   if(website){try{const parsed=new URL(website);if(parsed.protocol!=='https:'||!parsed.hostname.includes('.')||parsed.username||parsed.password||parsed.port)throw Error('invalid');}catch{throw new BadRequestException('Valid HTTPS company website required.');}}
    const org=await tx.organization.create({data:{
     slug,name,website:website||null,createdById:req.user.id,industry:industry||null,country,
     timezone,defaultCurrency:currency,status:'SETUP',
-    memberships:{create:{userId:req.user.id,role:'ADMIN'}},
+    memberships:{create:{userId:req.user.id,role:'OWNER'}},
     workspaceSettings:{create:{plan:'ALL_FEATURES_UNLOCKED',setupComplete:false}}
    }});
-   await tx.auditEvent.create({data:{actorId:req.user.id,action:'WORKSPACE_CREATED',entityType:'ORGANIZATION',entityId:org.id,detail:{domain:user.email.split('@')[1],creatorRole:'ADMIN'}}});
-   return {id:org.id,name:org.name,slug:org.slug,status:org.status,role:'ADMIN',isCreator:true,crmEnabled:false,
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'WORKSPACE_CREATED',entityType:'ORGANIZATION',entityId:org.id,detail:{domain:user.email.split('@')[1],creatorRole:'OWNER'}}});
+   return {id:org.id,name:org.name,slug:org.slug,status:org.status,role:'OWNER',isCreator:true,crmEnabled:false,
     tenantCrmEnabled:((process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true')||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true')),
     notice:'Company workspace created. You are its administrator. Invite your teammates to continue.'};
   },{isolationLevel:'Serializable'});
  }
- private async authorized(req:AuthRequest,id:string,admin=false){
-   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
-   if(!member||member.status!=='ACTIVE')throw new ForbiddenException('Workspace membership required.');
-   if(admin&&!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator required.');
-   return member;
- }
+ private async authorized(req:AuthRequest,id:string,admin=false){return this.access.require(req,id,admin?'admin':'read');}
  @Get(':id/security-audit') async securityAudit(@Req()req:AuthRequest,@Param('id')id:string){
   await this.authorized(req,id,true);
   const [workspaceEvents,mySecurityEvents]=await Promise.all([
@@ -85,13 +80,14 @@ export class WorkspacesController{
    const updates:any={};for(const key of ['name','legalName','website','industry','description','idealCustomers','country','timezone','defaultCurrency','logoUrl','billingAddress','taxRegistrationNumber']){
      if(Object.prototype.hasOwnProperty.call(body||{},key)){if(typeof body[key]!=='string')throw new BadRequestException(key+' must be text.');updates[key]=body[key].trim().slice(0,['description','idealCustomers','billingAddress'].includes(key)?4000:250);}
    }
+   if(updates.name!==undefined&&updates.name.length<2)throw new BadRequestException('Company name must contain at least two characters.');
    if(updates.website&&!/^https:\/\/[^\s]+$/.test(updates.website))throw new BadRequestException('HTTPS website required.');
    if(updates.logoUrl&&!/^https:\/\/[^\s]+$/.test(updates.logoUrl))throw new BadRequestException('HTTPS logo URL required.');
    if(updates.defaultCurrency&&!/^[A-Z]{3}$/.test(updates.defaultCurrency))throw new BadRequestException('Three-letter currency required.');
    if(body?.services!==undefined){if(!Array.isArray(body.services)||body.services.length>40||body.services.some((s:any)=>typeof s!=='string'||s.length>120))throw new BadRequestException('Provide up to 40 service names.');updates.services=body.services;}
-   const saved=await this.db.organization.update({where:{id},data:updates});
    const targets=body?.targetIndustries;
    if(targets!==undefined && (!Array.isArray(targets)||targets.length>40||targets.some((x:any)=>typeof x!=='string'||x.length>120)))throw new BadRequestException('Target industries must be up to 40 names.');
+   const saved=await this.db.organization.update({where:{id},data:updates});
    await this.db.workspaceSettings.upsert({where:{organizationId:id},create:{organizationId:id,plan:'ALL_FEATURES_UNLOCKED',setupComplete:true,targetIndustries:targets||[]},update:{setupComplete:true,...(targets?{targetIndustries:targets}:{})}});
    return {organization:saved,plan:'ALL_FEATURES_UNLOCKED',crmEnabled:member.organization.slug==='seebot'};
  }
@@ -100,8 +96,12 @@ export class WorkspacesController{
  @Post(':id/members/existing') async addExisting(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:any){await this.authorized(req,id,true);
   const address=String(body?.email||'').trim().toLowerCase(),role=String(body?.role||'MEMBER');
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)||!['ADMIN','MEMBER','FINANCE'].includes(role))throw new BadRequestException('Valid email and role required.');
+  companyDomain(address);
   const user=await this.db.user.findUnique({where:{email:address}});
   if(!user?.active)throw new BadRequestException('This user must already have a verified platform account. Unverified email invites are not enabled without an email provider.');
+  const prior=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:user.id}}});
+  if(prior?.role==='OWNER')throw new ForbiddenException('Owner membership cannot be replaced.');
+  if(prior?.status==='ACTIVE')throw new BadRequestException('Use member controls to change an active membership.');
   const member=await this.db.organizationMembership.upsert({where:{organizationId_userId:{organizationId:id,userId:user.id}},create:{organizationId:id,userId:user.id,role},update:{status:'ACTIVE',role}});
   return {membership:member,notice:'Existing user granted membership. This is not an email invitation.'};
  }
@@ -109,7 +109,30 @@ export class WorkspacesController{
   const target=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId}}});if(!target)throw new BadRequestException('Membership not found.');
   if(target.role==='OWNER')throw new ForbiddenException('Cannot change a workspace owner here.');
   if(!['ACTIVE','DISABLED'].includes(body?.status)||!['MEMBER','ADMIN','FINANCE'].includes(body?.role))throw new BadRequestException('Invalid membership status or role.');
-  return this.db.organizationMembership.update({where:{organizationId_userId:{organizationId:id,userId}},data:{role:body.role,status:body.status}});
+  return this.db.$transaction(async tx=>{
+   await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${id} FOR UPDATE`;
+   const current=await tx.organizationMembership.findUniqueOrThrow({where:{organizationId_userId:{organizationId:id,userId}}});
+   if(current.role==='OWNER')throw new ForbiddenException('Transfer ownership first.');
+   if(current.status==='ACTIVE'&&current.role==='ADMIN'&&(body.status!=='ACTIVE'||body.role!=='ADMIN')){
+    const remaining=await tx.organizationMembership.count({where:{organizationId:id,userId:{not:userId},status:'ACTIVE',role:{in:['OWNER','ADMIN']}}});
+    if(!remaining)throw new ForbiddenException('A workspace must keep an active owner or administrator.');
+   }
+   const updated=await tx.organizationMembership.update({where:{organizationId_userId:{organizationId:id,userId}},data:{role:body.role,status:body.status}});
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'WORKSPACE_MEMBERSHIP_CHANGED',entityType:'USER',entityId:userId,detail:{organizationId:id,role:body.role,status:body.status}}});return updated;
+  });
+ }
+ @Post(':id/transfer-ownership')async transferOwnership(@Req()req:AuthRequest,@Param('id')id:string,@Body()body:{userId?:string}){
+  const member=await this.authorized(req,id,true);if(member.role!=='OWNER')throw new ForbiddenException('Only the workspace owner can transfer ownership.');
+  const targetId=String(body?.userId||'');if(!targetId||targetId===req.user.id)throw new BadRequestException('Choose another active workspace member.');
+  return this.db.$transaction(async tx=>{
+   await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${id} FOR UPDATE`;
+   const [owner,target]=await Promise.all([tx.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}}}),tx.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:targetId}},include:{user:true}})]);
+   if(owner?.role!=='OWNER'||owner.status!=='ACTIVE'||target?.status!=='ACTIVE'||!target.user.active)throw new ForbiddenException('Active owner and target memberships required.');
+   companyDomain(target.user.email);
+   await tx.organizationMembership.update({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},data:{role:'ADMIN'}});
+   await tx.organizationMembership.update({where:{organizationId_userId:{organizationId:id,userId:targetId}},data:{role:'OWNER'}});
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'WORKSPACE_OWNERSHIP_TRANSFERRED',entityType:'ORGANIZATION',entityId:id,detail:{organizationId:id,previousOwnerId:req.user.id,newOwnerId:targetId}}});return {transferred:true};
+  });
  }
  @Post(':id/select')async select(@Req()req:AuthRequest,@Res({passthrough:true})res:Response,@Param('id')id:string){
   const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});

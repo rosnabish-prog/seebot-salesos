@@ -1,3 +1,4 @@
+import {companyDomain} from './company-email';
 import {CanActivate,ExecutionContext,Injectable,UnauthorizedException} from '@nestjs/common';
 import {JwtService} from '@nestjs/jwt';
 import {PrismaService} from '../prisma/prisma.service';
@@ -14,9 +15,10 @@ export class IdentityGuard implements CanActivate{
   let payload:any;
   try{payload=await this.jwt.verifyAsync(token);}catch{throw new UnauthorizedException('Session expired. Please sign in again.');}
   if(payload?.mfa!==true)throw new UnauthorizedException('Two-factor verification required.');
-  if(typeof payload?.authAt!=='number'||Date.now()-payload.authAt>SESSION_MAX_AGE_MS)throw new UnauthorizedException('Your seven-day session has ended. Please sign in and verify again.');
+  if(typeof payload?.authAt!=='number'||!Number.isFinite(payload.authAt)||payload.authAt>Date.now()+60_000||Date.now()-payload.authAt>SESSION_MAX_AGE_MS)throw new UnauthorizedException('Your seven-day session has ended. Please sign in and verify again.');
   const user=await this.db.user.findUnique({where:{id:payload.sub},select:{id:true,email:true,name:true,role:true,active:true,passwordVersion:true}});
   if(!user?.active||payload.pv!==user.passwordVersion)throw new UnauthorizedException('Session invalid. Please sign in again.');
+  companyDomain(user.email);
   req.user={id:user.id,email:user.email,name:user.name,role:user.role};
   let selected:string|null=payload.wid||null; // backward compatibility with older sessions
   const workspaceToken=req.cookies?.salesos_workspace;
@@ -25,6 +27,7 @@ export class IdentityGuard implements CanActivate{
    catch{selected=null;}
   }
   (req as any).selectedWorkspace=selected;
+  (req as any).authAt=payload.authAt;
   return true;
  }
 }

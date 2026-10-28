@@ -20,6 +20,7 @@ export class OpportunitiesController {
     const account=await this.db.account.findUnique({where:{id:body.accountId}});
     if(!account||account.organizationId!==req.user.organizationId)throw new BadRequestException('Account not found.');ensureOwner(req.user,account.ownerId);
     if(!body.title?.trim()||!body.serviceLine?.trim())throw new BadRequestException('Title and service line required.');
+    if(!await this.db.organizationMembership.findFirst({where:{organizationId:req.user.organizationId,userId:allowManageAll(req.user)&&body.ownerId?body.ownerId:req.user.id,status:'ACTIVE'},select:{userId:true}}))throw new BadRequestException('Owner must be an active member of this workspace.');
     return this.db.opportunity.create({data:{accountId:account.id,title:body.title.trim(),serviceLine:body.serviceLine,ownerId:allowManageAll(req.user)&&body.ownerId?body.ownerId:req.user.id,stageVisits:{create:{stage:'ACCOUNT_RESEARCHED'}}}});
   }
   @Get(':id') async get(@Req()req:AuthRequest,@Param('id')id:string) {

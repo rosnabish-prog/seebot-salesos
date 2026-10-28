@@ -22,9 +22,7 @@ const defaultSections=['Executive Summary','Delivery Performance','Commercial Ov
 export class TenantClientSuccessController{
  constructor(private db:PrismaService,private scope:TenantScopeService){}
  private async admin(req:ScopedRequest,orgId:string){
-  const member=await this.scope.membership(req,orgId,true);
-  if(!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator required.');
-  return member;
+  return this.scope.membership(req,orgId,'admin');
  }
  private async client(req:ScopedRequest,orgId:string,accountId:string,write=false){
   await this.scope.membership(req,orgId,write);return this.scope.account(orgId,accountId);

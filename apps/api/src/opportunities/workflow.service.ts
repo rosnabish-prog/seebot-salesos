@@ -48,7 +48,7 @@ export class OpportunityWorkflowService {
     const config=await this.pipeline(tx,opp),configured=stageConfig(config,id);
     if(!configured)return ['Invalid stage'];
     const evidence=(visit.evidence && typeof visit.evidence==='object' && !Array.isArray(visit.evidence) ?visit.evidence:{}) as Record<string,unknown>;
-    const missing=configured.fields.filter(f=>f.required && (typeof evidence[f.key]!=='string' || !(evidence[f.key] as string).trim())).map(f=>f.label);
+    const missing=configured.fields.filter(f=>f.required && (typeof evidence[f.key]!=='string' || !(evidence[f.key] as string).trim() || f.type==='checkbox'&&evidence[f.key]!=='true')).map(f=>f.label);
     if(Object.values(evidence).some(v=>typeof v==='string' && /DEMO ONLY|DEMO_ONLY/i.test(v)))missing.push('Fictional demo data cannot be submitted as genuine stage evidence');
     if(id==='ACCOUNT_RESEARCHED' && typeof evidence.companySummary==='string' && evidence.companySummary.includes('Independent company research is still required.')) missing.push('Replace the demo CRM outline with verified research findings');
     if(id==='DECISION_MAKER_IDENTIFIED') {
@@ -103,6 +103,13 @@ export class OpportunityWorkflowService {
       const visit=await tx.stageVisit.findFirst({where:{opportunityId:oppId,exitedAt:null},orderBy:{enteredAt:'desc'}});
       if(!visit)throw new BadRequestException('Active stage visit missing.');
       const old=(visit.evidence && typeof visit.evidence==='object'&&!Array.isArray(visit.evidence)?visit.evidence:{}) as Record<string,unknown>;
+      for(const field of configured?.fields||[]){
+       const value=patch[field.key];if(value===undefined||value==='')continue;
+       if(typeof value!=='string'||value.length>5000)throw new BadRequestException('Invalid evidence value.');
+       if(field.type==='checkbox'&&!['true','false'].includes(value))throw new BadRequestException('Checkbox evidence must be true or false.');
+       if(field.type==='select'&&!field.options?.includes(value))throw new BadRequestException('Select a configured evidence option.');
+       if(field.type==='date'&&(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value))||new Date(value).toISOString().slice(0,10)!==value))throw new BadRequestException('Valid evidence date required.');
+      }
       const evidence={...old,...patch};
       await tx.stageVisit.update({where:{id:visit.id},data:{evidence:evidence as Prisma.InputJsonObject}});
       await tx.auditEvent.create({data:{actorId,action:'STAGE_EVIDENCE_UPDATED',entityType:'OPPORTUNITY',entityId:oppId,detail:{stage,keys:Object.keys(patch)}}});

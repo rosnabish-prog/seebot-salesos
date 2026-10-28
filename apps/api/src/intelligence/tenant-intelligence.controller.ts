@@ -1,3 +1,4 @@
+import {OpportunityWorkflowService} from '../opportunities/workflow.service';
 import {BadRequestException,Body,Controller,Get,NotFoundException,Param,Patch,Post,Req,UseGuards} from '@nestjs/common';
 import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from '../workspace/identity.guard';
@@ -10,7 +11,7 @@ const nonempty=(value:unknown,max:number)=>typeof value==='string'&&value.trim()
 @UseGuards(IdentityGuard)
 @Controller('workspace-intelligence')
 export class TenantIntelligenceController{
- constructor(private db:PrismaService,private scope:TenantScopeService,private demo:DemoIntelligenceProvider,private outgoing:OutgoingMessageService){}
+ constructor(private db:PrismaService,private scope:TenantScopeService,private demo:DemoIntelligenceProvider,private outgoing:OutgoingMessageService,private workflow:OpportunityWorkflowService){}
  private async account(req:ScopedRequest,orgId:string,id:string,write=false){
   await this.scope.membership(req,orgId,write);
   const account=await this.db.account.findFirst({where:{id,organizationId:orgId},include:{contacts:true}});
@@ -44,15 +45,21 @@ export class TenantIntelligenceController{
   const account=await this.account(req,orgId,id,true),payload=this.demo.rank(account.contacts);
   return this.db.intelligenceRun.create({data:{accountId:id,createdById:req.user.id,kind:'CONTACT_RANKING',payload}});
  }
- @Post(':orgId/accounts/:id/drafts')async createDraft(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:{contactId?:string}){
+ @Post(':orgId/accounts/:id/drafts')async createDraft(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:{contactId?:string;opportunityId?:string}){
   const account=await this.account(req,orgId,id,true);
   if(!nonempty(body?.contactId,100))throw new BadRequestException('Select an existing contact.');
   const contact=account.contacts.find(c=>c.id===body.contactId);
   if(!contact)throw new BadRequestException('Contact does not belong to this account.');
   if(contact.optedOut)throw new BadRequestException('Contact opted out.');
   if(!contact.email)throw new BadRequestException('A professional email is required to draft outreach.');
-  const generated=this.demo.draft(account,contact);
-  return this.db.outreachDraft.create({data:{accountId:id,contactId:contact.id,ownerId:req.user.id,subject:generated.subject,body:generated.body}});
+  const sender=await this.db.organization.findUniqueOrThrow({where:{id:orgId}});
+  const signature=[req.user.name,sender.name].join(' · ');
+  const generated=this.demo.draft(account,contact,{name:sender.name,services:Array.isArray(sender.services)?sender.services.filter((v):v is string=>typeof v==='string'):[],signature});
+  let opportunityId=body?.opportunityId||null;
+  if(opportunityId){const opportunity=await this.scope.opportunity(orgId,opportunityId);if(opportunity.accountId!==id||opportunity.status!=='OPEN')throw new BadRequestException('Choose an open opportunity for this account.');}
+  else{const opportunities=await this.db.opportunity.findMany({where:{accountId:id,status:'OPEN'},select:{id:true},take:2});if(opportunities.length===1)opportunityId=opportunities[0].id;}
+
+  return this.db.outreachDraft.create({data:{accountId:id,opportunityId,contactId:contact.id,ownerId:req.user.id,subject:generated.subject,body:generated.body}});
  }
  @Patch(':orgId/drafts/:id')async edit(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string,@Body()body:{subject?:string;body?:string}){
   const draft=await this.draft(req,orgId,id,true);
@@ -68,7 +75,8 @@ export class TenantIntelligenceController{
   const draft=await this.draft(req,orgId,id,true);
   if(draft.status!=='DRAFT')throw new BadRequestException('Sent demo drafts cannot be revised.');
   if(!nonempty(body?.instruction,500))throw new BadRequestException('Enter a revision instruction.');
-  const result=this.demo.revise(draft.subject,draft.body,body.instruction.trim());
+  const sender=await this.db.organization.findUniqueOrThrow({where:{id:orgId}});
+  const result=this.demo.revise(draft.subject,draft.body,body.instruction.trim(),{name:sender.name,signature:[req.user.name,sender.name].join(' · ')});
   return this.db.$transaction(async tx=>{
    await tx.outreachRevision.create({data:{draftId:id,instruction:'DEMO: '+body.instruction.trim(),beforeSubject:draft.subject,beforeBody:draft.body,afterSubject:result.subject,afterBody:result.body}});
    return tx.outreachDraft.update({where:{id},data:{subject:result.subject,body:result.body,version:{increment:1}}});
@@ -78,6 +86,9 @@ export class TenantIntelligenceController{
   const draft=await this.draft(req,orgId,id,true);
   if(draft.status!=='DRAFT')throw new BadRequestException('Only an unsent draft can be delivered.');
   if(!draft.contact?.email||draft.contact.optedOut)throw new BadRequestException('Contact email missing or opted out.');
+  if(!draft.opportunityId)throw new BadRequestException('Create an outreach draft linked to an open opportunity before sending.');
+  const opportunity=await this.scope.opportunity(orgId,draft.opportunityId);
+  if(opportunity.status!=='OPEN'||opportunity.accountId!==draft.accountId)throw new BadRequestException('Outreach opportunity is no longer open.');
   const message=await this.outgoing.draft(req.user.id,{
    recipientEmail:draft.contact.email,subject:draft.subject,bodyText:draft.body,category:'SALES_OUTREACH',entityType:'OUTREACH_DRAFT',entityId:draft.id,organizationId:orgId,
    idempotencyKey:'sales-outreach:'+draft.id+':v'+draft.version
@@ -87,8 +98,10 @@ export class TenantIntelligenceController{
    await tx.outreachDraft.updateMany({where:{id:draft.id,status:'DRAFT'},data:{status:'SENT'}});
    const existing=await tx.outreachMessage.findFirst({where:{draftId:draft.id,mode:'GMAIL',direction:'OUTBOUND'}});
    if(!existing)await tx.outreachMessage.create({data:{accountId:draft.accountId,draftId:draft.id,contactId:draft.contactId,direction:'OUTBOUND',mode:'GMAIL',subject:draft.subject,body:draft.body}});
+   await tx.activity.upsert({where:{sourceKey:'gmail-outreach:'+draft.id},create:{sourceKey:'gmail-outreach:'+draft.id,opportunityId:draft.opportunityId!,actorId:req.user.id,type:'EMAIL',outcome:'OUTBOUND',note:'Gmail message sent: '+message.id},update:{}});
    await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_SALES_OUTREACH_SENT',entityType:'OUTREACH_DRAFT',entityId:draft.id,detail:{organizationId:orgId,outgoingMessageId:message.id,recipientEmail:draft.contact!.email}}});
   });
+  await this.workflow.tryAutoAdvance(draft.opportunityId,req.user.id);
   return sent;
  }
  @Post(':orgId/drafts/:id/simulate-send')async simulateSend(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('id')id:string){

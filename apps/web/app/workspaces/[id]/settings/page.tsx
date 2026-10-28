@@ -6,6 +6,7 @@ import {WorkspaceManagement} from '@/components/organization/workspace-managemen
 import {PipelineSettingsPanel} from '@/components/organization/pipeline-settings-panel';
 import {TenantReportTemplates} from '@/components/client/tenant-report-templates';
 import {TenantIntegrationStatus} from '@/components/organization/tenant-integration-status';
+import {RecoveryCodesPanel} from '@/components/organization/recovery-codes-panel';
 import {TenantSecurityAudit} from '@/components/organization/tenant-security-audit';
 import {ErrorMessage,PageTop} from '@/components/ui';
 import {request} from '@/lib/api';
@@ -22,7 +23,7 @@ export default function TenantSettings(){
   {id:'pipeline' as Section,label:'Sales Workflow',icon:<SlidersHorizontal size={16}/>,show:admin},
   {id:'reports' as Section,label:'Client Reporting',icon:<FileBarChart2 size={16}/>,show:admin},
   {id:'integrations' as Section,label:'Integrations',icon:<PlugZap size={16}/>,show:true},
-  {id:'security' as Section,label:'Security & Audit',icon:<ShieldCheck size={16}/>,show:admin}
+  {id:'security' as Section,label:'Security & Audit',icon:<ShieldCheck size={16}/>,show:true}
  ].filter(x=>x.show),[admin]);
  useEffect(()=>{if(!tabs.some(t=>t.id===section))setSection('company')},[tabs,section]);
  return <section className="tenant-settings-page">
@@ -35,7 +36,7 @@ export default function TenantSettings(){
     {section==='pipeline'&&admin&&<PipelineSettingsPanel orgId={orgId}/>}
     {section==='reports'&&admin&&<TenantReportTemplates orgId={orgId}/>}
     {section==='integrations'&&<TenantIntegrationStatus orgId={orgId}/>}
-    {section==='security'&&admin&&<TenantSecurityAudit orgId={orgId}/>}
+    {section==='security'&&<><RecoveryCodesPanel/>{admin&&<TenantSecurityAudit orgId={orgId}/>}</>}
    </div>
   </div>
  </section>;

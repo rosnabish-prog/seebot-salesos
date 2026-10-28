@@ -1,3 +1,5 @@
+import {TenantScopeService} from './tenant-scope.service';
+import {WorkspaceAccessService} from './workspace-access.service';
 import {BadRequestException,Body,Controller,ForbiddenException,Get,Param,Patch,Post,Req,UseGuards} from '@nestjs/common';
 import {PrismaService} from '../prisma/prisma.service';
 import {IdentityGuard} from './identity.guard';
@@ -7,17 +9,8 @@ type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 /** Separate tenant-safe prospect API. Never route another tenant through the legacy CRM controllers. */
 @UseGuards(IdentityGuard) @Controller('workspace-crm')
 export class TenantAccountsController {
- constructor(private db:PrismaService){}
- private async authorize(req:ScopedRequest,orgId:string,write=false){
-  const preview=process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true';
-  const live=process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true';
-  if(!preview&&!live)throw new ForbiddenException('Tenant CRM is disabled for this deployment.');
-  if(req.selectedWorkspace!==orgId)throw new ForbiddenException('Select this workspace first.');
-  const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}},include:{organization:true}});
-  if(member?.status!=='ACTIVE'||member.organization.status!=='ACTIVE'&&member.organization.status!=='SETUP')throw new ForbiddenException('Active company membership required.');
-  if(write&&member.role==='VIEWER')throw new ForbiddenException('This company role cannot edit prospects.');
-  return member;
- }
+ constructor(private db:PrismaService,private scope:TenantScopeService){}
+ private async authorize(req:ScopedRequest,orgId:string,write=false){return this.scope.membership(req,orgId,write);}
  private domain(website:string){let url:URL;try{url=new URL(website);}catch{throw new BadRequestException('Use a valid HTTPS company website.');}
   if(url.protocol!=='https:'||!url.hostname.includes('.')||url.username||url.password)throw new BadRequestException('Valid HTTPS website required.');return url.hostname.toLowerCase().replace(/^www\./,'');}
  @Get(':orgId/accounts')async list(@Req()req:ScopedRequest,@Param('orgId')orgId:string){await this.authorize(req,orgId);return this.db.account.findMany({where:{organizationId:orgId},select:{id:true,name:true,domain:true,website:true,industry:true,status:true,priority:true,createdAt:true,opportunities:{select:{id:true,title:true,stage:true,status:true}}},orderBy:{createdAt:'desc'},take:100});}
@@ -52,6 +45,15 @@ export class TenantAccountsController {
   await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_ACCOUNT_UPDATED',entityType:'ACCOUNT',entityId:account.id,detail:{organizationId:orgId,fields:Object.keys(data)}}});
   return updated;
  }
+ @Patch(':orgId/accounts/:accountId/billing')async billingIdentity(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Body()body:any){
+  await this.scope.membership(req,orgId,'finance');await this.scope.account(orgId,accountId);
+  const billingAddress=String(body?.billingAddress||'').trim(),taxRegistrationNumber=String(body?.taxRegistrationNumber||'').trim();
+  if(billingAddress.length<5||billingAddress.length>4000||taxRegistrationNumber.length>120)throw new BadRequestException('Client billing address and valid optional tax registration required.');
+  return this.db.$transaction(async tx=>{
+   const account=await tx.account.update({where:{id:accountId},data:{billingAddress,taxRegistrationNumber:taxRegistrationNumber||null}});
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_ACCOUNT_BILLING_UPDATED',entityType:'ACCOUNT',entityId:accountId,detail:{organizationId:orgId}}});return account;
+  });
+ }
  @Post(':orgId/accounts/:accountId/contacts')async contact(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Body()body:any){await this.authorize(req,orgId,true);
   const account=await this.db.account.findFirst({where:{id:accountId,organizationId:orgId},select:{id:true}});if(!account)throw new BadRequestException('Account unavailable in this workspace.');
   const name=String(body?.name||'').trim(),title=String(body?.title||'').trim(),email=String(body?.email||'').trim().toLowerCase(),linkedinUrl=String(body?.linkedinUrl||'').trim();
@@ -60,6 +62,15 @@ export class TenantAccountsController {
   const created=await this.db.contact.create({data:{accountId,name,title,email,linkedinUrl:linkedinUrl||null,source:'USER_ENTERED',verified:false}});
   await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_CONTACT_CREATED',entityType:'CONTACT',entityId:created.id,detail:{organizationId:orgId,accountId}}});
   return created;
+ }
+ @Post(':orgId/accounts/:accountId/contacts/:contactId/verify')async verifyContact(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Param('contactId')contactId:string,@Body()body:any){
+  await this.scope.membership(req,orgId,'sales');await this.scope.account(orgId,accountId);
+  const contact=await this.db.contact.findFirst({where:{id:contactId,accountId}}),reference=String(body?.reference||'').trim();
+  if(!contact||contact.optedOut||!contact.email&&!contact.linkedinUrl||reference.length<10||reference.length>1000)throw new BadRequestException('Contact channel and a verification source/reference of 10–1000 characters required.');
+  return this.db.$transaction(async tx=>{
+   const verified=await tx.contact.update({where:{id:contactId},data:{verified:true,verificationReference:reference,verifiedAt:new Date(),verifiedById:req.user.id}});
+   await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_CONTACT_VERIFIED',entityType:'CONTACT',entityId:contactId,detail:{organizationId:orgId,accountId,reference}}});return verified;
+  });
  }
  @Patch(':orgId/accounts/:accountId/contacts/:contactId')async updateContact(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('accountId')accountId:string,@Param('contactId')contactId:string,@Body()body:any){await this.authorize(req,orgId,true);
   const account=await this.db.account.findFirst({where:{id:accountId,organizationId:orgId},select:{id:true}});if(!account)throw new BadRequestException('Account unavailable in this workspace.');
@@ -70,6 +81,7 @@ export class TenantAccountsController {
   if(Object.prototype.hasOwnProperty.call(body||{},'email')){const value=String(body.email||'').trim().toLowerCase();if(value&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))throw new BadRequestException('Use a valid email address.');data.email=value||null;}
   if(Object.prototype.hasOwnProperty.call(body||{},'linkedinUrl')){const value=String(body.linkedinUrl||'').trim();if(value&&(!/^https:\/\//.test(value)||value.length>500))throw new BadRequestException('Use a valid HTTPS LinkedIn/profile URL.');data.linkedinUrl=value||null;}
   if(Object.prototype.hasOwnProperty.call(body||{},'optedOut'))data.optedOut=Boolean(body.optedOut);
+  if(['name','title','email','linkedinUrl'].some(key=>Object.prototype.hasOwnProperty.call(data,key)))Object.assign(data,{verified:false,verificationReference:null,verifiedAt:null,verifiedById:null});
   const updated=await this.db.contact.update({where:{id:contact.id},data});
   await this.db.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_CONTACT_UPDATED',entityType:'CONTACT',entityId:contact.id,detail:{organizationId:orgId,accountId,optedOut:updated.optedOut}}});
   return updated;

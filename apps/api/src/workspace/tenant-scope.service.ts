@@ -1,20 +1,17 @@
 import {BadRequestException,ForbiddenException,Injectable,NotFoundException} from '@nestjs/common';
+import {WorkspaceAccessService,type WorkspacePermission} from './workspace-access.service';
 import {PrismaService} from '../prisma/prisma.service';
 import type {AuthRequest} from '../common/auth.guard';
 export type ScopedRequest=AuthRequest & {selectedWorkspace?:string|null};
 /** Every tenant route MUST resolve ownership from the membership and persisted record, never from a caller-provided ownerId. */
 @Injectable()
 export class TenantScopeService{
- constructor(private db:PrismaService){}
+ constructor(private db:PrismaService,private access:WorkspaceAccessService=new WorkspaceAccessService(db)){}
  preview(){return process.env.NODE_ENV!=='production'&&process.env.TENANT_SCOPED_CRM_PREVIEW==='true';}
  enabled(){return this.preview()||(process.env.NODE_ENV==='production'&&process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true');}
- async membership(req:ScopedRequest,organizationId:string,write=false){
+ async membership(req:ScopedRequest,organizationId:string,write:boolean|WorkspacePermission=false){
   if(!this.enabled())throw new ForbiddenException('Tenant CRM is disabled for this deployment.');
-  if(req.selectedWorkspace!==organizationId)throw new ForbiddenException('The organization must be selected in the current session.');
-  const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId,userId:req.user.id}},include:{organization:{select:{status:true}}}});
-  if(!member||member.status!=='ACTIVE'||!['SETUP','ACTIVE'].includes(member.organization.status))throw new ForbiddenException('Active company membership required.');
-  if(write&&!['OWNER','ADMIN','MEMBER'].includes(member.role))throw new ForbiddenException('Role cannot modify this workspace.');
-  return member;
+  return this.access.require(req,organizationId,typeof write==='string'?write:write?'sales':'read');
  }
  async account(organizationId:string,accountId:string){
   const a=await this.db.account.findFirst({where:{id:accountId,organizationId}});

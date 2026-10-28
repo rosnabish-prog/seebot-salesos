@@ -39,6 +39,20 @@ export class AuthController {
     await this.issueSession(res,{id:user.id,role:user.role,passwordVersion:user.passwordVersion});
     return {user:{id:user.id,email:user.email,name:user.name,role:user.role},sessionExpiresInDays:7};
   }
+  @Post('mfa/recovery/verify')async recoverMfa(@Body()body:{challengeId?:string;code?:string},@Res({passthrough:true})res:Response){
+    const user=await this.mfa.verifyRecovery(String(body?.challengeId||''),String(body?.code||''));
+    await this.issueSession(res,user);return {user:{id:user.id,email:user.email,name:user.name,role:user.role},sessionExpiresInDays:7};
+  }
+  @UseGuards(IdentityGuard) @Get('mfa/recovery/status')recoveryStatus(@Req()req:AuthRequest){return this.mfa.recoveryStatus(req.user.id);}
+  @UseGuards(IdentityGuard) @Post('mfa/recovery/start')async startRecovery(@Req()req:AuthRequest,@Body()body:{currentPassword?:string}){
+    const recent=typeof (req as any).authAt==='number'&&Date.now()-(req as any).authAt<=5*60_000;
+    if(!body?.currentPassword&&!recent)throw new BadRequestException('Sign in again or enter your current password to set up recovery.');
+    const user=body?.currentPassword?await this.service.confirmPassword(req.user.id,body.currentPassword):{id:req.user.id,email:req.user.email};
+    return this.mfa.begin(user,'RECOVERY_SETUP');
+  }
+  @UseGuards(IdentityGuard) @Post('mfa/recovery-codes')async recoveryCodes(@Req()req:AuthRequest,@Body()body:{challengeId?:string;code?:string},@Res({passthrough:true})res:Response){
+    res.setHeader('Cache-Control','no-store');return this.mfa.generateRecoveryCodes(req.user.id,String(body?.challengeId||''),String(body?.code||''));
+  }
     @UseGuards(IdentityGuard) @Get('me') me(@Req() req:AuthRequest) {return req.user;}
   @UseGuards(IdentityGuard) @Patch('password') async changePassword(@Req()req:AuthRequest,@Body()body:{currentPassword:string;newPassword:string},@Res({passthrough:true})res:Response){
     const result=await this.service.changePassword(req.user.id,body.currentPassword,body.newPassword);

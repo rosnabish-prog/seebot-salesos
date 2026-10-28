@@ -39,8 +39,8 @@ export class ExternalSigningController {
     assertConfigured();
     if(typeof data?.token!=='string'||!(/^[\w-]{40,90}$/.test(data.token))||typeof data.googleIdToken!=='string'||data.googleIdToken.length>12000)
       throw new UnauthorizedException('Valid invitation and Google authentication are required.');
-    const env=await this.db.signingEnvelope.findUnique({where:{tokenHash:hashInvitationToken(data.token)},include:{document:true}});
-    if(!env || env.revokedAt || !(env.status==='INVITED' && env.expiresAt>new Date() || allowCompleted && env.status==='SIGNED' && env.signedAt && Date.now()-env.signedAt.getTime()<30*86400000)) throw new UnauthorizedException('Invitation is unavailable, revoked or expired.');
+    const env=await this.db.signingEnvelope.findUnique({where:{tokenHash:hashInvitationToken(data.token)},include:{document:true,contract:{include:{opportunity:{include:{account:{include:{organization:true}}}}}}}});
+    if(!env || !env.contract.opportunity.account.organization || !['SETUP','ACTIVE'].includes(env.contract.opportunity.account.organization.status) || env.revokedAt || !(env.status==='INVITED' && env.expiresAt>new Date() || allowCompleted && env.status==='SIGNED' && env.signedAt && Date.now()-env.signedAt.getTime()<30*86400000)) throw new UnauthorizedException('Invitation is unavailable, revoked or expired.');
     let payload;
     try { const ticket=await this.google.verifyIdToken({idToken:data.googleIdToken,audience:process.env.GOOGLE_SIGNING_CLIENT_ID!});payload=ticket.getPayload(); }
     catch { throw new UnauthorizedException('Google sign-in is invalid or has expired. Please sign in again.'); }
@@ -172,7 +172,7 @@ export class SigningAdministrationController {
   constructor(private db:PrismaService,private messages:OutgoingMessageService,private evidence:EvidenceArchiveService){}
   private async contract(id:string,req:AuthRequest,modify:boolean){
     const c=await this.db.contract.findUnique({where:{id},include:{opportunity:true}});
-    if(!c)throw new BadRequestException('Contract not found.');
+    if(!c||!await this.db.account.findFirst({where:{id:c.opportunity.accountId,organizationId:req.user.organizationId},select:{id:true}}))throw new BadRequestException('Contract not found.');
     if(modify)ensureCanEdit(req.user,c.opportunity.ownerId);else ensureOwner(req.user,c.opportunity.ownerId);
     return c;
   }

@@ -7,7 +7,7 @@ export class UsersController {
   constructor(private db:PrismaService, private auth:AuthService) {}
   @Get() list(@Req() req:AuthRequest) {
     // Staff directory includes identity but never credentials.
-    return this.db.user.findMany({where:{active:true},select:{id:true,name:true,email:true,role:true},orderBy:{name:'asc'}});
+    return this.db.user.findMany({where:{active:true,organizationMemberships:{some:{organizationId:req.user.organizationId,status:'ACTIVE'}}},select:{id:true,name:true,email:true,role:true},orderBy:{name:'asc'}});
   }
   @Post() invite(@Req() req:AuthRequest,@Body() body:{name:string,email:string,password:string,role:string}) {
     // Creating an account with an unverified email and shared temporary password

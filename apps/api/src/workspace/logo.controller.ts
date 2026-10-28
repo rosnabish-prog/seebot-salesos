@@ -6,12 +6,13 @@ import * as path from 'node:path';
 import type {Response} from 'express';
 import {PrismaService} from '../prisma/prisma.service';
 import type {AuthRequest} from '../common/auth.guard';
+import {WorkspaceAccessService} from './workspace-access.service';
 import {IdentityGuard} from './identity.guard';
 const folder=process.env.ORGANIZATION_LOGO_STORAGE_DIR||path.resolve(process.cwd(),'private-organization-logos');
 @UseGuards(IdentityGuard)@Controller('workspaces')
 export class WorkspaceLogoController{
- constructor(private db:PrismaService){}
- private async member(req:AuthRequest,id:string,edit=false){const membership=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}}});if(membership?.status!=='ACTIVE'||edit&&!['OWNER','ADMIN'].includes(membership.role))throw new ForbiddenException('Workspace membership required.');return membership;}
+ constructor(private db:PrismaService,private access:WorkspaceAccessService){}
+ private async member(req:AuthRequest,id:string,edit=false){return this.access.require(req,id,edit?'admin':'read');}
  @Post(':id/logo')@UseInterceptors(FileInterceptor('file',{limits:{fileSize:2*1024*1024}}))async upload(@Req()req:AuthRequest,@Param('id')id:string,@UploadedFile()file:any){await this.member(req,id,true);
   if(!file?.buffer||file.buffer.length<16)throw new BadRequestException('PNG or JPEG logo required.');
   const png=file.buffer.subarray(0,8).toString('hex')==='89504e470d0a1a0a',jpeg=file.buffer[0]===0xff&&file.buffer[1]===0xd8&&file.buffer[2]===0xff;

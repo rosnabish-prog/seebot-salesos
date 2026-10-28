@@ -1,3 +1,4 @@
+import {companyDomain} from '../workspace/company-email';
 import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import argon2 from 'argon2';
@@ -5,9 +6,16 @@ import argon2 from 'argon2';
 export class AuthService {
   constructor(private db: PrismaService) {}
   async login(email:string, password:string) {
+    companyDomain(email);
+    if(typeof password!=='string'||password.length<1||password.length>256)throw new UnauthorizedException('Invalid email or password.');
     const user = await this.db.user.findUnique({where:{email:email.trim().toLowerCase()}});
     if (!user || !user.active || !(await argon2.verify(user.passwordHash,password))) throw new UnauthorizedException('Invalid email or password.');
     return {user:{id:user.id,email:user.email,name:user.name,role:user.role,passwordVersion:user.passwordVersion}};
+  }
+  async confirmPassword(userId:string,password:string){
+    const user=await this.db.user.findUnique({where:{id:userId}});
+    if(!user?.active||typeof password!=='string'||password.length>256||!await argon2.verify(user.passwordHash,password))throw new UnauthorizedException('Current password is incorrect.');
+    return {id:user.id,email:user.email};
   }
   async changePassword(userId:string,currentPassword:string,newPassword:string){
     const user=await this.db.user.findUnique({where:{id:userId}});
