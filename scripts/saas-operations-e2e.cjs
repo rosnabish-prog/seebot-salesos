@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict'),{randomUUID}=require('node:crypto'),{spawn}=require('node:child_process');
 const {PrismaClient}=require('@prisma/client'),{JwtService}=require('@nestjs/jwt');
 if(process.env.CI!=='true'||process.env.NODE_ENV!=='test'||!process.env.DATABASE_URL?.includes('ci_only_password'))throw Error('Operations tests require the disposable CI database.');
+process.env.TENANT_SCOPED_CRM_PREVIEW='true';
 const db=new PrismaClient(),id=randomUUID().slice(0,8),port=4202,origin='https://operations-ci.example';
 const jwt=new JwtService({secret:process.env.JWT_SECRET});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));

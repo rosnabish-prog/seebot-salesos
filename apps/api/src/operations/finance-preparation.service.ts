@@ -6,6 +6,9 @@ import {nextBillingDate} from '../commercial/commercial-policy';
 import {candidateReminders} from '../invoices/local-reminder-preview';
 import {isPlainEmail} from '../common/email';
 
+export function preparationEnabled(slug:string){
+ return slug==='seebot'||(process.env.NODE_ENV==='production'?process.env.TENANT_SCOPED_CRM_PRODUCTION_ENABLED==='true':process.env.TENANT_SCOPED_CRM_PREVIEW==='true');
+}
 /** Both HTTP actions and background work use the same transaction/idempotency boundary. */
 @Injectable()
 export class FinancePreparationService{
@@ -14,6 +17,7 @@ export class FinancePreparationService{
   await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${organizationId} FOR UPDATE`;
   const member=await tx.organizationMembership.findUnique({where:{organizationId_userId:{organizationId,userId:actorId}},include:{organization:true,user:{select:{active:true}}}});
   if(!member?.user.active||member.status!=='ACTIVE'||!['OWNER','ADMIN','FINANCE'].includes(member.role)||!['SETUP','ACTIVE'].includes(member.organization.status))throw new ForbiddenException('Active finance membership required for preparation.');
+  if(!preparationEnabled(member.organization.slug))throw new ForbiddenException('Tenant preparation is disabled for this deployment.');
   if(automatic){const config=await tx.workspaceAutomation.findUnique({where:{organizationId}});if(!config||config.enabledById!==actorId||!(automatic==='billing'?config.billingDrafts:config.reminderTasks))throw new ForbiddenException('Automatic preparation is disabled.');}
  }
  async billing(organizationId:string,actorId:string,automatic=false){

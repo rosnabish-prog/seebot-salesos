@@ -1,6 +1,6 @@
 import {Injectable} from '@nestjs/common';
 import {PrismaService} from '../prisma/prisma.service';
-import {FinancePreparationService} from './finance-preparation.service';
+import {FinancePreparationService,preparationEnabled} from './finance-preparation.service';
 import {randomUUID} from 'node:crypto';
 import type {BackgroundJob} from '@prisma/client';
 
@@ -17,8 +17,9 @@ export class BackgroundJobsService{
   // Keyset pagination ensures no organization is omitted as the tenant count grows.
   let after:string|undefined;
   do{
-   const settings=await this.db.workspaceAutomation.findMany({where:{organization:{status:{in:['SETUP','ACTIVE']}},OR:[{billingDrafts:true},{reminderTasks:true}],...(after?{organizationId:{gt:after}}:{})},orderBy:{organizationId:'asc'},take:100});
+   const settings=await this.db.workspaceAutomation.findMany({where:{organization:{status:{in:['SETUP','ACTIVE']}},OR:[{billingDrafts:true},{reminderTasks:true}],...(after?{organizationId:{gt:after}}:{})},orderBy:{organizationId:'asc'},take:100,include:{organization:{select:{slug:true}}}});
    for(const setting of settings){
+    if(!preparationEnabled(setting.organization.slug))continue;
     if(setting.billingDrafts)await this.enqueue('BILLING_DRAFTS','billing:'+setting.organizationId+':'+hour,setting.organizationId);
     if(setting.reminderTasks)await this.enqueue('REMINDER_TASKS','reminders:'+setting.organizationId+':'+hour,setting.organizationId);
    }
@@ -53,7 +54,7 @@ export class BackgroundJobsService{
     result={expiredCountersRemoved:counters.count,oldJobsRemoved:history.count};
    }else{
     const setting=job.organizationId?await this.db.workspaceAutomation.findUnique({where:{organizationId:job.organizationId},include:{organization:true}}):null;
-    if(!setting||!['SETUP','ACTIVE'].includes(setting.organization.status)||!(job.kind==='BILLING_DRAFTS'?setting.billingDrafts:job.kind==='REMINDER_TASKS'?setting.reminderTasks:false)){
+    if(!setting||!preparationEnabled(setting.organization.slug)||!['SETUP','ACTIVE'].includes(setting.organization.status)||!(job.kind==='BILLING_DRAFTS'?setting.billingDrafts:job.kind==='REMINDER_TASKS'?setting.reminderTasks:false)){
      await this.db.backgroundJob.updateMany({where:{id:job.id,leaseToken:job.leaseToken,status:'RUNNING'},data:{status:'CANCELLED',leaseToken:null,leaseUntil:null,finishedAt:new Date()}});return true;
     }
     result=job.kind==='BILLING_DRAFTS'?await this.finance.billing(setting.organizationId,setting.enabledById,true):await this.finance.reminders(setting.organizationId,setting.enabledById,true);
