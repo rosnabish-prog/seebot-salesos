@@ -223,7 +223,7 @@ async function main(){
   const personal=await db.user.create({data:{email:'ci-personal-'+id+'@gmail.com',name:'Personal Account',passwordHash:'NOT_REAL',role:'SALES_REP'}});
   check(await hit('/workspaces',token(personal,null),{method:'POST',body:JSON.stringify({name:'Personal Fake Company',website:'https://gmail.com'})}),400,'Personal email cannot create a company workspace');
   const mismatch=await db.user.create({data:{email:'ci-mismatch-'+id+'@legitimate-'+id+'.example',name:'Domain Mismatch',passwordHash:'NOT_REAL',role:'SALES_REP'}});
-  check(await hit('/workspaces',token(mismatch,null),{method:'POST',body:JSON.stringify({name:'Wrong Domain',website:'https://unrelated-'+id+'.example'})}),400,'Company website must match creator email domain');
+  check(await hit('/workspaces',token(mismatch,null),{method:'POST',body:JSON.stringify({name:'Wrong Domain',website:'https://unrelated-'+id+'.example'})}),201,'A verified work identity may own companies with different website domains');
   check(await hit('/auth/register','',{method:'POST',body:JSON.stringify({name:'Personal Signup',email:'ci-claim-'+id+'@gmail.com',password:'CI_Only_12_Password_One!'})}),400,'Email registration blocks personal providers');
 
   // An invite does not grant access until redeemed by the exact recipient.

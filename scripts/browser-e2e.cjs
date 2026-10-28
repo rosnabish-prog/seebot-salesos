@@ -293,6 +293,8 @@ async function main(){
   }finally{await verificationContext.close();}
   console.log('PASS: signup, forgot-password configuration and Google OAuth states visible in UI.');
 
+  // Respect the real shared resend/sign-in cooldown before signing in again.
+  await sleep(31_000);
   // Multiple memberships require an explicit workspace choice on the next login.
   await db.organization.create({data:{slug:'ci-second-'+unique,name:'CI Second Team '+unique,status:'SETUP',memberships:{create:{userId:guest.id,role:'MEMBER',status:'ACTIVE'}}}});
   const multiContext=await browser.newContext(),multiPage=await multiContext.newPage();

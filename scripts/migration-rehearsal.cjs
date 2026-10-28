@@ -11,7 +11,8 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'salesos-migration-'));
 const schema='packages/database/prisma/schema.prisma';
 const baseline='20261022000000_baseline';
 const url=name=>{const u=new URL(base);u.pathname='/'+name;return u.toString();};
-function sql(db,args){return execFileSync('psql',[db,'-X','-v','ON_ERROR_STOP=1',...args],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}
+const pgUrl=db=>{const u=new URL(db);u.search='';return u.toString();};
+function sql(db,args){return execFileSync('psql',[pgUrl(db),'-X','-v','ON_ERROR_STOP=1',...args],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}
 function prisma(db,args){execFileSync(process.execPath,[require.resolve('prisma/build/index.js'),...args,'--schema='+schema],{env:{...process.env,DATABASE_URL:db},stdio:['ignore','pipe','pipe']});}
 function verify(db){
  assert.match(sql(db,['-Atc',`SELECT "name" FROM "Organization" WHERE id='migration-org'`]),/Migration Fixture/);
@@ -32,7 +33,7 @@ try{
  `]);
  prisma(url(names[1]),['migrate','resolve','--applied',baseline]);
  const backup=path.join(dir,'before-upgrade.sql');
- execFileSync('pg_dump',[url(names[1]),'--no-owner','--no-acl','--file',backup],{stdio:['ignore','pipe','pipe']});
+ execFileSync('pg_dump',[pgUrl(url(names[1])),'--no-owner','--no-acl','--file',backup],{stdio:['ignore','pipe','pipe']});
  assert.ok(fs.statSync(backup).size>0);
  prisma(url(names[1]),['migrate','deploy']);verify(url(names[1]));
  sql(url(names[2]),['-f',backup]);
