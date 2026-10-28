@@ -1,4 +1,5 @@
 'use client';
+import {WorkspaceLifecyclePanel} from './workspace-lifecycle-panel';
 import {useEffect,useState,FormEvent,KeyboardEvent} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
@@ -56,7 +57,7 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
  async function list(){const workspaces=await request<Workspace[]>('/workspaces');setItems(workspaces);setLoaded(true);return workspaces;}
  useEffect(()=>{void list().then(workspaces=>{
    const manage=embeddedWorkspaceId||new URLSearchParams(window.location.search).get('manage');const requested=workspaces.find(w=>w.id===manage);
-   if(requested)void open(requested);
+   if(requested&&requested.status!=='SUSPENDED')void open(requested);
  }).catch(e=>{if(e.status===401)router.replace('/login');else setError(e.message);setLoaded(true);});},[]);
  async function open(workspace:Workspace){
   setError('');try{
@@ -204,9 +205,10 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
     {results.map((r,i)=><div key={r.recipientEmail+i} className="ws-delivery"><strong>{r.recipientEmail}</strong><small>{r.delivery==='SENT'?'Email sent':r.delivery==='SENT_PREVIEW'?'Private test inbox':'Not sent — share link privately'}</small>{r.inviteUrl&&<div className="ws-copy-row"><input readOnly value={r.inviteUrl} aria-label={'Invite link '+r.recipientEmail}/><Button variant="secondary" type="button" onClick={()=>void navigator.clipboard.writeText(r.inviteUrl!)}>Copy link</Button></div>}</div>)}</div>}
     {invitations.length>0&&<div className="ws-invite-history"><h3>Invitation history</h3>{invitations.map(inv=><div key={inv.id} className="ws-member-row"><span>{inv.email} <small>· {inv.role}</small></span><span className="ws-status">{inv.status}</span>{inv.status==='PENDING'&&<Button variant="secondary" type="button" onClick={async()=>{try{await post('/workspace-invitations/organizations/'+selected.id+'/'+inv.id+'/revoke',{});setInvitations(items=>items.map(i=>i.id===inv.id?{...i,status:'REVOKED'}:i));}catch(e){setError(e instanceof Error?e.message:'Could not revoke invitation.');}}}>Revoke</Button>}</div>)}</div>}
    </div>}
+   {selected.role==='OWNER'&&selected.slug!=='seebot'&&<WorkspaceLifecyclePanel orgId={selected.id} slug={selected.slug} onChanged={()=>{router.push('/workspaces');setSelected(null);void list();}}/>}
    {!embeddedWorkspaceId&&<Button variant="secondary" type="button" onClick={()=>{setSelected(null);setCreating(true);setCreateForm(companyDefaults)}}>Create another organization</Button>}
    <div className="ws-settings-footer"><ShieldCheck size={16}/> You can own multiple organizations and join other teams. Each workspace keeps its records and permissions separate.</div>
    {!embeddedWorkspaceId&&selected.tenantCrmEnabled&&<Button type="button" className="ws-main-cta" onClick={()=>void choose(selected)}>Open company CRM <ChevronRight size={16}/></Button>}
-  </section>:<section className="ws-card ws-centered"><h1>Company workspaces</h1><Button type="button" onClick={()=>{setSelected(null);setCreating(true);setCreateForm(companyDefaults)}}>Create another organization</Button><p className="ws-intro">Select a workspace or create another company.</p><div className="ws-workspace-list">{items.map(w=><div key={w.id} className="ws-choice"><div><strong>{w.name}</strong><small>{w.role==='OWNER'?'Administrator (Owner)':w.role==='ADMIN'?'Administrator':w.role}</small></div><Button variant="secondary" onClick={()=>void open(w)}>Manage</Button><Button onClick={()=>void choose(w)}>Open</Button></div>)}</div></section>}
+  </section>:<section className="ws-card ws-centered"><h1>Company workspaces</h1><Button type="button" onClick={()=>{setSelected(null);setCreating(true);setCreateForm(companyDefaults)}}>Create another organization</Button><p className="ws-intro">Select a workspace or create another company.</p><div className="ws-workspace-list">{items.map(w=><div key={w.id} className="ws-choice"><div><strong>{w.name}</strong><small>{w.role==='OWNER'?'Administrator (Owner)':w.role==='ADMIN'?'Administrator':w.role}</small></div>{w.status==='SUSPENDED'?<WorkspaceLifecyclePanel orgId={w.id} slug={w.slug} suspended onChanged={()=>{void list();}}/>:<><Button variant="secondary" onClick={()=>void open(w)}>Manage</Button><Button onClick={()=>void choose(w)}>Open</Button></>}</div>)}</div></section>}
  </div></main>;
 }

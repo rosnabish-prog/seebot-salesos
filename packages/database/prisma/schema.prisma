@@ -546,6 +546,9 @@ model ClientIssue {
 
 // Independent workspaces use tenant-scoped APIs. Legacy CRM routes remain pinned to Seebot.
 model Organization {
+  suspendedFromStatus String?
+  automation WorkspaceAutomation?
+  backgroundJobs BackgroundJob[]
   id String @id @default(cuid())
   createdById String?
   @@index([createdById])
@@ -1154,4 +1157,34 @@ model MfaRecoveryCode {
  usedAt DateTime?
  createdAt DateTime @default(now())
  @@index([userId,usedAt])
+}
+
+// Opt-in preparation only. Explicit approval/issue/send routes remain authoritative.
+model WorkspaceAutomation {
+ organizationId String @id
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+ billingDrafts Boolean @default(false)
+ reminderTasks Boolean @default(false)
+ enabledById String
+ updatedAt DateTime @updatedAt
+}
+model BackgroundJob {
+ id String @id @default(cuid())
+ key String @unique
+ organizationId String?
+ organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+ kind String
+ status String @default("PENDING")
+ attempts Int @default(0)
+ maxAttempts Int @default(5)
+ availableAt DateTime @default(now())
+ leaseUntil DateTime?
+ leaseToken String?
+ lastError String?
+ result Json @default("{}")
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ finishedAt DateTime?
+ @@index([status,availableAt])
+ @@index([organizationId,createdAt])
 }

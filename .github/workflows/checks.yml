@@ -95,6 +95,8 @@ jobs:
         run: node scripts/tenant-isolation-e2e.cjs
       - name: Complete tenant sales lifecycle and P0 security regressions
         run: node scripts/saas-p0-e2e.cjs
+      - name: Organization operations, durable worker and exports
+        run: node scripts/saas-operations-e2e.cjs
       - name: Install browser for end-to-end checks
         run: npx playwright install --with-deps chromium
       - name: Browser E2E for company onboarding and finance

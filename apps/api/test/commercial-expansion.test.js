@@ -14,3 +14,11 @@ test('signed PDF audit chain has independent verification route',()=>{const code
 test('credits require approval and a unique issued credit PDF',()=>{const code=src('commercial/credit-note-pdf.controller.ts');assert.match(code,/status!=='APPROVED'/);assert.match(code,/doc\.sha256/);assert.match(schema,/model CreditNoteSequence/);assert.match(schema,/model CreditNoteDocument/);});
 test('organization membership and private logo retrieval are enforced',()=>{assert.match(src('workspace/logo.controller.ts'),/this\.access\.require/);assert.match(src('workspace/workspaces.controller.ts'),/this\.authorized\(req,id,true\)/);});
 test('executive drilldowns reject roles without management permissions',()=>{assert.match(src('reporting/executive-drilldowns.controller.ts'),/allowManageAll\(req\.user\)/);});
+
+require('./register-ts.cjs');
+const {nextBillingDate}=require('../src/commercial/commercial-policy.ts');
+test('billing month ends clamp without skipping a month',()=>{
+ assert.equal(nextBillingDate(new Date('2026-01-31T12:30:00Z'),'MONTHLY').toISOString(),'2026-02-28T12:30:00.000Z');
+ assert.equal(nextBillingDate(new Date('2028-01-31T12:30:00Z'),'MONTHLY').toISOString(),'2028-02-29T12:30:00.000Z');
+ assert.equal(nextBillingDate(new Date('2026-01-31T12:30:00Z'),'QUARTERLY').toISOString(),'2026-04-30T12:30:00.000Z');
+});

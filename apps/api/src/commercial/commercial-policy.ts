@@ -13,10 +13,13 @@ export function calculateBalance(total:number,paid:number,approvedAdjustments:nu
  return Math.max(0,Math.round((total-paid-approvedAdjustments)*100)/100);
 }
 export function nextBillingDate(date:Date,cadence:string){
- const next=new Date(date);
- if(cadence==='MONTHLY')next.setUTCMonth(next.getUTCMonth()+1);
- else if(cadence==='QUARTERLY')next.setUTCMonth(next.getUTCMonth()+3);
- else return null;
+ const next=new Date(date),day=next.getUTCDate();
+ const months=cadence==='MONTHLY'?1:cadence==='QUARTERLY'?3:0;
+ if(!months)return null;
+ // Clamp month-end dates (Jan 31 -> Feb 28), never spill into the following month.
+ next.setUTCDate(1);next.setUTCMonth(next.getUTCMonth()+months);
+ const lastDay=new Date(Date.UTC(next.getUTCFullYear(),next.getUTCMonth()+1,0)).getUTCDate();
+ next.setUTCDate(Math.min(day,lastDay));
  return next;
 }
 export function validateAmendmentLines(lines:unknown){
