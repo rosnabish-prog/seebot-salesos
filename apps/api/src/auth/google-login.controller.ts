@@ -12,6 +12,7 @@ export class GoogleLoginController {
   constructor(private db:PrismaService,private identity:GoogleIdentityService,private mfa:MfaService){}
   @Post('google') async googleLogin(@Body()body:{credential?:string}){
     const verified=await this.identity.verify(body?.credential||'',process.env.GOOGLE_LOGIN_CLIENT_ID||'');
+    companyDomain(verified.email);
     let user=await this.db.user.findUnique({where:{email:verified.email}});
     if(!user && process.env.GOOGLE_SELF_SIGNUP_ENABLED==='true'){
       companyDomain(verified.email);

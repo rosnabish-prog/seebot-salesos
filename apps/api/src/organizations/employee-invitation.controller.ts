@@ -1,3 +1,4 @@
+import {companyDomain} from '../workspace/company-email';
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { createHash,randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
@@ -18,6 +19,7 @@ export class EmployeeInvitationController {
     if(req.user.role!=='SUPER_ADMIN')throw new ForbiddenException('Only the workspace owner can invite employees.');
     const email=body?.email?.trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email||'')||email.length>254||typeof body?.name!=='string'||body.name.trim().length<2||body.name.length>160||!roles.includes(body.role as any))throw new BadRequestException('Valid name, email and staff role required.');
+    companyDomain(email);
     const org=await this.db.organization.findUnique({where:{slug:'seebot'}});
     if(!org)throw new BadRequestException('Seebot organization has not been initialized.');
     if(await this.db.user.findUnique({where:{email}}))throw new BadRequestException('An employee already uses this email.');
@@ -36,6 +38,7 @@ export class EmployeeInvitationController {
   @Post('accept') async accept(@Body()body:{invitationToken:string;googleCredential:string}){
     if(!/^[\w-]{32,100}$/.test(body?.invitationToken||''))throw new UnauthorizedException('Invitation invalid.');
     const identity=await this.identity.verify(body.googleCredential,process.env.GOOGLE_LOGIN_CLIENT_ID||'');
+    companyDomain(identity.email);
     const invitation=await this.db.employeeInvitation.findUnique({where:{tokenHash:hash(body.invitationToken)},include:{organization:true}});
     if(!invitation||invitation.status!=='PENDING'||invitation.expiresAt<new Date()||identity.email!==invitation.invitedEmail||invitation.organization.slug!=='seebot')throw new UnauthorizedException('Invitation expired or not addressed to this Google account.');
     // Public customer-workspace registration remains disabled until tenant isolation is audited.

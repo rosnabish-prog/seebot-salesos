@@ -21,8 +21,7 @@ const money=(value:unknown)=>{const raw=String(value??'').trim();if(!/^\d+(?:\.\
 export class TenantCreditNotesController{
  constructor(private db:PrismaService,private scope:TenantScopeService){}
  private async finance(req:ScopedRequest,orgId:string,adminOnly=false){
-  const member=await this.scope.membership(req,orgId,true),allowed=adminOnly?['OWNER','ADMIN']:['OWNER','ADMIN','FINANCE'];
-  if(!allowed.includes(member.role))throw new ForbiddenException(adminOnly?'Workspace administrator approval required.':'Finance access required.');
+  return this.scope.membership(req,orgId,adminOnly?'admin':'finance');
  }
  private async invoice(orgId:string,invoiceId:string){
   const invoice=await this.db.invoice.findFirst({where:{id:invoiceId,account:{organizationId:orgId}},include:{account:true,payments:true,adjustments:true}});

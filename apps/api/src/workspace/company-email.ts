@@ -1,3 +1,4 @@
+import {isPlainEmail} from '../common/email';
 import {BadRequestException} from '@nestjs/common';
 /** A corporate-looking domain is not proof of employment: verification of mailbox control is separate. */
 export const PERSONAL_MAIL_DOMAINS=new Set([
@@ -9,7 +10,7 @@ export const PERSONAL_MAIL_DOMAINS=new Set([
 ]);
 export function companyDomain(email:string):string{
  const normalized=String(email||'').trim().toLowerCase();
- if(!/^[^\s@]+@([a-z0-9-]+\.)+[a-z]{2,}$/i.test(normalized)||normalized.length>254)throw new BadRequestException('Enter a valid work email address.');
+ if(!isPlainEmail(normalized))throw new BadRequestException('Enter a valid work email address.');
  const domain=normalized.split('@')[1];
  if(PERSONAL_MAIL_DOMAINS.has(domain))throw new BadRequestException('Use your company work email. Personal email providers cannot create a company workspace.');
  return domain;

@@ -9,9 +9,7 @@ import {defaultPipelineConfig,parsePipelineConfig,validatePipelineConfig} from '
 export class PipelineSettingsController{
  constructor(private db:PrismaService,private scope:TenantScopeService){}
  private async admin(req:ScopedRequest,orgId:string){
-  const member=await this.scope.membership(req,orgId,true);
-  if(!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Workspace administrator required.');
-  return member;
+  return this.scope.membership(req,orgId,'admin');
  }
  @Get(':orgId') async get(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.scope.membership(req,orgId);

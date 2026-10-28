@@ -24,6 +24,7 @@ export class AccountsController {
     const domain=normalizeDomain(body.website), hypothesis=body.hypothesis?.trim()||'', existing=await this.db.account.findFirst({where:{domain,organizationId:seebot.id}});
     if(existing)throw new ConflictException({message:'An account with this domain already exists.',accountId:existing.id});
     const ownerId=allowManageAll(req.user)&&body.ownerId?body.ownerId:req.user.id;
+    if(!await this.db.organizationMembership.findFirst({where:{organizationId:req.user.organizationId,userId:ownerId,status:'ACTIVE'},select:{userId:true}}))throw new BadRequestException('Owner must be an active member of this workspace.');
     const account=await this.db.$transaction(async tx=> {
       const a=await tx.account.create({data:{organizationId:seebot.id,name:body.name.trim(),domain,website:`https://${domain}`,industry:body.industry,hypothesis,priority:(['LOW','MEDIUM','HIGH'].includes(body.priority||'')?body.priority:'MEDIUM') as any,ownerId}});
       const opportunity=await tx.opportunity.create({data:{accountId:a.id,title:`${a.name} — Initial Engagement`,ownerId,serviceLine:body.industry,stageVisits:{create:{stage:'ACCOUNT_RESEARCHED',evidence:hypothesis?{opportunityHypothesis:hypothesis}:{}}}}});

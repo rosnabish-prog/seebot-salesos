@@ -1,3 +1,4 @@
+import {WorkspaceAccessService} from '../workspace/workspace-access.service';
 import {BadRequestException,Body,Controller,Get,Param,Post,Req,UseGuards,ForbiddenException} from '@nestjs/common';
 import {IdentityGuard} from '../workspace/identity.guard';
 import type {AuthRequest} from '../common/auth.guard';
@@ -5,13 +6,8 @@ import {PrismaService} from '../prisma/prisma.service';
 import {JournalService} from './journal.service';
 @UseGuards(IdentityGuard) @Controller('workspace-accounting')
 export class JournalController{
- constructor(private db:PrismaService,private journal:JournalService){}
- private async verify(req:AuthRequest,orgId:string,adminOnly=false){
-  if((req as any).selectedWorkspace!==orgId)throw new ForbiddenException('Select the company workspace.');
-  const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:orgId,userId:req.user.id}}});
-  const allowed=adminOnly?['OWNER','ADMIN']:['OWNER','ADMIN','FINANCE'];
-  if(!member||member.status!=='ACTIVE'||!allowed.includes(member.role))throw new ForbiddenException(adminOnly?'Workspace administrator required.':'Company finance access required.');
- }
+ constructor(private db:PrismaService,private access:WorkspaceAccessService,private journal:JournalService){}
+ private async verify(req:AuthRequest,orgId:string,adminOnly=false){return this.access.require(req,orgId,adminOnly?'admin':'finance');}
  @Get(':orgId/journals') async journals(@Req()req:AuthRequest,@Param('orgId')orgId:string){await this.verify(req,orgId);return this.journal.list(orgId);}
  @Get(':orgId/verify')async check(@Req()req:AuthRequest,@Param('orgId')orgId:string){await this.verify(req,orgId);return this.journal.verify(orgId);}
  @Get(':orgId/coverage')async coverage(@Req()req:AuthRequest,@Param('orgId')orgId:string){await this.verify(req,orgId);return this.journal.coverage(orgId);}

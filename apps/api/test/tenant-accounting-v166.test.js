@@ -24,7 +24,7 @@ test('journal rejects unbalanced or invalid account-code postings',()=>{
 });
 test('all new scoped business routes enforce workspace membership and account lineage',()=>{
  const scope=fs.readFileSync(path.join(__dirname,'../src/workspace/tenant-scope.service.ts'),'utf8');const business=fs.readFileSync(path.join(__dirname,'../src/workspace/tenant-business.controller.ts'),'utf8');
- assert.match(scope,/selectedWorkspace!==organizationId/);assert.match(scope,/organizationId\}\}/);
+ assert.match(scope,/this\.access\.require/);assert.match(fs.readFileSync(path.join(__dirname,'../src/workspace/workspace-access.service.ts'),'utf8'),/selectedWorkspace!==organizationId/);assert.match(scope,/organizationId\}\}/);
  for(const model of ['opportunity','contract','invoice'])assert.match(scope,new RegExp('async '+model+'\\('));
  assert.match(business,/scope\.membership\(/);assert.match(business,/scope\.account\(/);
 });

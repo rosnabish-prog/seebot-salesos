@@ -7,7 +7,7 @@ export class ContractPricingController {
   constructor(private readonly db:PrismaService) {}
   private async contract(id:string,user:AuthRequest['user'],modify=false){
     const c=await this.db.contract.findUnique({where:{id},include:{opportunity:true}});
-    if(!c)throw new BadRequestException('Contract not found.');
+    if(!c||!await this.db.account.findFirst({where:{id:c.opportunity.accountId,organizationId:user.organizationId},select:{id:true}}))throw new BadRequestException('Contract not found.');
     if(modify){ensureCanEdit(user,c.opportunity.ownerId);if(c.status!=='DRAFT')throw new BadRequestException('The contract is no longer a draft. Create an amendment instead of editing agreed pricing.');}
     else ensureOwner(user,c.opportunity.ownerId);
     return c;

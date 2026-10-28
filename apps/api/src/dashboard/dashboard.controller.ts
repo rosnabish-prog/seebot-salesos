@@ -13,7 +13,7 @@ export class DashboardController {
     const prior=new Date(start);prior.setUTCDate(prior.getUTCDate()-periodDays);
     const [opportunities,tasks,activities,accounts]=await Promise.all([
       this.db.opportunity.findMany({where:{...userScope,account:{isDemo:false,organizationId:orgId}},include:{account:{select:{name:true,industry:true}},owner:{select:{name:true}},stageVisits:{select:{stage:true,enteredAt:true}},transitions:{select:{toStage:true,createdAt:true}}},orderBy:{createdAt:'desc'},take:10000}),
-      this.db.task.findMany({where:{...(allowManageAll(req.user)?{}:{assigneeId:req.user.id}),OR:[{opportunityId:null,assigneeId:req.user.id},{opportunity:{account:{isDemo:false,organizationId:orgId}}}]},include:{opportunity:{select:{id:true,title:true,account:{select:{name:true}}}}},orderBy:{dueAt:'asc'},take:5000}),
+      this.db.task.findMany({where:{...(allowManageAll(req.user)?{}:{assigneeId:req.user.id}),OR:[{organizationId:orgId,opportunityId:null,assigneeId:req.user.id},{opportunity:{account:{isDemo:false,organizationId:orgId}}}]},include:{opportunity:{select:{id:true,title:true,account:{select:{name:true}}}}},orderBy:{dueAt:'asc'},take:5000}),
       this.db.activity.findMany({where:{...(allowManageAll(req.user)?{}:{actorId:req.user.id}),opportunity:{account:{organizationId:orgId}}},orderBy:{occurredAt:'desc'},take:10,include:{opportunity:{select:{id:true,account:{select:{name:true}}}}}}),
       this.db.account.findMany({where:{...(allowManageAll(req.user)?{}:{ownerId:req.user.id}),isDemo:false,organizationId:orgId},select:{createdAt:true}})
     ]);

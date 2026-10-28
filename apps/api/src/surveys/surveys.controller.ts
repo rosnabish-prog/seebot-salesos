@@ -15,8 +15,8 @@ export class PublicSurveysController {
   constructor(private readonly db:PrismaService){}
   private async find(token:string){
     if(typeof token!=='string'||!/^[A-Za-z0-9_-]{40,100}$/.test(token))throw new BadRequestException('Invalid survey link.');
-    const item=await this.db.clientSurveyInvitation.findUnique({where:{tokenHash:hash(token)},include:{account:{select:{name:true}}}});
-    if(!item||item.expiresAt<now()||!['SENT','ANSWERED'].includes(item.status))throw new BadRequestException('Survey expired or unavailable.');
+    const item=await this.db.clientSurveyInvitation.findUnique({where:{tokenHash:hash(token)},include:{account:{select:{name:true,organization:{select:{status:true}}}}}});
+    if(!item||!item.account.organization||!['SETUP','ACTIVE'].includes(item.account.organization.status)||item.expiresAt<now()||!['SENT','ANSWERED'].includes(item.status))throw new BadRequestException('Survey expired or unavailable.');
     if(!item.isDemo&&process.env.SURVEYS_ENABLED!=='true')throw new ForbiddenException('Live surveys have not been enabled.');
     return item;
   }

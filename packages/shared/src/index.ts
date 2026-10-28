@@ -20,7 +20,7 @@ export type StageField = { key: string; label: string; type: FieldType; required
 export const STAGE_FIELDS: Record<StageId, StageField[]> = {
   ACCOUNT_RESEARCHED: [
     { key: 'companySummary', label: 'Company research summary', type: 'textarea', required: true },
-    { key: 'opportunityHypothesis', label: 'Why Seebot may help', type: 'textarea', required: true },
+    { key: 'opportunityHypothesis', label: 'Why our company may help', type: 'textarea', required: true },
     { key: 'researchSource', label: 'Research source URL or citation', type: 'text', required: true },
     { key: 'nextAction', label: 'Next specific action', type: 'text', required: true }
   ],

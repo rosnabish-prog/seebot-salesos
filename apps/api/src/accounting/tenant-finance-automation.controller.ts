@@ -13,9 +13,7 @@ import {OutgoingMessageService} from '../communications/outgoing-message.service
 export class TenantFinanceAutomationController{
  constructor(private db:PrismaService,private scope:TenantScopeService,private outgoing:OutgoingMessageService){}
  private async finance(req:ScopedRequest,orgId:string,adminOnly=false){
-  const member=await this.scope.membership(req,orgId,true),allowed=adminOnly?['OWNER','ADMIN']:['OWNER','ADMIN','FINANCE'];
-  if(!allowed.includes(member.role))throw new ForbiddenException(adminOnly?'Workspace administrator required.':'Finance access required.');
-  return member;
+  return this.scope.membership(req,orgId,adminOnly?'admin':'finance');
  }
  @Get(':orgId/billing/schedules')async schedules(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.finance(req,orgId);

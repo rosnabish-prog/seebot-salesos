@@ -10,7 +10,7 @@ export class InvoicePdfController {
   constructor(private db:PrismaService,private pdf:InvoicePdfService,private outbox:OutgoingMessageService){}
   private async authorize(user:AuthRequest['user'],id:string){
     const inv=await this.db.invoice.findUnique({where:{id},include:{account:true,document:true,recipients:true}});
-    if(!inv)throw new BadRequestException('Invoice not found.');ensureOwner(user,inv.account.ownerId);return inv;
+    if(!inv||inv.account.organizationId!==user.organizationId)throw new BadRequestException('Invoice not found.');ensureOwner(user,inv.account.ownerId);return inv;
   }
   @Post(':id/issue') async issue(@Req()req:AuthRequest,@Param('id')id:string){await this.authorize(req.user,id);requireManager(req.user);return this.pdf.issue(id,req.user.id);}
   @Get(':id/pdf') async download(@Req()req:AuthRequest,@Param('id')id:string,@Res({passthrough:true})res:Response){

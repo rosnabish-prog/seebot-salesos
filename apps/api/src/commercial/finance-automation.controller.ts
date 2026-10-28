@@ -8,7 +8,7 @@ import {nextBillingDate} from './commercial-policy';
 export class FinanceAutomationController{
  constructor(private db:PrismaService){}
  @Post('generate-drafts') async generate(@Req()req:AuthRequest){requireManager(req.user);
-  const candidates=await this.db.billingSchedule.findMany({where:{status:'ACTIVE',nextDueAt:{lte:new Date()},amount:{gt:0}},include:{contract:{include:{opportunity:{include:{account:{include:{contacts:true}}}}}}},take:100});
+  const candidates=await this.db.billingSchedule.findMany({where:{status:'ACTIVE',nextDueAt:{lte:new Date()},amount:{gt:0},contract:{opportunity:{account:{organizationId:req.user.organizationId}}}},include:{contract:{include:{opportunity:{include:{account:{include:{contacts:true}}}}}}},take:100});
   let created=0,skipped=0;
   for(const s of candidates){
    const a=s.contract.opportunity.account;if(a.isDemo||s.contract.isDemo){skipped++;continue;}
@@ -30,7 +30,7 @@ export class FinanceAutomationController{
   return {created,skipped,issued:0,emailsSent:0,note:'Generated DRAFT invoices only. Finance must review line items and tax before issuing.'};
  }
  @Post('invoices/:id/void-draft') async voidDraft(@Req()req:AuthRequest,@Param('id')id:string){
-  const inv=await this.db.invoice.findUnique({where:{id},include:{account:true,document:true}});if(!inv)throw new BadRequestException('Invoice not found.');ensureCanEdit(req.user,inv.account.ownerId);requireManager(req.user);
+  const inv=await this.db.invoice.findUnique({where:{id},include:{account:true,document:true}});if(!inv||inv.account.organizationId!==req.user.organizationId)throw new BadRequestException('Invoice not found.');ensureCanEdit(req.user,inv.account.ownerId);requireManager(req.user);
   if(!['DRAFT','APPROVED'].includes(inv.status)||inv.document||inv.issuedAt)throw new BadRequestException('An issued invoice cannot be silently voided; use a credit-note process.');
   await this.db.$transaction(async tx=>{await tx.invoice.update({where:{id},data:{status:'VOID'}});await tx.auditEvent.create({data:{actorId:req.user.id,action:'INVOICE_VOIDED_BEFORE_ISSUE',entityType:'INVOICE',entityId:id}});});
   return {status:'VOID',note:'Voided before issue, no financial document was sent.'};

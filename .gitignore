@@ -24,3 +24,8 @@ private-signing-evidence/
 *.sql.gz
 playwright-report/
 test-results/
+
+# Runtime-only tenant files and CI screenshots
+private-credit-documents/
+private-organization-logos/
+artifacts/

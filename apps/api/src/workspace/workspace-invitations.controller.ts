@@ -3,6 +3,7 @@ import {createHash,randomBytes} from 'node:crypto';
 import argon2 from 'argon2';
 import nodemailer from 'nodemailer';
 import {PrismaService} from '../prisma/prisma.service';
+import {WorkspaceAccessService} from './workspace-access.service';
 import {IdentityGuard} from './identity.guard';
 import type {AuthRequest} from '../common/auth.guard';
 import {GoogleIdentityService} from '../integrations/google/google-identity.service';
@@ -18,13 +19,8 @@ const validRoles=['ADMIN','MEMBER','FINANCE'];
 /** A workspace invite is email-bound, single-use and never adds membership until accepted. */
 @Controller('workspace-invitations')
 export class WorkspaceInvitationsController{
- constructor(private db:PrismaService,private identity:GoogleIdentityService,private mfa:MfaService,private outbox:OutgoingMessageService){}
- private async admin(req:ScopedRequest,id:string){
-  const member=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:{select:{status:true,name:true}}}});
-  if(!member||member.status!=='ACTIVE'||!['ACTIVE','SETUP'].includes(member.organization.status)||!['OWNER','ADMIN'].includes(member.role))throw new ForbiddenException('Active workspace administrator required.');
-  if(req.selectedWorkspace!==id)throw new ForbiddenException('Select this workspace first.');
-  return member;
- }
+ constructor(private db:PrismaService,private access:WorkspaceAccessService,private identity:GoogleIdentityService,private mfa:MfaService,private outbox:OutgoingMessageService){}
+ private async admin(req:ScopedRequest,id:string){return this.access.require(req,id,'admin');}
  @UseGuards(IdentityGuard) @Get('organizations/:organizationId')
  async list(@Req()req:ScopedRequest,@Param('organizationId')id:string){
   await this.admin(req,id);
@@ -92,6 +88,7 @@ export class WorkspaceInvitationsController{
   return inv;
  }
  private async accept(raw:string,email:string,verified?:{subject:string;name:string}){
+  companyDomain(email);
   const inv=await this.pending(raw,email);
   const user=await this.db.$transaction(async tx=>{
    const updated=await tx.workspaceInvitation.updateMany({where:{id:inv.id,status:'PENDING',expiresAt:{gt:new Date()}},data:{status:'ACCEPTED'}});

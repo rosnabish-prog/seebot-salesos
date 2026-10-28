@@ -52,7 +52,7 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
  const [items,setItems]=useState<Workspace[]>([]),[loaded,setLoaded]=useState(false),[selected,setSelected]=useState<Workspace|null>(null);
  const [profile,setProfile]=useState(companyDefaults),[createForm,setCreateForm]=useState(companyDefaults),[stage,setStage]=useState<'company'|'invite'|'complete'>('company');
  const [emails,setEmails]=useState<string[]>([]),[inviteRole,setInviteRole]=useState('MEMBER'),[results,setResults]=useState<SendResult[]>([]),[members,setMembers]=useState<any[]>([]),[invitations,setInvitations]=useState<Invitation[]>([]);
- const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[teamExpanded,setTeamExpanded]=useState(false);
+ const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[teamExpanded,setTeamExpanded]=useState(false),[creating,setCreating]=useState(false);
  async function list(){const workspaces=await request<Workspace[]>('/workspaces');setItems(workspaces);setLoaded(true);return workspaces;}
  useEffect(()=>{void list().then(workspaces=>{
    const manage=embeddedWorkspaceId||new URLSearchParams(window.location.search).get('manage');const requested=workspaces.find(w=>w.id===manage);
@@ -77,7 +77,7 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
     ...(createForm.country?{country:createForm.country}:{}),...(createForm.timezone?{timezone:createForm.timezone}:{}),...(createForm.defaultCurrency?{defaultCurrency:createForm.defaultCurrency}:{})
    });
    await post('/workspaces/'+w.id+'/select',{});
-   setItems([w]);setSelected(w);setProfile({...companyDefaults,...createForm});setStage('invite');
+   await list();setCreating(false);setSelected(w);setProfile({...companyDefaults,...createForm});setStage('invite');
    router.replace('/workspaces?manage='+encodeURIComponent(w.id));
   }catch(e){setError(e instanceof Error?e.message:'Company setup failed.');}finally{setBusy(false);}
  }
@@ -158,21 +158,21 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
  return <main className={embeddedWorkspaceId?'ws-page ws-page-embedded':'ws-page'}><div className="ws-container">
   {!embeddedWorkspaceId&&<header className="ws-top"><div className="ws-nav-buttons"><Link href={selected?'/workspaces/'+selected.id:'/login'} className="ws-back"><ChevronLeft size={16}/> {selected?'Company home':'Back to login'}</Link><span className="ws-kicker"><ShieldCheck size={14}/> PRIVATE COMPANY WORKSPACES</span></div><Button variant="secondary" type="button" onClick={async()=>{await logout();router.replace('/login');}}><LogOut size={15}/> Sign out</Button></header>}
   <ErrorMessage message={error}/>{notice&&<div role="status" className="ws-notice"><Check size={16}/>{notice}</div>}
-  {!loaded?<div className="ws-card ws-centered"><h2>Loading company workspace…</h2></div>:!items.length&&!selected?
+  {!loaded?<div className="ws-card ws-centered"><h2>Loading company workspace…</h2></div>:(!items.length||creating)&&!selected?
   <section className="ws-card ws-centered">
    <div className="ws-emblem"><Building2 size={24}/></div>
    <span className="ws-step-label">STEP 01 / 02 — COMPANY SETUP</span><h1>Create your company workspace</h1>
-   <p className="ws-intro">Set up the workspace for your team. Your work email must use a company domain, and the company website must match that domain.</p>
+   <p className="ws-intro">Set up the workspace for your team. Use a verified company email. You can own multiple independent company workspaces.</p>
    <form onSubmit={create} className="ws-form">
     {fieldGroup(createForm,'create')}
-    <p className="ws-field-note">Only the company name is required. The other details are optional and can be configured in Settings later. You'll be the Administrator of your company workspace.</p>
+    <p className="ws-field-note">Only the company name is required. The other details are optional and can be configured in Settings later. You'll own this company workspace.</p>
     <Button className="full-width ws-main-cta" type="submit" loading={busy}>Create workspace <ChevronRight size={17}/></Button>
    </form>
   </section>:stage==='invite'&&selected?
   <section className="ws-card ws-centered">
    <div className="ws-emblem"><UsersRound size={24}/></div>
    <span className="ws-step-label">STEP 02 / 02 — INVITE YOUR TEAM</span><h1>Bring your team to {selected.name}</h1>
-   <p className="ws-intro">You're the workspace Administrator. Add teammates now or invite them later from Settings.</p>
+   <p className="ws-intro">You're the workspace owner. Add teammates now or invite them later from Settings.</p>
    <Field label="Team email addresses"><EmailChips emails={emails} setEmails={setEmails} disabled={busy}/></Field>
    <SelectField label="Invited teammates' role" value={inviteRole} onChange={setInviteRole} options={[{value:'MEMBER',label:'Member'},{value:'ADMIN',label:'Administrator'},{value:'FINANCE',label:'Finance'}]}/>
    <div className="ws-actions"><Button className="full-width ws-main-cta" type="button" onClick={()=>void sendInvitations()} disabled={!emails.length} loading={busy}><Mail size={17}/> Send team invitations</Button>
@@ -204,8 +204,9 @@ export function WorkspaceManagement({embeddedWorkspaceId}:{embeddedWorkspaceId?:
     {results.map((r,i)=><div key={r.recipientEmail+i} className="ws-delivery"><strong>{r.recipientEmail}</strong><small>{r.delivery==='SENT'?'Email sent':r.delivery==='SENT_PREVIEW'?'Private test inbox':'Not sent — share link privately'}</small>{r.inviteUrl&&<div className="ws-copy-row"><input readOnly value={r.inviteUrl} aria-label={'Invite link '+r.recipientEmail}/><Button variant="secondary" type="button" onClick={()=>void navigator.clipboard.writeText(r.inviteUrl!)}>Copy link</Button></div>}</div>)}</div>}
     {invitations.length>0&&<div className="ws-invite-history"><h3>Invitation history</h3>{invitations.map(inv=><div key={inv.id} className="ws-member-row"><span>{inv.email} <small>· {inv.role}</small></span><span className="ws-status">{inv.status}</span>{inv.status==='PENDING'&&<Button variant="secondary" type="button" onClick={async()=>{try{await post('/workspace-invitations/organizations/'+selected.id+'/'+inv.id+'/revoke',{});setInvitations(items=>items.map(i=>i.id===inv.id?{...i,status:'REVOKED'}:i));}catch(e){setError(e instanceof Error?e.message:'Could not revoke invitation.');}}}>Revoke</Button>}</div>)}</div>}
    </div>}
-   <div className="ws-settings-footer"><ShieldCheck size={16}/> An account may belong to multiple invited teams, but cannot create a second company workspace.</div>
+   {!embeddedWorkspaceId&&<Button variant="secondary" type="button" onClick={()=>{setSelected(null);setCreating(true);setCreateForm(companyDefaults)}}>Create another organization</Button>}
+   <div className="ws-settings-footer"><ShieldCheck size={16}/> You can own multiple organizations and join other teams. Each workspace keeps its records and permissions separate.</div>
    {!embeddedWorkspaceId&&selected.tenantCrmEnabled&&<Button type="button" className="ws-main-cta" onClick={()=>void choose(selected)}>Open company CRM <ChevronRight size={16}/></Button>}
-  </section>:<section className="ws-card ws-centered"><h1>Company workspaces</h1><p className="ws-intro">Select a workspace to continue. Creating another company is not available.</p><div className="ws-workspace-list">{items.map(w=><div key={w.id} className="ws-choice"><div><strong>{w.name}</strong><small>{w.role==='OWNER'?'Administrator (Owner)':w.role==='ADMIN'?'Administrator':w.role}</small></div><Button variant="secondary" onClick={()=>void open(w)}>Manage</Button><Button onClick={()=>void choose(w)}>Open</Button></div>)}</div></section>}
+  </section>:<section className="ws-card ws-centered"><h1>Company workspaces</h1><Button type="button" onClick={()=>{setSelected(null);setCreating(true);setCreateForm(companyDefaults)}}>Create another organization</Button><p className="ws-intro">Select a workspace or create another company.</p><div className="ws-workspace-list">{items.map(w=><div key={w.id} className="ws-choice"><div><strong>{w.name}</strong><small>{w.role==='OWNER'?'Administrator (Owner)':w.role==='ADMIN'?'Administrator':w.role}</small></div><Button variant="secondary" onClick={()=>void open(w)}>Manage</Button><Button onClick={()=>void choose(w)}>Open</Button></div>)}</div></section>}
  </div></main>;
 }

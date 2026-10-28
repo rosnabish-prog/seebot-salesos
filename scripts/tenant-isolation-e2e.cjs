@@ -97,7 +97,7 @@ async function main(){
   check(await hit('/workspace-pipeline/'+b.org.id,a.cookie),403,'Foreign pipeline configuration denied');
 
   // Client Management starts at contracting without duplicating Account records.
-  await db.opportunity.update({where:{id:newOpportunity.body.id},data:{stage:'PILOT_CONTRACTED'}});
+  await require('./tenant-sales-journey.cjs').reachContracting(async(method,path,body)=>{const response=await hit(path,a.cookie,{method,...(body?{body:JSON.stringify(body)}:{})});assert.ok(response.status<300,path+' '+JSON.stringify(response));return response.body;},a.org.id,a.account.id,newOpportunity.body.id);
   const contractingClients=await hit('/workspace-business/'+a.org.id+'/clients',a.cookie);
   check(contractingClients,200,'Contracting relationships visible in Client Management');
   const relationship=contractingClients.body.find(x=>x.id===a.account.id);
@@ -182,7 +182,8 @@ async function main(){
   const mfaLogin=await hit('/auth/login','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({email:signupEmail,password:'CI_Only_12_Password_One!'})});
   check(mfaLogin,201,'Correct first-factor credentials start MFA');
   assert.equal(mfaLogin.body.mfaRequired,true);assert.match(mfaLogin.body.testCode,/^\d{6}$/);
-  await db.loginChallenge.update({where:{id:mfaLogin.body.challengeId},data:{createdAt:new Date(Date.now()-31_000)}});
+  check(await hit('/auth/mfa/resend','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId})}),400,'Immediate MFA resend is rejected');
+  await new Promise(resolve=>setTimeout(resolve,31_000));
   const resent=await hit('/auth/mfa/resend','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId})});
   check(resent,201,'MFA code can be securely resent after cooldown');assert.match(resent.body.testCode,/^\d{6}$/);
   check(await hit('/auth/mfa/verify','',{method:'POST',headers:{Origin:'http://localhost:3000'},body:JSON.stringify({challengeId:mfaLogin.body.challengeId,code:mfaLogin.body.testCode})}),401,'Replaced MFA code is invalidated');
@@ -204,7 +205,7 @@ async function main(){
   check(standaloneSelect,201,'New owner can select created workspace');
   assert.equal(standaloneSelect.body.crmEnabled,false);
   const owned=await hit('/workspaces',standaloneCookie);check(owned,200,'New owner workspace list');
-  assert.equal(owned.body.length,1);assert.equal(owned.body[0].role,'ADMIN');
+  assert.equal(owned.body.length,1);assert.equal(owned.body[0].role,'OWNER');
   assert.equal(owned.body[0].isCreator,true);
 
 
@@ -218,11 +219,11 @@ async function main(){
    assert.notEqual(created.body.slug,'seebot','Legacy Seebot slug stays reserved');
   }
 
-  check(await hit('/workspaces',standaloneCookie,{method:'POST',body:JSON.stringify({name:'Duplicate Company',website:'https://team-'+id+'.example'})}),403,'A workspace creator cannot create a second workspace');
+  check(await hit('/workspaces',standaloneCookie,{method:'POST',body:JSON.stringify({name:'Duplicate Company',website:'https://team-'+id+'.example'})}),201,'A company-email user may own multiple workspaces');
   const personal=await db.user.create({data:{email:'ci-personal-'+id+'@gmail.com',name:'Personal Account',passwordHash:'NOT_REAL',role:'SALES_REP'}});
   check(await hit('/workspaces',token(personal,null),{method:'POST',body:JSON.stringify({name:'Personal Fake Company',website:'https://gmail.com'})}),400,'Personal email cannot create a company workspace');
   const mismatch=await db.user.create({data:{email:'ci-mismatch-'+id+'@legitimate-'+id+'.example',name:'Domain Mismatch',passwordHash:'NOT_REAL',role:'SALES_REP'}});
-  check(await hit('/workspaces',token(mismatch,null),{method:'POST',body:JSON.stringify({name:'Wrong Domain',website:'https://unrelated-'+id+'.example'})}),400,'Company website must match creator email domain');
+  check(await hit('/workspaces',token(mismatch,null),{method:'POST',body:JSON.stringify({name:'Wrong Domain',website:'https://unrelated-'+id+'.example'})}),201,'A verified work identity may own companies with different website domains');
   check(await hit('/auth/register','',{method:'POST',body:JSON.stringify({name:'Personal Signup',email:'ci-claim-'+id+'@gmail.com',password:'CI_Only_12_Password_One!'})}),400,'Email registration blocks personal providers');
 
   // An invite does not grant access until redeemed by the exact recipient.
@@ -332,6 +333,9 @@ async function main(){
   check(await hit('/campaigns/'+foreignCampaign.id+'/accounts',managerCookie,{method:'POST',body:JSON.stringify({accountId:b.account.id})}),400,'Foreign campaign enrollment denied');
   const reminders=await hit('/billing/reminders/due',managerCookie);check(reminders,200,'Seebot reminders due');
   assert.ok(!reminders.body.some(i=>i.accountId===b.account.id),'Foreign company invoices must not appear in legacy reminder queue');
+  for(const route of ['/invoice-documents/'+a.invoice.id+'/pdf','/contracts/'+billingContract.body.id+'/pricing','/commercial/contracts/'+billingContract.body.id+'/amendments','/delivery/clients/'+a.account.id+'/milestones','/client-success/clients/'+a.account.id+'/reports'])check(await hit(route,managerCookie),400,'Legacy record route refuses independent organization: '+route);
+  const directory=await hit('/users',managerCookie);check(directory,200,'Legacy staff directory');assert.ok(!directory.body.some(u=>u.id===a.user.id||u.id===b.user.id),'Other organizations cannot appear in legacy staff directory');
+  const billingPreview=await hit('/commercial/billing/due-preview',managerCookie);check(billingPreview,200,'Legacy billing preview');assert.ok(!billingPreview.body.items.some(item=>item.id===recurringSchedule.body.id),'Other tenant schedules cannot appear in legacy jobs');
   console.log('PASS: cross-tenant HTTP isolation, finance tax snapshots, invoice PDF, double-entry journal and manual payments on disposable PostgreSQL.');
  }finally{api.kill('SIGTERM');await new Promise(r=>setTimeout(r,500));}
 }

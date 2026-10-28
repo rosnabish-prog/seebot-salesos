@@ -6,7 +6,7 @@ import {AuthGuard,AuthRequest,requireManager} from '../common/auth.guard';
 export class DemoLifecycleController{
  constructor(private db:PrismaService){}
  @Post('full-lifecycle')async seed(@Req()req:AuthRequest){requireManager(req.user);
-  const account=await this.db.account.findFirst({where:{domain:'seebot-client-demo.example'},include:{opportunities:{include:{contracts:true}}}});
+  const account=await this.db.account.findFirst({where:{domain:'seebot-client-demo.example',organizationId:req.user.organizationId},include:{opportunities:{include:{contracts:true}}}});
   if(!account?.isDemo)throw new BadRequestException('Create the fictional Orion client using the existing demo action first.');
   const opp=account.opportunities[0],contract=opp?.contracts[0];if(!contract?.isDemo)throw new BadRequestException('Demo contract missing.');
   const key=`demo-full-lifecycle:${account.id}`;

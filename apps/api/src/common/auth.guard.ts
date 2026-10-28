@@ -1,3 +1,4 @@
+import {companyDomain} from '../workspace/company-email';
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,14 +18,15 @@ export class AuthGuard implements CanActivate {
     let payload: {sub:string;pv?:number;wid?:string;mfa?:boolean;authAt?:number};
     try { payload = await this.jwt.verifyAsync(token); } catch { throw new UnauthorizedException('Session expired.'); }
     if(payload.mfa!==true)throw new UnauthorizedException('Two-factor verification required.');
-    if(typeof payload.authAt!=='number'||Date.now()-payload.authAt>SESSION_MAX_AGE_MS)throw new UnauthorizedException('Your seven-day session has ended. Please sign in and verify again.');
+    if(typeof payload.authAt!=='number'||!Number.isFinite(payload.authAt)||payload.authAt>Date.now()+60_000||Date.now()-payload.authAt>SESSION_MAX_AGE_MS)throw new UnauthorizedException('Your seven-day session has ended. Please sign in and verify again.');
     const user = await this.db.user.findUnique({ where: { id: payload.sub }, select: { id:true,email:true,name:true,role:true,active:true,passwordVersion:true } });
     if (!user || !user.active) throw new UnauthorizedException('Account disabled.');
     if (payload.pv !== user.passwordVersion) throw new UnauthorizedException('Session needs renewal. Please sign in again.');
+    companyDomain(user.email);
     // Existing CRM controllers use global IDs. Never allow a non-Seebot workspace
     // to reach those routes until every legacy query is tenant-scoped.
-    const seebot=await this.db.organization.findUnique({where:{slug:'seebot'},select:{id:true}});
-    if(!seebot)throw new ForbiddenException('Run the Seebot organization bootstrap first.');
+    const seebot=await this.db.organization.findUnique({where:{slug:'seebot'},select:{id:true,status:true}});
+    if(!seebot||!['SETUP','ACTIVE'].includes(seebot.status))throw new ForbiddenException('Run the Seebot organization bootstrap first.');
     const membership=await this.db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:seebot.id,userId:user.id}},select:{status:true}});
     let selected=payload.wid||null;
     const workspaceToken=(req as any).cookies?.salesos_workspace;

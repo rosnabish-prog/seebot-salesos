@@ -96,6 +96,7 @@ model User {
   issuedSurveys ClientSurveyInvitation[]
   passwordResetRequests PasswordResetRequest[]
   loginChallenges LoginChallenge[]
+  mfaRecoveryCodes MfaRecoveryCode[]
   surveyTemplates ClientSurveyTemplate[] @relation("SurveyTemplateCreator")
 }
 model Account {
@@ -146,6 +147,9 @@ model Contact {
   linkedinUrl String?
   source String
   verified Boolean @default(false)
+  verificationReference String?
+  verifiedAt DateTime?
+  verifiedById String?
   optedOut Boolean @default(false)
   createdAt DateTime @default(now())
   outreachDrafts OutreachDraft[]
@@ -174,6 +178,7 @@ model Opportunity {
   updatedAt DateTime @updatedAt
   stageVisits StageVisit[]
   aiStageDrafts OpportunityStageDraft[]
+  outreachDrafts OutreachDraft[]
   transitions StageTransition[]
   tasks Task[]
   activities Activity[]
@@ -235,6 +240,7 @@ model Task {
   @@index([organizationId,status])
 }
 model Activity {
+  sourceKey String? @unique
   id String @id @default(cuid())
   opportunityId String
   opportunity Opportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
@@ -348,6 +354,8 @@ model IntelligenceRun {
   @@index([accountId,kind,createdAt])
 }
 model OutreachDraft {
+  opportunityId String?
+  opportunity Opportunity? @relation(fields:[opportunityId],references:[id],onDelete:SetNull)
   id String @id @default(cuid())
   accountId String
   account Account @relation(fields:[accountId],references:[id],onDelete:Cascade)
@@ -536,9 +544,7 @@ model ClientIssue {
 }
 
 
-// v1.6.0 FOUNDATION — ONE ACTIVE SEEBOT WORKSPACE ONLY.
-// Do not enable additional organization logins until all existing record endpoints
-// have been changed to enforce membership + organization ownership.
+// Independent workspaces use tenant-scoped APIs. Legacy CRM routes remain pinned to Seebot.
 model Organization {
   id String @id @default(cuid())
   createdById String?
@@ -1119,6 +1125,8 @@ model PasswordResetRequest {
 
 
 model LoginChallenge {
+ passwordVersion Int @default(1)
+ purpose String @default("LOGIN")
  id String @id @default(cuid())
  userId String
  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
@@ -1131,3 +1139,19 @@ model LoginChallenge {
  @@index([userId,expiresAt])
 }
 
+
+model AuthRateLimit {
+ key String @id
+ count Int
+ expiresAt DateTime
+ @@index([expiresAt])
+}
+model MfaRecoveryCode {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ codeHash String @unique
+ usedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([userId,usedAt])
+}
