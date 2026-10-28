@@ -51,7 +51,7 @@ GitHub Actions runs [build and database checks](.github/workflows/checks.yml):
 - Browser E2E from verified identity and MFA through company setup, prospect, client feedback, contracts, invoice preparation and finance approval.
 - Downloadable real browser screenshots and a migration-review SQL artifact.
 
-The workflow uses a newly created disposable CI database. `prisma db push` is used **only** in that disposable environment, **never on live PostgreSQL**.
+The workflow uses a newly created disposable CI database. Versioned migrations are deployed and rehearsed against disposable PostgreSQL, including an existing-data upgrade and backup restoration. Never use `db push` on live PostgreSQL.
 
 A green CI run is a development quality gate, not proof of production readiness.
 
@@ -74,3 +74,10 @@ Track acceptance evidence in [SalesOS release checklist #4](https://github.com/r
 One verified company-email identity may own multiple independent organizations. Personal email providers remain blocked. Tenant roles are OWNER, ADMIN, MEMBER, FINANCE and read-only VIEWER (reserved for controlled provisioning). Global Seebot staff roles never grant access to an independent organization.
 
 See [SaaS P0 implementation and remaining release gates](docs/SAAS_P0_AUDIT.md) and [versioned database deployment](docs/DATABASE_MIGRATIONS.md). New installations use `npm ci`, `npm run db:generate`, and reviewed `prisma migrate deploy`; never `db push` against persistent data.
+
+
+## Organization operations
+
+Owners can suspend/reactivate independent organizations. Administrators can export scoped business record pages and opt in to durable hourly billing-draft/reminder-task preparation in **Settings → Operations & Data**. Run the separate worker (`npm run worker -w @seebot/api`) with the API database and deployment flags. Preparation never issues invoices or sends email.
+
+See [SaaS operations and private staging](docs/SAAS_OPERATIONS.md) for queue/retry/retention behavior, non-root container deployment, readiness, monitoring and remaining provider/policy requirements. No live hosting or external provider is activated by these changes.

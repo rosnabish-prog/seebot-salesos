@@ -1,18 +1,27 @@
 import 'reflect-metadata';
 import 'dotenv/config';
 import helmet from 'helmet';
+import {randomUUID} from 'node:crypto';
 import cookieParser from 'cookie-parser';
 import { NestFactory } from '@nestjs/core';
 import { BadRequestException } from '@nestjs/common';
+import { PrismaService } from './prisma/prisma.service';
 import { AppModule } from './app.module';
 async function bootstrap(){
   if(!process.env.JWT_SECRET||process.env.JWT_SECRET.length<32||process.env.JWT_SECRET.includes('REPLACE_'))throw Error('Set a strong JWT_SECRET (32+ chars).');
   if(process.env.NODE_ENV==='production'&&(!process.env.MFA_CODE_SECRET||process.env.MFA_CODE_SECRET.length<32))throw Error('Set a separate strong MFA_CODE_SECRET (32+ chars) before production start.');
   const app=await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   const proxyHops=Number(process.env.TRUST_PROXY_HOPS||0);
   if(!Number.isInteger(proxyHops)||proxyHops<0||proxyHops>4)throw Error('TRUST_PROXY_HOPS must be 0–4 for your trusted reverse-proxy topology.');
   app.getHttpAdapter().getInstance().set('trust proxy',proxyHops);
   app.use(helmet());app.use(cookieParser());
+  app.use((req:any,res:any,next:any)=>{
+    const requestId=randomUUID(),started=performance.now();
+    res.setHeader('X-Request-Id',requestId);
+    res.once('finish',()=>console.log(JSON.stringify({event:'http_request',requestId,method:req.method,route:req.route?.path||'/unmatched',status:res.statusCode,durationMs:Math.round(performance.now()-started)})));
+    next();
+  });
   const allowedOrigin=process.env.CORS_ORIGIN||'http://localhost:3000';
   const allowedOrigins=new Set([allowedOrigin]);
   if(process.env.NODE_ENV!=='production'){
@@ -37,6 +46,7 @@ async function bootstrap(){
   });
   app.setGlobalPrefix('api');
   app.getHttpAdapter().get('/health',(_req:any,res:any)=>res.json({status:'ok'}));
+  app.getHttpAdapter().get('/ready',async(_req:any,res:any)=>{try{await app.get(PrismaService).$queryRaw`SELECT 1`;res.setHeader('Cache-Control','no-store');res.json({status:'ready'});}catch{res.status(503).json({status:'unavailable'});}});
   await app.listen(Number(process.env.API_PORT||4000),'0.0.0.0');
   console.log(`SalesOS API listening on ${process.env.API_PORT||4000}`);
 }

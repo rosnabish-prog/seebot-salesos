@@ -52,6 +52,9 @@ export class WorkspaceInvitationsController{
   if(process.env.NODE_ENV==='production'&&!origin.startsWith('https://'))throw new BadRequestException('Secure HTTPS invitation origin must be configured.');
   const link=`${origin}/join-workspace?token=${encodeURIComponent(raw)}`;
   const invitation=await this.db.$transaction(async tx=>{
+   await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${id} FOR UPDATE`;
+   const current=await tx.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:id,userId:req.user.id}},include:{organization:true}});
+   if(current?.status!=='ACTIVE'||!['OWNER','ADMIN'].includes(current.role)||!['SETUP','ACTIVE'].includes(current.organization.status))throw new ForbiddenException('Active administrator membership required.');
    const created=await tx.workspaceInvitation.create({data:{organizationId:id,email,name,role,tokenHash:digest(raw),status:'PENDING',createdById:req.user.id,expiresAt}});
    await tx.auditEvent.create({data:{actorId:req.user.id,action:'WORKSPACE_INVITATION_CREATED',entityType:'WORKSPACE_INVITATION',entityId:created.id,detail:{organizationId:id,recipientEmail:email,role}}});
    return created;
@@ -91,6 +94,9 @@ export class WorkspaceInvitationsController{
   companyDomain(email);
   const inv=await this.pending(raw,email);
   const user=await this.db.$transaction(async tx=>{
+   await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${inv.organizationId} FOR UPDATE`;
+   const organization=await tx.organization.findUnique({where:{id:inv.organizationId}});
+   if(!organization||!['SETUP','ACTIVE'].includes(organization.status))throw new UnauthorizedException('Organization access is suspended.');
    const updated=await tx.workspaceInvitation.updateMany({where:{id:inv.id,status:'PENDING',expiresAt:{gt:new Date()}},data:{status:'ACCEPTED'}});
    if(updated.count!==1)throw new UnauthorizedException('Invitation has already been accepted.');
    let person=await tx.user.findUnique({where:{email}});

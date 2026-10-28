@@ -228,6 +228,18 @@ async function main(){
    await newPage.getByRole('link',{name:'Team & Settings'}).click();
    await newPage.getByRole('heading',{name:'Team & Settings'}).waitFor({timeout:10000});
    await screenshot(newPage,'08-team-settings');
+   await newPage.getByRole('button',{name:'Operations & Data'}).click();
+   await newPage.getByRole('heading',{name:'Hourly preparation'}).waitFor();
+   await newPage.getByLabel('Prepare billing drafts').check();
+   await newPage.getByRole('button',{name:'Save preparation settings'}).click();
+   await newPage.getByText(/Preparation settings saved/).waitFor();
+   assert.equal((await db.workspaceAutomation.findUnique({where:{organizationId:ownerMembership.organizationId}})).billingDrafts,true);
+   const [download]=await Promise.all([newPage.waitForEvent('download'),newPage.getByRole('button',{name:/Download accounts/}).click()]);
+   const exported=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
+   assert.equal(exported.organizationId,ownerMembership.organizationId);
+   assert.equal(exported.resource,'accounts');
+   await screenshot(newPage,'09-operations-data');
+
    await newPage.getByRole('button',{name:'Sales Workflow'}).click();
    await newPage.getByRole('heading',{name:'Pipeline configuration'}).waitFor({timeout:10000});
    await newPage.getByLabel('Stage name').fill('CI Qualified Research');
@@ -237,7 +249,18 @@ async function main(){
    await newPage.getByText('CI Qualified Research',{exact:true}).waitFor({timeout:10000});
    await newPage.getByRole('link',{name:/Prospects & Accounts/i}).click();
    await newPage.getByRole('heading',{name:'Prospects & Accounts',exact:true}).waitFor();
-   await newPage.getByRole('link',{name:'My Dashboard'}).click();
+   await newPage.getByRole('link',{name:'Team & Settings'}).click();
+   await newPage.getByRole('button',{name:'Suspend organization',exact:true}).click();
+   await newPage.getByLabel('Organization identifier').fill(ownerMembership.organization.slug);
+   await newPage.getByRole('button',{name:'Confirm suspension'}).click();
+   await newPage.waitForURL(url=>url.pathname==='/workspaces',{timeout:10000});
+   await newPage.getByRole('heading',{name:'Organization suspended'}).waitFor();
+   await screenshot(newPage,'10-suspended-organization');
+   await newPage.getByRole('button',{name:'Reactivate organization',exact:true}).click();
+   await newPage.getByLabel('Organization identifier').fill(ownerMembership.organization.slug);
+   await newPage.getByRole('button',{name:'Confirm reactivation'}).click();
+   const restoredRow=newPage.locator('.ws-choice').filter({hasText:ownName});
+   await restoredRow.getByRole('button',{name:'Open',exact:true}).click();
    await newPage.waitForURL(url=>url.pathname==='/workspaces/'+ownerMembership.organizationId,{timeout:10000});
    await newPage.getByRole('button',{name:'Sign out'}).click();
    await newPage.waitForURL('**/login',{timeout:10000});

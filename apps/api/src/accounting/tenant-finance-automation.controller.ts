@@ -1,3 +1,4 @@
+import {FinancePreparationService} from '../operations/finance-preparation.service';
 import {BadRequestException,Body,Controller,Param,Patch,Post,Get,Req,UseGuards,ForbiddenException} from '@nestjs/common';
 import {randomUUID} from 'node:crypto';
 import {PrismaService} from '../prisma/prisma.service';
@@ -11,7 +12,7 @@ import {OutgoingMessageService} from '../communications/outgoing-message.service
 @UseGuards(IdentityGuard)
 @Controller('workspace-finance-automation')
 export class TenantFinanceAutomationController{
- constructor(private db:PrismaService,private scope:TenantScopeService,private outgoing:OutgoingMessageService){}
+ constructor(private db:PrismaService,private scope:TenantScopeService,private outgoing:OutgoingMessageService,private preparation:FinancePreparationService){}
  private async finance(req:ScopedRequest,orgId:string,adminOnly=false){
   return this.scope.membership(req,orgId,adminOnly?'admin':'finance');
  }
@@ -59,26 +60,7 @@ export class TenantFinanceAutomationController{
  }
  @Post(':orgId/billing/generate-drafts')async generate(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
   await this.finance(req,orgId);
-  const candidates=await this.db.billingSchedule.findMany({where:{status:'ACTIVE',nextDueAt:{lte:new Date()},amount:{gt:0},contract:{opportunity:{account:{organizationId:orgId}}}},include:{contract:{include:{opportunity:{include:{account:{include:{contacts:true}}}}}}},take:100});
-  let created=0,skipped=0;
-  for(const schedule of candidates){
-   const account=schedule.contract.opportunity.account;
-   if(account.isDemo||schedule.contract.isDemo){skipped++;continue;}
-   const billingEmail=account.contacts.find(c=>c.email&&/payable|finance|billing/i.test(c.title))?.email||account.contacts.find(c=>c.email)?.email;
-   if(!billingEmail){skipped++;continue;}
-   const key='billing-draft:'+schedule.id+':'+schedule.nextDueAt?.toISOString().slice(0,10);
-   try{
-    const done=await this.db.$transaction(async tx=>{
-     await tx.localAutomationEvent.create({data:{key,entityType:'BILLING_SCHEDULE',entityId:schedule.id,action:'INVOICE_DRAFT',createdById:req.user.id}});
-     const next=nextBillingDate(schedule.nextDueAt!,schedule.cadence);
-     const invoice=await tx.invoice.create({data:{accountId:account.id,opportunityId:schedule.contract.opportunityId,contractId:schedule.contractId,number:'DRAFT-'+randomUUID(),currency:schedule.currency,lineItems:[{description:schedule.description,quantity:1,unitPrice:Number(schedule.amount)}],subtotal:schedule.amount!,total:schedule.amount!,tax:0,billingEmail,createdById:req.user.id,dueAt:new Date(schedule.nextDueAt!.getTime()+30*86400000),status:'DRAFT'}});
-     await tx.billingSchedule.update({where:{id:schedule.id},data:next?{nextDueAt:next}:{nextDueAt:null,status:'PAUSED'}});
-     await tx.auditEvent.create({data:{actorId:req.user.id,action:'TENANT_BILLING_DRAFT_PREPARED',entityType:'INVOICE',entityId:invoice.id,detail:{organizationId:orgId,scheduleId:schedule.id}}});
-     return true;
-    },{isolationLevel:'Serializable'});if(done)created++;
-   }catch(e:any){if(e?.code==='P2002'){skipped++;continue;}throw e;}
-  }
-  return {created,skipped,issued:0,emailsSent:0,note:'Draft invoices only. Finance review, tax approval and explicit issue remain required.'};
+  return {...await this.preparation.billing(orgId,req.user.id),note:'Draft invoices only. Finance review, tax approval and explicit issue remain required.'};
  }
  private async reminderCandidates(orgId:string){
   const now=new Date(),invoices=await this.db.invoice.findMany({where:{status:{in:['SENT','PARTIALLY_PAID']},dueAt:{lt:now},account:{organizationId:orgId}},include:{payments:true,adjustments:true,account:{select:{id:true,name:true,ownerId:true}},reminders:true},take:500});
@@ -93,21 +75,7 @@ export class TenantFinanceAutomationController{
   return {candidates:await this.reminderCandidates(orgId),pending:pending.map(r=>({id:r.id,status:r.status,scheduledFor:r.scheduledFor,invoiceId:r.invoiceId,number:r.invoice.number,client:r.invoice.account.name,recipient:r.invoice.billingEmail,currency:r.invoice.currency,total:r.invoice.total}))};
  }
  @Post(':orgId/reminders/create-review-tasks')async createTasks(@Req()req:ScopedRequest,@Param('orgId')orgId:string){
-  await this.finance(req,orgId);const proposals=await this.reminderCandidates(orgId);let created=0,skipped=0;
-  for(const item of proposals){
-   try{const done=await this.db.$transaction(async tx=>{
-    const invoice=await tx.invoice.findFirst({where:{id:item.invoiceId,account:{organizationId:orgId}},include:{payments:true,adjustments:true,reminders:true}});
-    if(!invoice)return false;
-    const paid=invoice.payments.reduce((n,p)=>n+Number(p.amount),0)+invoice.adjustments.filter(a=>a.status==='APPROVED'&&a.kind==='CREDIT_NOTE').reduce((n,a)=>n+Number(a.amount),0);
-    const eligible=candidateReminders({id:invoice.id,dueAt:invoice.dueAt,total:Number(invoice.total),paid,status:invoice.status,isDemo:invoice.isDemo},new Date()).find(c=>c.day===item.day);
-    if(!eligible||invoice.reminders.some(r=>r.scheduledFor.getTime()===eligible.scheduledFor.getTime()))return false;
-    await tx.localAutomationEvent.create({data:{key:eligible.key,entityType:'INVOICE',entityId:invoice.id,action:'REMINDER_APPROVAL',isDemo:invoice.isDemo,createdById:req.user.id}});
-    await tx.invoiceReminder.create({data:{invoiceId:invoice.id,createdById:req.user.id,scheduledFor:eligible.scheduledFor,status:'PENDING_APPROVAL',mode:'DRAFT_ONLY'}});
-    if(!invoice.isDemo)await tx.task.create({data:{organizationId:orgId,assigneeId:item.assigneeId,opportunityId:invoice.opportunityId,title:'Approve payment reminder: '+invoice.number+' (day '+eligible.day+')',description:item.clientName+': verify payments/disputes and review the reminder before sending.',dueAt:new Date()}});
-    return true;
-   },{isolationLevel:'Serializable'});if(done)created++;else skipped++;}catch(e:any){if(e?.code==='P2002'){skipped++;continue;}throw e;}
-  }
-  return {created,skipped,emailsSent:0,note:'Review tasks created. No reminder email was sent.'};
+  await this.finance(req,orgId);return {...await this.preparation.reminders(orgId,req.user.id),note:'Review tasks created. No reminder email was sent.'};
  }
  @Post(':orgId/reminders/:reminderId/approve')async approve(@Req()req:ScopedRequest,@Param('orgId')orgId:string,@Param('reminderId')reminderId:string){
   await this.finance(req,orgId,true);

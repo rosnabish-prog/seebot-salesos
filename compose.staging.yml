@@ -1,0 +1,70 @@
+# Private single-host staging only. Supply managed PostgreSQL and a TLS reverse proxy.
+x-app: &app
+  image: salesos:${SALESOS_IMAGE_TAG:?Set an immutable commit tag}
+  build:
+    context: .
+    target: runtime
+  env_file: .env.staging
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:uid=1000,gid=1000,mode=1770
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  mem_limit: 1g
+  cpus: 1.0
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+services:
+  api:
+    <<: *app
+    command: [node, apps/api/dist/main.js]
+    environment:
+      API_PORT: "4000"
+      DOCUMENT_STORAGE_DIR: /var/lib/salesos/contracts
+      INVOICE_STORAGE_DIR: /var/lib/salesos/invoices
+      CREDIT_NOTE_STORAGE_DIR: /var/lib/salesos/credits
+      ORGANIZATION_LOGO_STORAGE_DIR: /var/lib/salesos/logos
+    volumes:
+      - private_documents:/var/lib/salesos
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4000/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+  web:
+    <<: *app
+    command: [npm, run, start, -w, '@seebot/web']
+    environment:
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - 127.0.0.1:3000:3000
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1770
+      - /app/apps/web/.next/cache:uid=1000,gid=1000,mode=0700
+    depends_on:
+      api:
+        condition: service_healthy
+  worker:
+    <<: *app
+    command: [node, apps/api/dist/worker.js]
+    stop_grace_period: 2m
+    depends_on:
+      api:
+        condition: service_healthy
+  migrate:
+    image: salesos-migrations:${SALESOS_IMAGE_TAG:?Set an immutable commit tag}
+    build:
+      context: .
+      target: build
+    env_file: .env.staging
+    profiles: [maintenance]
+    command: [npx, prisma, migrate, deploy, '--schema=packages/database/prisma/schema.prisma']
+    restart: "no"
+volumes:
+  private_documents:

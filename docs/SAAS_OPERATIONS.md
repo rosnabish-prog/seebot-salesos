@@ -1,0 +1,41 @@
+# SaaS operations and private staging
+
+## What this release adds
+
+- Owners can suspend and restore their own independent organizations. Both actions require authentication within five minutes and typing the organization slug. A suspended organization cannot be selected or accessed through ordinary APIs, public signing/survey links or the worker. Owners can still see it on `/workspaces` and restore it. Pending workspace invitations are revoked. Memberships and business records are retained. The platform workspace is excluded.
+- Operator suspensions are separate: operators must set `status = SUSPENDED` **and clear `suspendedFromStatus`**. An owner can restore only a suspension created by the owner action. Do not use an owner suspension to enforce a platform/legal restriction.
+- Settings → Operations & Data provides opt-in hourly billing draft and overdue-reminder task preparation, the latest 50 jobs, failure counts and retry controls. A running worker is required. Jobs never approve/issue invoices, charge cards, queue outbound mail or send email.
+- Administrative business exports expose an explicit allowlist of record types in JSON pages of at most 100 records. Continue using `next` as the `after` query. Pages use an organization predicate and keyset filtering, including with a foreign cursor. This export excludes document binaries, credentials, OAuth secrets, security challenges, signing links and invite tokens. It is **not** a complete database backup or a snapshot across multiple pages; keep database/document backups and use existing scoped document downloads when needed.
+- `/health` checks API liveness; `/ready` checks PostgreSQL access and returns 503 on failure. Readiness does not establish provider readiness or permission to open public signup.
+
+## Worker behavior
+
+After reviewed migrations and an API build, run `npm run worker -w @seebot/api` from the repository root, with the same PostgreSQL deployment and tenant feature flags as the API. The worker requires no Gmail/SMTP/OAuth secrets. Run it under a process supervisor/container restart policy. Multiple replicas are supported. Use a stable UTC clock on all hosts.
+
+The scheduler writes unique hourly jobs for opted-in organizations. PostgreSQL `FOR UPDATE SKIP LOCKED` grants a five-minute lease, refreshed each minute. After a crash, an expired lease can be reclaimed. A different lease token prevents an earlier worker from settling a newer attempt. Financial preparation itself uses organization row locks and unique automation keys; side effects are atomic and safe to repeat after a crash. Each transaction rechecks the organization, initiating user's active finance membership and automation setting. Removing/demoting the enabling administrator stops preparation. A current administrator can save the settings again to take responsibility.
+
+Billing prepares at most 100 due, non-demo schedules from signed contracts per run, one billing period per schedule. Milestone schedules require acceptance. Monthly/quarterly dates clamp at month end. Missing billing contacts and invalid schedules need finance correction. Reminder preparation selects at most 100 eligible invoices for each day-1/day-5 milestone, excluding already-prepared milestones before the limit. Internal review tasks are assigned to the active account owner or the enabling administrator. Explicit finance approval/issue/send routes remain required.
+
+Failures retry up to five times with exponential backoff, then remain visible as FAILED. Revoked authorization fails immediately. Administrators can retry a failed job for their selected organization after correcting the cause. Suspension or disabling automation cancels queued work when claimed; an already committed draft/task is retained for review. Daily maintenance purges rate-limit counters expired for more than seven days and successful/cancelled job history older than 30 days. Failed jobs and security/financial audit records are retained; legal retention and deletion policy still need to be chosen.
+
+Alert on `background_job_failed` / `worker_cycle_failed` structured log events, nonzero failed-job counts, worker process restarts, growing/old PENDING jobs, API 5xx and `/ready` failures. The container setup rotates local logs; connect logs and alerts to your hosting provider before pilot use. Failed history is not automatically erased.
+
+## Private staging deployment
+
+`Dockerfile` produces a Node 22 API/web/worker runtime running as a non-root user, and a separate build/migration target. `compose.staging.yml` limits resources and exposes only web on loopback. This is a **single-host private staging template**, not a provisioned production service. It retains current private file storage on a named volume. Production object storage, scanning, encryption policy and separate storage backup still require implementation/provisioning.
+
+1. Choose a private host, managed PostgreSQL 16, HTTPS domain/TLS proxy, and secret store. Allow PostgreSQL traffic only from the application hosts. Use a distinct database/user for staging and require TLS according to your provider's connection instructions.
+2. Create an untracked `.env.staging` from `.env.example`. Set `SALESOS_IMAGE_TAG` to the full source commit SHA; `DATABASE_URL`, strong separate `JWT_SECRET` and `MFA_CODE_SECRET`; and `CORS_ORIGIN` to the exact HTTPS app origin. The web build uses same-origin `/api` requests, with `API_INTERNAL_URL=http://api:4000` inside Compose. Do not put server secrets in `NEXT_PUBLIC_*` variables or Docker build arguments. `TRUST_PROXY_HOPS` must match the verified reverse proxy chain including the web proxy.
+3. Keep public signup, signing, Gmail and survey flags disabled until their provider checks are complete. Enable tenant production access only in authorized private staging after tenant regression checks. For pilot registration/sign-in, configure transactional SMTP and observe signup, MFA, password-reset and recovery deliveries in real test mailboxes. Google/Gmail configuration is optional until needed.
+4. Build immutable images: `docker compose --env-file .env.staging -f compose.staging.yml build api migrate`. Store image digests in deployment records.
+5. Back up PostgreSQL and the **entire** private-document volume; rehearse restoration on an isolated instance. For an existing pre-migration database, follow [DATABASE_MIGRATIONS.md](DATABASE_MIGRATIONS.md) before running migrations. Never automatically baseline an unknown schema.
+6. During a maintenance window, stop API/web/worker, run `docker compose --env-file .env.staging -f compose.staging.yml --profile maintenance run --rm migrate`, then start `docker compose --env-file .env.staging -f compose.staging.yml up -d api web worker`. Inspect readiness and logs. Database migration credentials should be supplied only to the one-off migrator, not retained in runtime credentials.
+7. Put the HTTPS proxy in front of loopback port 3000 and restrict staging to the pilot team. Do not publish API/PostgreSQL ports or expose the Docker socket. Test two unrelated organizations, exports, suspension, real mailbox sign-in, file recovery and a worker restart before increasing access.
+
+Rollback needs the previous immutable application image plus a reviewed database rollback/restore plan. Do not run older code against an incompatible schema or attempt an automatic destructive down migration. Current migrations are additive; restoring backups can discard writes after the backup and needs an explicitly scheduled cutover.
+
+## Still needs owner input or external evidence
+
+Hosting account/budget, app domain and DNS, transactional SMTP account, Google project if Google/Gmail is required, storage provider/scanner and retention policy, target jurisdictions and accountant/signing review, pilot users, production monitoring destination, and SaaS plans/payment provider if charging organizations. Do not paste credentials into chat. Configure managed secrets directly in the deployment account.
+
+Organization deletion/anonymization remains a separate retention-aware workflow. Suspension does not claim to delete data, and no financial/signing evidence is automatically erased. SaaS subscriptions, seat entitlements, object-storage scanning and independent penetration testing are not provided by this release.
