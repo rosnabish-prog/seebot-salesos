@@ -47,6 +47,11 @@ async function main(){
   const {FinancePreparationService}=require('../apps/api/dist/operations/finance-preparation.service');
   const {BackgroundJobsService}=require('../apps/api/dist/operations/background-jobs.service');
   const finance=new FinancePreparationService(db),queues=[new BackgroundJobsService(db,finance),new BackgroundJobsService(db,finance)];
+  process.env.TENANT_SCOPED_CRM_PREVIEW='false';
+  await assert.rejects(finance.billing(a.id,owner.id),e=>e.getStatus()===403);
+  const disabledJob=await queues[0].enqueue('BILLING_DRAFTS','ops-gate-disabled:'+id,a.id);
+  await queues[0].runOne();assert.equal((await db.backgroundJob.findUnique({where:{id:disabledJob.id}})).status,'CANCELLED');
+  process.env.TENANT_SCOPED_CRM_PREVIEW='true';
   // Concurrent replicas enqueue/claim once. Expired leases get a new fencing token.
   const key='ops-claim:'+id;await Promise.all(queues.map(q=>q.enqueue('BILLING_DRAFTS',key,a.id)));
   const claimed=await Promise.all(queues.map(q=>q.claim()));assert.equal(claimed.filter(Boolean).length,1);
@@ -83,6 +88,17 @@ async function main(){
   await db.organizationMembership.update({where:{organizationId_userId:{organizationId:a.id,userId:owner.id}},data:{status:'ACTIVE'}});
   await call(wrong,'POST','/workspace-operations/'+b.id+'/jobs/'+revoked.id+'/retry',{},400);
   await call(auth,'POST','/workspace-operations/'+a.id+'/jobs/'+revoked.id+'/retry',{},201);await queues[0].runOne();
+  const transient=await queues[0].enqueue('BILLING_DRAFTS','ops-transient:'+id,a.id);
+  const broken=new BackgroundJobsService(db,{billing:async()=>{throw Error('SENSITIVE_EXCEPTION_TEXT');}});
+  await broken.runOne();
+  const waiting=await db.backgroundJob.findUnique({where:{id:transient.id}});
+  assert.equal(waiting.status,'PENDING');assert.equal(waiting.lastError,'PREPARATION_FAILED');assert.ok(waiting.availableAt>new Date());
+  assert.ok(!JSON.stringify(waiting).includes('SENSITIVE_EXCEPTION_TEXT'));
+  await db.backgroundJob.update({where:{id:waiting.id},data:{availableAt:new Date(0)}});await queues[0].runOne();
+  assert.equal((await db.backgroundJob.findUnique({where:{id:waiting.id}})).status,'SUCCEEDED');
+  const exhausted=await queues[0].enqueue('BILLING_DRAFTS','ops-exhausted:'+id,a.id);
+  await db.backgroundJob.update({where:{id:exhausted.id},data:{status:'RUNNING',attempts:5,leaseUntil:new Date(0),leaseToken:'expired-ci-lease'}});
+  await queues[0].claim();assert.equal((await db.backgroundJob.findUnique({where:{id:exhausted.id}})).lastError,'LEASE_EXHAUSTED');
   // Daily cleanup preserves current counters and all financial/audit records.
   await db.authRateLimit.createMany({data:[{key:'ops-expired-'+id,count:1,expiresAt:new Date(Date.now()-9*86400000)},{key:'ops-current-'+id,count:1,expiresAt:new Date(Date.now()+86400000)}]});
   await queues[0].enqueue('MAINTENANCE','ops-maintenance:'+id,null);await queues[0].runOne();
