@@ -24,7 +24,8 @@ test('authenticator secrets are encrypted and bound to their account with fail-c
   process.env.MFA_ENCRYPTION_KEY=Buffer.alloc(32,0x41).toString('base64');
   const encrypted=sealTotp('user-a',secret);assert.ok(!encrypted.includes(secret));assert.equal(openTotp('user-a',encrypted),secret);
   assert.throws(()=>openTotp('user-b',encrypted));
-  assert.throws(()=>openTotp('user-a',encrypted.slice(0,-2)+'AB'));
+  const parts=encrypted.split('.'),tampered=Buffer.from(parts[3],'base64url');tampered[0]^=1;parts[3]=tampered.toString('base64url');
+  assert.throws(()=>openTotp('user-a',parts.join('.')));
   process.env.MFA_ENCRYPTION_KEY=Buffer.alloc(32,0x42).toString('base64');assert.throws(()=>openTotp('user-a',encrypted));
   delete process.env.MFA_ENCRYPTION_KEY;assert.throws(()=>sealTotp('user-a',secret));
  }finally{if(prior===undefined)delete process.env.MFA_ENCRYPTION_KEY;else process.env.MFA_ENCRYPTION_KEY=prior;}

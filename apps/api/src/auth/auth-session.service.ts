@@ -13,7 +13,7 @@ export async function validateRegisteredSession(db:PrismaService,payload:{sid?:s
  if(typeof payload.sid!=='string')throw new UnauthorizedException('Sign in again to register this session.');
  const session=await db.authSession.findFirst({where:{id:payload.sid,userId:payload.sub,passwordVersion:payload.pv,revokedAt:null,expiresAt:{gt:new Date()}}});
  if(!session||session.authAt.getTime()!==payload.authAt)throw new UnauthorizedException('This session has ended. Sign in again.');
- req.authSessionId=session.id;req.mfaMethod=session.mfaMethod;
+ req.authSessionId=session.id;req.mfaMethod=session.mfaMethod;req.authAt=payload.authAt;
  if(Date.now()-session.lastSeenAt.getTime()>5*60_000)await db.authSession.updateMany({where:{id:session.id,revokedAt:null,lastSeenAt:{lt:new Date(Date.now()-5*60_000)}},data:{lastSeenAt:new Date()}});
 }
 @Injectable()
