@@ -11,9 +11,10 @@ const base='http://127.0.0.1:'+port+'/api';
 const jwtSecret=process.env.JWT_SECRET;
 if(process.env.CI!=='true'||!process.env.DATABASE_URL?.includes('ci_only_password')||!jwtSecret||process.env.NODE_ENV!=='test')
  throw Error('Cross-tenant tests require the isolated disposable CI database and test environment.');
-function token(user,orgId,authAt=Date.now()){
+async function token(user,orgId,authAt=Date.now()){
+ const registered=await db.authSession.create({data:{userId:user.id,passwordVersion:user.passwordVersion,mfaMethod:'EMAIL',userAgent:'Synthetic isolation fixture',authAt:new Date(authAt),expiresAt:new Date(authAt+7*86400000)}});
  const s=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
- const body=s({sub:user.id,pv:user.passwordVersion,wid:orgId,mfa:true,authAt,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
+ const body=s({sub:user.id,pv:user.passwordVersion,sid:registered.id,wid:orgId,mfa:true,authAt,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+1800});
  const head=s({typ:'JWT',alg:'HS256'});
  return head+'.'+body+'.'+createHmac('sha256',jwtSecret).update(head+'.'+body).digest('base64url');
 }
@@ -32,7 +33,7 @@ async function main(){
   const org=await db.organization.create({data:{slug:'ci-'+n+'-'+id,name:'CI Workspace '+n,status:'SETUP',memberships:{create:{userId:user.id,role:'OWNER'}}}});
   const account=await db.account.create({data:{organizationId:org.id,name:'CI Fictional Account '+n,domain:'ci-'+n+'-'+id+'.example',website:'https://ci-'+n+'-'+id+'.example',industry:'Testing',hypothesis:'CI demo',ownerId:user.id,isDemo:true}});
   const invoice=await db.invoice.create({data:{accountId:account.id,number:'DEMO-CI-'+n+'-'+id,status:'DRAFT',currency:'USD',lineItems:[{description:'Test service',quantity:1,unitPrice:10}],subtotal:'10',tax:'0',total:'10',billingEmail:'billing'+n+'@example.invalid',dueAt:new Date('2030-01-01'),isDemo:true,createdById:user.id}});
-  return {user,org,account,invoice,cookie:token(user,org.id)};
+  return {user,org,account,invoice,cookie:await token(user,org.id)};
  }));
  const api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:process.cwd(),env:{...process.env,API_PORT:String(port),TENANT_SCOPED_CRM_PREVIEW:'true',DEV_EMAIL_SIGNUP_ENABLED:'true',MFA_TEST_MODE:'true',SIGNING_ENABLED:'false',GMAIL_SENDING_ENABLED:'false'},stdio:['ignore','pipe','pipe']});
  let output='';api.stdout.on('data',b=>{output+=b.toString();});api.stderr.on('data',b=>{output+=b.toString();});
@@ -45,7 +46,7 @@ async function main(){
   }
   if(!ready)throw Error('API never became ready: '+output);
   check(await hit('/workspace-crm/'+a.org.id+'/accounts',a.cookie),200,'Own account list');
-  check(await hit('/auth/me',token(a.user,a.org.id,Date.now()-8*24*60*60*1000)),401,'Sessions older than seven days require fresh sign-in and MFA');
+  check(await hit('/auth/me',await token(a.user,a.org.id,Date.now()-8*24*60*60*1000)),401,'Sessions older than seven days require fresh sign-in and MFA');
   check(await hit('/workspace-business/'+a.org.id+'/invoices/'+a.invoice.id,a.cookie),200,'Own invoice');
   check(await hit('/workspace-tax/'+a.org.id+'/rules',a.cookie),200,'Own finance rules');
   check(await hit('/workspace-accounting/'+a.org.id+'/reconciliation',a.cookie),200,'Own accounting reconciliation');
@@ -193,7 +194,7 @@ async function main(){
 
   // A valid login must not require Seebot membership. Zero memberships enters setup.
   const standalone=await db.user.create({data:{email:'ci-unassigned-'+id+'@team-'+id+'.example',name:'Unassigned CI User',passwordHash:'NOT_REAL',role:'SALES_REP'}});
-  const standaloneCookie=token(standalone,null);
+  const standaloneCookie=await token(standalone,null);
   check(await hit('/auth/me',standaloneCookie),200,'Identity sign-in without a workspace');
   const emptyMemberships=await hit('/workspaces',standaloneCookie);
   check(emptyMemberships,200,'Workspace list for an unaffiliated user');
@@ -212,7 +213,7 @@ async function main(){
   // Display company names are not URL slugs. Short, Unicode and reserved names must work.
   for(const [kind,display] of [['short','AI'],['unicode','कम्पनी'],['reserved','Seebot']]){
    const slugUser=await db.user.create({data:{email:'ci-slug-'+kind+'-'+id+'@work-'+id+'.example',name:'Slug Test User',passwordHash:'NOT_REAL',role:'SALES_REP'}});
-   const created=await hit('/workspaces',token(slugUser,null),{method:'POST',body:JSON.stringify({name:display})});
+   const created=await hit('/workspaces',await token(slugUser,null),{method:'POST',body:JSON.stringify({name:display})});
    check(created,201,'Company display name is not restricted by internal slug for '+kind);
    assert.equal(created.body.name,display,'Display name remains unchanged for '+kind);
    assert.match(created.body.slug,/^[a-z0-9-]{3,60}$/,'Generated slug is safe for '+kind);
@@ -221,14 +222,14 @@ async function main(){
 
   check(await hit('/workspaces',standaloneCookie,{method:'POST',body:JSON.stringify({name:'Duplicate Company',website:'https://team-'+id+'.example'})}),201,'A company-email user may own multiple workspaces');
   const personal=await db.user.create({data:{email:'ci-personal-'+id+'@gmail.com',name:'Personal Account',passwordHash:'NOT_REAL',role:'SALES_REP'}});
-  check(await hit('/workspaces',token(personal,null),{method:'POST',body:JSON.stringify({name:'Personal Fake Company',website:'https://gmail.com'})}),400,'Personal email cannot create a company workspace');
+  check(await hit('/workspaces',await token(personal,null),{method:'POST',body:JSON.stringify({name:'Personal Fake Company',website:'https://gmail.com'})}),400,'Personal email cannot create a company workspace');
   const mismatch=await db.user.create({data:{email:'ci-mismatch-'+id+'@legitimate-'+id+'.example',name:'Domain Mismatch',passwordHash:'NOT_REAL',role:'SALES_REP'}});
-  check(await hit('/workspaces',token(mismatch,null),{method:'POST',body:JSON.stringify({name:'Wrong Domain',website:'https://unrelated-'+id+'.example'})}),201,'A verified work identity may own companies with different website domains');
+  check(await hit('/workspaces',await token(mismatch,null),{method:'POST',body:JSON.stringify({name:'Wrong Domain',website:'https://unrelated-'+id+'.example'})}),201,'A verified work identity may own companies with different website domains');
   check(await hit('/auth/register','',{method:'POST',body:JSON.stringify({name:'Personal Signup',email:'ci-claim-'+id+'@gmail.com',password:'CI_Only_12_Password_One!'})}),400,'Email registration blocks personal providers');
 
   // An invite does not grant access until redeemed by the exact recipient.
   const pendingUser=await db.user.create({data:{email:'ci-invite-'+id+'@example.invalid',name:'CI Invitee',passwordHash:'NOT_REAL',role:'SALES_REP'}});
-  const pendingCookie=token(pendingUser,null);
+  const pendingCookie=await token(pendingUser,null);
   const invited=await hit('/workspace-invitations/organizations/'+a.org.id,a.cookie,{method:'POST',body:JSON.stringify({name:'CI Invitee',email:pendingUser.email,role:'MEMBER'})});
   check(invited,201,'Workspace administrator creates email-bound team invitation');
   assert.equal(invited.body.delivery,'NOT_SENT');
@@ -241,7 +242,7 @@ async function main(){
   check(accepted,201,'Verified existing identity accepts invite');
   assert.equal(accepted.body.organizationId,a.org.id);
   check(await hit('/workspace-invitations/accept-existing',pendingCookie,{method:'POST',body:JSON.stringify({token:invitationToken})}),401,'Single-use invitation cannot be redeemed twice');
-  const memberCookie=token(pendingUser,a.org.id);
+  const memberCookie=await token(pendingUser,a.org.id);
   check(await hit('/workspace-business/'+a.org.id+'/invoices',memberCookie),200,'Accepted invite grants selected-org membership');
   check(await hit('/workspace-business/'+b.org.id+'/invoices',memberCookie),403,'New member cannot open a foreign workspace');
   const selectedCheck=await hit('/workspaces/selected',memberCookie);
@@ -312,7 +313,7 @@ async function main(){
   const seebot=await db.organization.upsert({where:{slug:'seebot'},create:{slug:'seebot',name:'CI legacy Seebot',status:'ACTIVE'},update:{}});
   const manager=await db.user.create({data:{email:'legacy-manager-'+id+'@example.invalid',name:'Legacy CI Manager',passwordHash:'NOT_REAL',role:'SALES_MANAGER'}});
   await db.organizationMembership.create({data:{organizationId:seebot.id,userId:manager.id,role:'ADMIN',status:'ACTIVE'}});
-  const managerCookie=token(manager,seebot.id);
+  const managerCookie=await token(manager,seebot.id);
   const foreignOpportunity=await db.opportunity.create({data:{accountId:b.account.id,ownerId:b.user.id,title:'Confidential foreign organization opportunity',serviceLine:'Fictional security review'}});
   check(await hit('/accounts/'+b.account.id,managerCookie),400,'Seebot manager cannot open other company account by ID');
   check(await hit('/opportunities/'+foreignOpportunity.id,managerCookie),400,'Seebot manager cannot open other company opportunity by ID');

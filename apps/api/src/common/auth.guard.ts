@@ -1,3 +1,4 @@
+import {validateRegisteredSession} from '../auth/auth-session.service';
 import {companyDomain} from '../workspace/company-email';
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -15,13 +16,14 @@ export class AuthGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<AuthRequest>();
     const token = req.cookies?.salesos_session;
     if (!token) throw new UnauthorizedException('Please sign in.');
-    let payload: {sub:string;pv?:number;wid?:string;mfa?:boolean;authAt?:number};
+    let payload: {sub:string;pv?:number;sid?:string;wid?:string;mfa?:boolean;authAt?:number};
     try { payload = await this.jwt.verifyAsync(token); } catch { throw new UnauthorizedException('Session expired.'); }
     if(payload.mfa!==true)throw new UnauthorizedException('Two-factor verification required.');
     if(typeof payload.authAt!=='number'||!Number.isFinite(payload.authAt)||payload.authAt>Date.now()+60_000||Date.now()-payload.authAt>SESSION_MAX_AGE_MS)throw new UnauthorizedException('Your seven-day session has ended. Please sign in and verify again.');
     const user = await this.db.user.findUnique({ where: { id: payload.sub }, select: { id:true,email:true,name:true,role:true,active:true,passwordVersion:true } });
     if (!user || !user.active) throw new UnauthorizedException('Account disabled.');
     if (payload.pv !== user.passwordVersion) throw new UnauthorizedException('Session needs renewal. Please sign in again.');
+    await validateRegisteredSession(this.db,payload,req);
     companyDomain(user.email);
     // Existing CRM controllers use global IDs. Never allow a non-Seebot workspace
     // to reach those routes until every legacy query is tenant-scoped.

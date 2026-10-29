@@ -2,7 +2,7 @@
 import { createContext,useContext,useEffect,useState,useCallback,ReactNode } from 'react';
 import { request,post } from '../lib/api';
 export type User={id:string;name:string;email:string;role:string};
-export type MfaChallenge={mfaRequired:true;challengeId:string;method:'EMAIL'|'EMAIL_OR_RECOVERY';emailDelivery?:string;maskedEmail:string;testCode?:string};
+export type MfaChallenge={mfaRequired:true;challengeId:string;method:'EMAIL'|'EMAIL_OR_RECOVERY'|'TOTP';emailDelivery?:string;maskedEmail:string;testCode?:string};
 interface AuthContextValue {
  user:User|null;loading:boolean;
  login:(email:string,password:string)=>Promise<MfaChallenge>;

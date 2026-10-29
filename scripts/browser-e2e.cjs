@@ -25,11 +25,18 @@ function launch(command,args,env,cwd=process.cwd()){
  children.push(cp);
  return {cp,logs:()=>output};
 }
-async function completeMfa(page){
+async function completeMfa(page,authenticatorSecret){
  await page.waitForURL('**/two-factor',{timeout:15000});
  await page.getByRole('heading',{name:'Enter your verification code'}).waitFor();
- const code=await page.evaluate(()=>{const raw=sessionStorage.getItem('salesos_mfa');return raw?JSON.parse(raw).testCode:'';});
- assert.match(String(code),/^\d{6}$/,'CI MFA test code must be available only in test mode.');
+ const saved=await page.evaluate(()=>{const raw=sessionStorage.getItem('salesos_mfa');return raw?JSON.parse(raw):{};});
+ let code=saved.testCode;
+ if(saved.method==='TOTP'){
+  assert.ok(authenticatorSecret,'Authenticator state must survive the sign-in page.');
+  // The actual code is generated from the known fictional enrollment secret, never exposed by the API.
+  code=require('../apps/api/dist/auth/totp').totpCode(authenticatorSecret,Math.floor(Date.now()/30000));
+  assert.equal(await page.getByRole('button',{name:'Resend code'}).count(),0);
+ }
+ assert.match(String(code),/^[0-9]{6}$/,'A test email code or enrolled authenticator proof must be available.');
  await page.getByPlaceholder('000000').fill(String(code));
  await page.getByRole('button',{name:'Verify & continue'}).click();
 }
@@ -43,6 +50,7 @@ async function ready(url,processHandle){
 }
 async function main(){
  const unique=randomUUID().slice(0,12);
+ let guestAuthenticatorSecret;
  const email='ci-browser-'+unique+'@example.invalid';
  const password='CI_Browser_Only_Password_123456!';
  const user=await db.user.create({data:{name:'CI Browser Reviewer',email,passwordHash:await argon2.hash(password),role:'SALES_REP'}});
@@ -228,6 +236,20 @@ async function main(){
    await newPage.getByRole('link',{name:'Team & Settings'}).click();
    await newPage.getByRole('heading',{name:'Team & Settings'}).waitFor({timeout:10000});
    await screenshot(newPage,'08-team-settings');
+   await newPage.getByRole('button',{name:'Security & Audit'}).click();
+   await newPage.getByRole('heading',{name:'Authenticator app'}).waitFor();
+   const [setupStartResponse]=await Promise.all([newPage.waitForResponse(r=>r.url().endsWith('/auth/mfa/authenticator/start')&&r.request().method()==='POST'),newPage.getByRole('button',{name:'Set up authenticator'}).click()]);
+   const setupStart=await setupStartResponse.json();assert.ok(setupStart.testCode);
+   await newPage.getByLabel('Authenticator setup email code').fill(setupStart.testCode);
+   const [enrollmentResponse]=await Promise.all([newPage.waitForResponse(r=>r.url().endsWith('/auth/mfa/authenticator/enroll')&&r.request().method()==='POST'),newPage.getByRole('button',{name:'Verify email & continue'}).click()]);
+   const enrollment=await enrollmentResponse.json();guestAuthenticatorSecret=enrollment.secret;
+   await newPage.getByAltText('Authenticator setup QR code').waitFor();
+   await newPage.getByLabel('New authenticator code').fill(require('../apps/api/dist/auth/totp').totpCode(guestAuthenticatorSecret,Math.floor(Date.now()/30000)));
+   await newPage.getByRole('button',{name:'Confirm authenticator'}).click();
+   await newPage.getByText(/Authenticator enabled. Other sessions were signed out/).waitFor();
+   await newPage.getByRole('button',{name:'Sign out other devices'}).click();
+   await newPage.getByText('Other devices signed out.',{exact:true}).waitFor();
+
    await newPage.getByRole('button',{name:'Operations & Data'}).click();
    await newPage.getByRole('heading',{name:'Hourly preparation'}).waitFor();
    await newPage.getByLabel('Prepare billing drafts').check();
@@ -326,7 +348,7 @@ async function main(){
    await multiPage.getByPlaceholder('name@company.com').fill(guestEmail);
    await multiPage.getByPlaceholder('Your password').fill(password);
    await multiPage.getByRole('button',{name:'Sign in',exact:true}).click();
-   await completeMfa(multiPage);
+   await completeMfa(multiPage,guestAuthenticatorSecret);
    await multiPage.waitForURL(/\/workspaces(?:\?.*)?$/,{timeout:15000});
    await multiPage.getByText('CI Second Team '+unique).waitFor({timeout:10000});
   }finally{await multiContext.close();}

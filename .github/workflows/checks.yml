@@ -49,6 +49,7 @@ jobs:
       TENANT_SCOPED_CRM_PREVIEW: "false"
       SEED_DEMO_DATA: "false"
       NEXT_TELEMETRY_DISABLED: "1"
+      MFA_ENCRYPTION_KEY: Q0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0M=
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,6 +98,8 @@ jobs:
         run: node scripts/saas-p0-e2e.cjs
       - name: Organization operations, durable worker and exports
         run: node scripts/saas-operations-e2e.cjs
+      - name: Authenticator enrollment, replay protection and session revocation
+        run: node scripts/authenticator-sessions-e2e.cjs
       - name: Install browser for end-to-end checks
         run: npx playwright install --with-deps chromium
       - name: Browser E2E for company onboarding and finance

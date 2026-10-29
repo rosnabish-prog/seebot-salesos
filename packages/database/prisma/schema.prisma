@@ -97,6 +97,9 @@ model User {
   passwordResetRequests PasswordResetRequest[]
   loginChallenges LoginChallenge[]
   mfaRecoveryCodes MfaRecoveryCode[]
+  authenticator UserAuthenticator?
+  authenticatorEnrollment AuthenticatorEnrollment?
+  authSessions AuthSession[]
   surveyTemplates ClientSurveyTemplate[] @relation("SurveyTemplateCreator")
 }
 model Account {
@@ -1187,4 +1190,37 @@ model BackgroundJob {
  finishedAt DateTime?
  @@index([status,availableAt])
  @@index([organizationId,createdAt])
+}
+
+model UserAuthenticator {
+ userId String @id
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ secretEncrypted String
+ lastStep Int @default(-1)
+ enabledAt DateTime @default(now())
+}
+model AuthenticatorEnrollment {
+ id String @id @default(cuid())
+ userId String @unique
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ secretEncrypted String
+ passwordVersion Int
+ attempts Int @default(0)
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+}
+model AuthSession {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ passwordVersion Int
+ mfaMethod String
+ userAgent String
+ authAt DateTime
+ expiresAt DateTime
+ lastSeenAt DateTime @default(now())
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([userId,revokedAt,expiresAt])
+ @@index([expiresAt])
 }

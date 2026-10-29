@@ -51,7 +51,9 @@ export class BackgroundJobsService{
     const grace=new Date(Date.now()-7*86400000),jobCutoff=new Date(Date.now()-30*86400000);
     const counters=await this.db.authRateLimit.deleteMany({where:{expiresAt:{lt:grace}}});
     const history=await this.db.backgroundJob.deleteMany({where:{status:{in:['SUCCEEDED','CANCELLED']},finishedAt:{lt:jobCutoff}}});
-    result={expiredCountersRemoved:counters.count,oldJobsRemoved:history.count};
+    const sessions=await this.db.authSession.deleteMany({where:{expiresAt:{lt:jobCutoff}}});
+    const enrollments=await this.db.authenticatorEnrollment.deleteMany({where:{expiresAt:{lt:grace}}});
+    result={expiredCountersRemoved:counters.count,oldJobsRemoved:history.count,expiredSessionsRemoved:sessions.count,expiredEnrollmentsRemoved:enrollments.count};
    }else{
     const setting=job.organizationId?await this.db.workspaceAutomation.findUnique({where:{organizationId:job.organizationId},include:{organization:true}}):null;
     if(!setting||!preparationEnabled(setting.organization.slug)||!['SETUP','ACTIVE'].includes(setting.organization.status)||!(job.kind==='BILLING_DRAFTS'?setting.billingDrafts:job.kind==='REMINDER_TASKS'?setting.reminderTasks:false)){

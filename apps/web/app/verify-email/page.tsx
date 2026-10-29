@@ -12,7 +12,7 @@ export default function VerifyEmail(){
   let active=true;
   void post<MfaChallenge>('/auth/verify-signup',{token}).then(challenge=>{
     if(!active)return;
-    sessionStorage.setItem('salesos_mfa',JSON.stringify({challengeId:challenge.challengeId,maskedEmail:challenge.maskedEmail,...(challenge.testCode?{testCode:challenge.testCode}:{})}));
+    sessionStorage.setItem('salesos_mfa',JSON.stringify(challenge));
     router.replace('/two-factor');
   })
     .catch(err=>{if(active){setMessage(err instanceof Error?err.message:'Verification failed.');setFailed(true);}});

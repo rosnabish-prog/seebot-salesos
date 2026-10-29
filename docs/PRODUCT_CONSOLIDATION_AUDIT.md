@@ -8,7 +8,7 @@ This document is a source-level product audit, not a production certification. A
 ## 1. Canonical user journey
 
 1. **Login** — work email/password or configured Google sign-in.
-2. **Two-factor verification** — mandatory on every sign-in. Email one-time code; Codespaces uses private Mailpit.
+2. **Two-factor verification** — mandatory on every sign-in. Email one-time code or enrolled authenticator; Codespaces uses private Mailpit.
 3. **Workspace resolution**
    - zero memberships -> company setup;
    - one membership -> select automatically;
@@ -55,10 +55,10 @@ There must be no separate "business preview" experience or mandatory prospect/co
 - Cross-tenant negative tests for tenant APIs.
 
 ### Production gates
-- Authenticator-app MFA / a second enrolled factor. Single-use recovery codes are now implemented.
+- Authenticator-app MFA and single-use recovery codes are implemented. Configure encryption/key operations and complete deployment acceptance; see [account security](ACCOUNT_SECURITY.md).
 - Operational tuning and monitoring of the PostgreSQL-backed distributed authentication limits.
 - SSO/SAML/SCIM for larger customers.
-- Device/session management and explicit "sign out other devices".
+- Registered device/session management and explicit "sign out other devices" are implemented; deployment acceptance remains required.
 - Independent penetration test and security monitoring.
 
 ## 4. Workspace and company administration

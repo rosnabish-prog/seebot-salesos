@@ -9,7 +9,7 @@ The maintained product specification and implementation audit are in [Product Co
 ## Canonical end-to-end product flow
 
 1. Register a work identity with verification, or accept a verified invitation; authenticate using password or configured Google login.
-2. Complete **email one-time-code MFA on every sign-in**. Sessions have an absolute seven-day reauthentication boundary. Email signup verification alone does not create a session.
+2. Complete **email or enrolled-authenticator MFA on every sign-in**. Sessions have an absolute seven-day reauthentication boundary. Email signup verification alone does not create a session.
 3. Create company workspaces you own (or join an invitation), configure optional business details, and invite employees with roles and membership controls.
 4. Create one canonical **Account** (customer company), with reusable contacts and an initial **Opportunity**. One Account may have multiple opportunities and engagements.
 5. Move opportunities through the canonical **11-stage** pipeline using evidence, configured labels/fields and permitted auto-pull from existing records. Contract and authorization checks cannot be bypassed by manager overrides.
@@ -81,3 +81,8 @@ See [SaaS P0 implementation and remaining release gates](docs/SAAS_P0_AUDIT.md) 
 Owners can suspend/reactivate independent organizations. Administrators can export scoped business record pages and opt in to durable hourly billing-draft/reminder-task preparation in **Settings → Operations & Data**. Run the separate worker (`npm run worker -w @seebot/api`) with the API database and deployment flags. Preparation never issues invoices or sends email.
 
 See [SaaS operations and private staging](docs/SAAS_OPERATIONS.md) for queue/retry/retention behavior, non-root container deployment, readiness, monitoring and remaining provider/policy requirements. No live hosting or external provider is activated by these changes.
+
+
+## Account security development
+
+Authenticator enrollment/removal, active sessions, individual revocation and sign out other devices are implemented in the account security panels. Enrolled accounts require an authenticator or saved recovery code at sign-in. See [ACCOUNT_SECURITY.md](docs/ACCOUNT_SECURITY.md) for encryption configuration, recovery behavior, tests and the migration's required reauthentication of older sessions. No AWS resources are provisioned by this change.
