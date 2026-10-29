@@ -37,7 +37,7 @@ export class MfaService{
   await this.limits.consume('mfa-user-cooldown:'+purpose,user.id,1,30_000);
   const current=await this.db.user.findUnique({where:{id:user.id}});
   if(!current?.active)throw new UnauthorizedException('Sign in again.');
-  const recent=await this.db.loginChallenge.findFirst({where:{userId:user.id,createdAt:{gt:new Date(Date.now()-30_000)},consumedAt:null},orderBy:{createdAt:'desc'}});
+  const recent=await this.db.loginChallenge.findFirst({where:{userId:user.id,purpose,createdAt:{gt:new Date(Date.now()-30_000)},consumedAt:null},orderBy:{createdAt:'desc'}});
   if(recent)throw new BadRequestException('A verification code was just sent. Wait a few seconds before trying again.');
   await this.db.loginChallenge.updateMany({where:{userId:user.id,consumedAt:null,expiresAt:{gt:new Date()}},data:{expiresAt:new Date()}});
   const authenticator=await this.db.userAuthenticator.findUnique({where:{userId:user.id}});
