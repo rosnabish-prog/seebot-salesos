@@ -24,7 +24,17 @@ Enabling/removing a factor increments the security/password version, expires pen
 
 Set `MFA_ENCRYPTION_KEY` to a separately managed, canonical base64 encoding of 32 random bytes before permitting authenticator enrollment. Never put a real key in Git or browser environment variables. CI uses a fictional test key only. Authenticator secrets use the existing AES-256-GCM envelope with this separate key, plus a validated account/purpose binding inside the authenticated plaintext. Pending and active secrets are encrypted; status, audit and session endpoints never return them.
 
-Missing/incorrect encryption configuration blocks setup/verification instead of downgrading an enrolled account to email. Saved recovery codes remain available after a valid first factor. Encryption-key rotation requires a rehearsed decrypt/re-encrypt migration or versioned key strategy; replacing the key alone makes existing enrolled secrets unreadable. Key management/provisioning is a deployment responsibility.
+Missing/incorrect encryption configuration blocks setup/verification instead of downgrading an enrolled account to email. Saved recovery codes remain available after a valid first factor. A versioned keyring and an explicit dry-run/apply rotation command are implemented. Provisioning keys is a deployment responsibility. Replacing a legacy key alone makes existing enrolled secrets unreadable.
+
+For rotation, set `MFA_ENCRYPTION_KEYS` to a JSON map of key IDs to canonical base64 32-byte keys and `MFA_ENCRYPTION_ACTIVE_KEY_ID` to the new active ID. Keep `MFA_ENCRYPTION_KEY` while legacy envelopes still exist. First deploy readers with every required old/new key across all API instances, then select the new active key consistently for new writes. Retain old keys for rollback. After backup and an isolated rehearsal, run from the repository root:
+
+```sh
+node apps/api/dist/auth/rotate-authenticator-keys.js --dry-run
+node apps/api/dist/auth/rotate-authenticator-keys.js --apply
+node apps/api/dist/auth/rotate-authenticator-keys.js --dry-run
+```
+
+The default is dry-run; `--user=ID` can restrict a rehearsal. The command checks both active and pending secrets, locks each user during rotation, preserves accepted time steps and security versions, and audits changed accounts without printing keys or seeds. It is resumable: a failure may follow previously committed accounts, and rerunning skips secrets already on the active key while still validating their decryption. Retire old keys only after the final dry-run finds no credentials needing rotation, all running writers use the intended active key, and the rollback/backup key-retention policy permits it. Database backups may still require older keys; do not destroy them based only on the live-row count.
 
 ## Session registry and revocation
 

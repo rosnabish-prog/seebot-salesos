@@ -30,3 +30,21 @@ test('authenticator secrets are encrypted and bound to their account with fail-c
   delete process.env.MFA_ENCRYPTION_KEY;assert.throws(()=>sealTotp('user-a',secret));
  }finally{if(prior===undefined)delete process.env.MFA_ENCRYPTION_KEY;else process.env.MFA_ENCRYPTION_KEY=prior;}
 });
+
+test('versioned keyring reads previous keys and prevents removing a required key silently',()=>{
+ const names=['MFA_ENCRYPTION_KEY','MFA_ENCRYPTION_KEYS','MFA_ENCRYPTION_ACTIVE_KEY_ID'],before=names.map(n=>process.env[n]);
+ try{
+  process.env.MFA_ENCRYPTION_KEY=Buffer.alloc(32,0x41).toString('base64');
+  delete process.env.MFA_ENCRYPTION_KEYS;delete process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID;
+  const legacy=sealTotp('ring-user',secret);
+  const keys={old:Buffer.alloc(32,0x42).toString('base64'),new:Buffer.alloc(32,0x43).toString('base64')};
+  process.env.MFA_ENCRYPTION_KEYS=JSON.stringify(keys);process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID='old';
+  const older=sealTotp('ring-user',secret);assert.ok(older.startsWith('totp2.old.'));
+  process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID='new';
+  const newer=sealTotp('ring-user',openTotp('ring-user',older));assert.ok(newer.startsWith('totp2.new.'));
+  assert.equal(openTotp('ring-user',legacy),secret);assert.equal(openTotp('ring-user',newer),secret);
+  process.env.MFA_ENCRYPTION_KEYS=JSON.stringify({new:keys.new});delete process.env.MFA_ENCRYPTION_KEY;
+  assert.equal(openTotp('ring-user',newer),secret);assert.throws(()=>openTotp('ring-user',older));assert.throws(()=>openTotp('ring-user',legacy));
+  process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID='missing';assert.throws(()=>sealTotp('ring-user',secret));
+ }finally{names.forEach((n,i)=>before[i]===undefined?delete process.env[n]:process.env[n]=before[i]);}
+});

@@ -29,14 +29,35 @@ export function matchTotpStep(secret:string,code:string,lastStep:number,now=Date
   if(timingSafeEqual(expected,provided)&&step>lastStep)matched=step;
  }return matched;
 }
-export function authenticatorKey(){
- const input=process.env.MFA_ENCRYPTION_KEY||'',key=Buffer.from(input,'base64');
- if(key.length!==32||key.toString('base64')!==input)throw new ServiceUnavailableException('Authenticator encryption is not configured.');
- return key;
+function parseKey(input:string){
+ const key=Buffer.from(input,'base64');
+ if(key.length!==32||key.toString('base64')!==input)throw new ServiceUnavailableException('Authenticator encryption is not configured.');return key;
 }
-export function sealTotp(userId:string,secret:string){return encryptSecret(JSON.stringify({purpose:'AUTHENTICATOR_V1',userId,secret}),authenticatorKey());}
+function keyring(){
+ const raw=process.env.MFA_ENCRYPTION_KEYS;
+ if(!raw)return null;
+ try{const parsed=JSON.parse(raw);
+  if(!parsed||Array.isArray(parsed)||typeof parsed!=='object'||Object.keys(parsed).length>10)throw Error('Invalid ring');
+  const keys=new Map<string,Buffer>();
+  for(const [id,value] of Object.entries(parsed)){if(!/^[A-Za-z0-9_-]{1,64}$/.test(id)||typeof value!=='string')throw Error('Invalid key');keys.set(id,parseKey(value));}return keys;
+ }catch{throw new ServiceUnavailableException('Authenticator encryption is not configured.');}
+}
+export function activeAuthenticatorKeyId(){
+ const ring=keyring();if(!ring){if(process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID)throw new ServiceUnavailableException('Authenticator encryption is not configured.');return null;}
+ const id=process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID||'';
+ if(!ring.has(id))throw new ServiceUnavailableException('Authenticator encryption is not configured.');return id;
+}
+export function authenticatorKey(){const id=activeAuthenticatorKeyId();return id?keyring()!.get(id)!:parseKey(process.env.MFA_ENCRYPTION_KEY||'');}
+export function sealTotp(userId:string,secret:string){
+ const id=activeAuthenticatorKeyId(),encrypted=encryptSecret(JSON.stringify({purpose:'AUTHENTICATOR_V1',userId,secret}),authenticatorKey());
+ return id?'totp2.'+id+'.'+encrypted:encrypted;
+}
+export function usesActiveAuthenticatorKey(value:string){const id=activeAuthenticatorKeyId();return id?value.startsWith('totp2.'+id+'.'):value.startsWith('v1.');}
 export function openTotp(userId:string,value:string){
- try{const decoded=JSON.parse(decryptSecret(value,authenticatorKey()));
+ try{let encrypted=value,key:Buffer;
+  if(value.startsWith('totp2.')){const parts=value.split('.'),id=parts[1];if(!/^[A-Za-z0-9_-]{1,64}$/.test(id))throw Error('Invalid key id');key=keyring()?.get(id)!;if(!key)throw Error('Missing key');encrypted=parts.slice(2).join('.');}
+  else key=parseKey(process.env.MFA_ENCRYPTION_KEY||'');
+  const decoded=JSON.parse(decryptSecret(encrypted,key));
   if(decoded.purpose!=='AUTHENTICATOR_V1'||decoded.userId!==userId||!/^[A-Z2-7]{32}$/.test(decoded.secret))throw Error('Invalid binding');
   return String(decoded.secret);
  }catch{throw new ServiceUnavailableException('Authenticator verification is unavailable. Use a saved recovery code or contact support.');}

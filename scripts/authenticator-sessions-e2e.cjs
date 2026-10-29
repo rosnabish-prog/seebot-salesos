@@ -98,6 +98,25 @@ async function main(){
   for(let n=0;n<5;n++)await post(limitCookie,'/auth/mfa/authenticator/confirm',{enrollmentId:limitSetup.enrollmentId,code:'bad'},401);
   await post(limitCookie,'/auth/mfa/authenticator/confirm',{enrollmentId:limitSetup.enrollmentId,code:totpCode(limitSetup.secret,Math.floor(Date.now()/30000))},401);
   assert.equal((await get(limitCookie,'/auth/mfa/authenticator')).enabled,false);
+  // Dry-run/apply rotation covers both active and pending secrets without changing MFA replay state.
+  const {sealTotp,openTotp}=require('../apps/api/dist/auth/totp');
+  const {rotateAuthenticatorKeys}=require('../apps/api/dist/auth/rotate-authenticator-keys');
+  const rotating=await db.user.create({data:{email:'security-rotation-'+id+'@rotation.example',name:'Rotation fixture',passwordHash:hash}});
+  const names=['MFA_ENCRYPTION_KEY','MFA_ENCRYPTION_KEYS','MFA_ENCRYPTION_ACTIVE_KEY_ID'],prior=names.map(n=>process.env[n]);
+  try{
+   process.env.MFA_ENCRYPTION_KEY=Buffer.alloc(32,0x43).toString('base64');delete process.env.MFA_ENCRYPTION_KEYS;delete process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID;
+   const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',encrypted=sealTotp(rotating.id,secret);
+   await db.userAuthenticator.create({data:{userId:rotating.id,secretEncrypted:encrypted,lastStep:1234}});
+   await db.authenticatorEnrollment.create({data:{userId:rotating.id,secretEncrypted:encrypted,passwordVersion:1,expiresAt:new Date(Date.now()+60000)}});
+   process.env.MFA_ENCRYPTION_KEYS=JSON.stringify({next:Buffer.alloc(32,0x44).toString('base64')});process.env.MFA_ENCRYPTION_ACTIVE_KEY_ID='next';
+   const dry=await rotateAuthenticatorKeys(db,false,rotating.id);assert.equal(dry.secretsToRotate,2);assert.equal(dry.secretsRotated,0);
+   assert.equal((await db.userAuthenticator.findUnique({where:{userId:rotating.id}})).secretEncrypted,encrypted);
+   const applied=await rotateAuthenticatorKeys(db,true,rotating.id);assert.equal(applied.secretsRotated,2);
+   delete process.env.MFA_ENCRYPTION_KEY;
+   const after=await db.userAuthenticator.findUnique({where:{userId:rotating.id}});assert.equal(after.lastStep,1234);assert.equal(openTotp(rotating.id,after.secretEncrypted),secret);
+   assert.equal(openTotp(rotating.id,(await db.authenticatorEnrollment.findUnique({where:{userId:rotating.id}})).secretEncrypted),secret);
+   assert.equal((await rotateAuthenticatorKeys(db,true,rotating.id)).secretsRotated,0);
+  }finally{names.forEach((name,i)=>prior[i]===undefined?delete process.env[name]:process.env[name]=prior[i]);}
   console.log('PASS: registered sessions, logout/revocation/foreign-ID/legacy/stale checks, secure QR enrollment, TOTP sign-in/replay/concurrency, recovery rotation and lost-device/normal removal.');
  }catch(e){console.error(logs.slice(-5000));throw e;}finally{api?.kill('SIGTERM');await db.$disconnect();}
 }
