@@ -17,7 +17,7 @@ export function GoogleLoginButton({onError,mode='login'}:{onError:(message:strin
       setBusy(true);
       try{
         const challenge=await post<{challengeId:string;maskedEmail:string;testCode?:string}>('/auth/google',{credential:response.credential});
-        sessionStorage.setItem('salesos_mfa',JSON.stringify({challengeId:challenge.challengeId,maskedEmail:challenge.maskedEmail,...(challenge.testCode?{testCode:challenge.testCode}:{})}));
+        sessionStorage.setItem('salesos_mfa',JSON.stringify(challenge));
         router.replace('/two-factor');
       }catch(err){onError(err instanceof Error?err.message:'Google sign-in failed.');}
       finally{if(current)setBusy(false);}

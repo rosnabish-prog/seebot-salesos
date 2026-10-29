@@ -24,7 +24,8 @@ export class AuthService {
     const passwordHash=await argon2.hash(newPassword);
     await this.db.$transaction(async tx=>{
       await tx.user.update({where:{id:userId},data:{passwordHash,passwordVersion:{increment:1}}});
-      await tx.loginChallenge.updateMany({where:{userId,consumedAt:null},data:{expiresAt:new Date(),consumedAt:new Date()}});
+      await tx.authSession.updateMany({where:{userId:userId,revokedAt:null},data:{revokedAt:new Date()}});
+   await tx.loginChallenge.updateMany({where:{userId,consumedAt:null},data:{expiresAt:new Date(),consumedAt:new Date()}});
       await tx.auditEvent.create({data:{actorId:userId,action:'PASSWORD_CHANGED',entityType:'USER',entityId:userId,detail:{revokedPendingMfa:true}}});
     });
     return {success:true};

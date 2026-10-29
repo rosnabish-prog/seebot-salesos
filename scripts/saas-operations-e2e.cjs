@@ -8,7 +8,8 @@ const jwt=new JwtService({secret:process.env.JWT_SECRET});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 let api,logs='';
 async function identity(user,orgId,authAt=Date.now()){
- const session=await jwt.signAsync({sub:user.id,pv:user.passwordVersion,mfa:true,authAt},{expiresIn:'1h'});
+ const registered=await db.authSession.create({data:{userId:user.id,passwordVersion:user.passwordVersion,mfaMethod:'EMAIL',userAgent:'Synthetic operations fixture',authAt:new Date(authAt),expiresAt:new Date(authAt+7*86400000)}});
+ const session=await jwt.signAsync({sub:user.id,pv:user.passwordVersion,sid:registered.id,mfa:true,authAt},{expiresIn:'1h'});
  const workspace=await jwt.signAsync({kind:'workspace',sub:user.id,wid:orgId},{expiresIn:'1h'});
  return 'salesos_session='+session+'; salesos_workspace='+workspace;
 }

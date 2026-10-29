@@ -62,13 +62,13 @@ export class WorkspacesController{
     orderBy:{createdAt:'desc'},take:250
    }),
    this.db.auditEvent.findMany({
-    where:{actorId:req.user.id,action:{in:['LOGIN_MFA_VERIFIED','PASSWORD_RESET_COMPLETED','PASSWORD_CHANGED']}},
+    where:{actorId:req.user.id,action:{in:['LOGIN_MFA_VERIFIED','PASSWORD_RESET_COMPLETED','PASSWORD_CHANGED','AUTH_SESSION_CREATED','AUTH_SESSION_REVOKED','AUTH_OTHER_SESSIONS_REVOKED','AUTHENTICATOR_ENABLED','AUTHENTICATOR_DISABLED','LOGIN_MFA_RECOVERY_USED','MFA_RECOVERY_CODES_ROTATED']}},
     select:{id:true,action:true,entityType:true,entityId:true,detail:true,createdAt:true},
     orderBy:{createdAt:'desc'},take:50
    })
   ]);
   return {
-   policy:{mfaRequiredEverySignIn:true,mfaMethod:'EMAIL_OTP',sessionMaxAgeDays:7,otpExpiresMinutes:10,maxOtpAttempts:5},
+   policy:{mfaRequiredEverySignIn:true,mfaMethod:'EMAIL_OR_AUTHENTICATOR',sessionMaxAgeDays:7,otpExpiresMinutes:10,maxOtpAttempts:5},
    workspaceEvents,mySecurityEvents,
    notice:'Workspace audit results include only events explicitly scoped to this organization. Authentication events shown are your own account events.'
   };

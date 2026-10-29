@@ -19,7 +19,7 @@ export default function JoinWorkspace(){
    const result=await post<{organizationId:string;mfaRequired?:boolean;challengeId?:string;maskedEmail?:string;testCode?:string}>(endpoint,body);
    if(result.mfaRequired&&result.challengeId){
     // Google proves identity but does not complete the mandatory second factor.
-    sessionStorage.setItem('salesos_mfa',JSON.stringify({challengeId:result.challengeId,maskedEmail:result.maskedEmail,...(result.testCode?{testCode:result.testCode}:{})}));
+    sessionStorage.setItem('salesos_mfa',JSON.stringify(result));
     router.replace('/two-factor');
    }else{
     await refresh();

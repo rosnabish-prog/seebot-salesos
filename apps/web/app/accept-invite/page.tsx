@@ -14,7 +14,7 @@ export default function AcceptInvitation(){
     window.google.accounts.id.initialize({client_id:clientId,callback:async response=>{
       if(!response.credential){setMessage('Google sign-in did not return a credential.');return;}
       setMessage('Confirming your invitation…');
-      try{const challenge=await post<MfaChallenge>('/employee-invitations/accept',{invitationToken:token,googleCredential:response.credential});sessionStorage.setItem('salesos_mfa',JSON.stringify({challengeId:challenge.challengeId,maskedEmail:challenge.maskedEmail,...(challenge.testCode?{testCode:challenge.testCode}:{})}));router.replace('/two-factor');}
+      try{const challenge=await post<MfaChallenge>('/employee-invitations/accept',{invitationToken:token,googleCredential:response.credential});sessionStorage.setItem('salesos_mfa',JSON.stringify(challenge));router.replace('/two-factor');}
       catch(e){setMessage(e instanceof Error?e.message:'Invitation could not be accepted.');}
     }});
     mount.current.innerHTML='';window.google.accounts.id.renderButton(mount.current,{type:'standard',size:'large',theme:'outline',width:280});

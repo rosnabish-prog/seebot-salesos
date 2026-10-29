@@ -7,6 +7,7 @@ import {PipelineSettingsPanel} from '@/components/organization/pipeline-settings
 import {TenantReportTemplates} from '@/components/client/tenant-report-templates';
 import {TenantIntegrationStatus} from '@/components/organization/tenant-integration-status';
 import {OperationsPanel} from '@/components/organization/operations-panel';
+import {AuthenticatorPanel,SessionsPanel} from '@/components/organization/account-security-panel';
 import {RecoveryCodesPanel} from '@/components/organization/recovery-codes-panel';
 import {TenantSecurityAudit} from '@/components/organization/tenant-security-audit';
 import {ErrorMessage,PageTop} from '@/components/ui';
@@ -39,7 +40,7 @@ export default function TenantSettings(){
     {section==='reports'&&admin&&<TenantReportTemplates orgId={orgId}/>}
     {section==='operations'&&admin&&<OperationsPanel orgId={orgId}/>}
     {section==='integrations'&&<TenantIntegrationStatus orgId={orgId}/>}
-    {section==='security'&&<><RecoveryCodesPanel/>{admin&&<TenantSecurityAudit orgId={orgId}/>}</>}
+    {section==='security'&&<><AuthenticatorPanel/><RecoveryCodesPanel/><SessionsPanel/>{admin&&<TenantSecurityAudit orgId={orgId}/>}</>}
    </div>
   </div>
  </section>;

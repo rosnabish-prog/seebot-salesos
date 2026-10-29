@@ -6,11 +6,11 @@ import { AuthService } from './auth.service';
 import { AccountRecoveryService } from './account-recovery.service';
 import { MfaService } from './mfa.service';
 import {clearAuthCookies,setSessionCookie} from './session';
-import { JwtService } from '@nestjs/jwt';
+import {AuthSessionService} from './auth-session.service';
 @Controller('auth')
 export class AuthController {
-  constructor(private service: AuthService,private recovery:AccountRecoveryService,private mfa:MfaService,private jwt:JwtService) {}
-  private async issueSession(res:Response,user:{id:string;role:string;passwordVersion:number}){const token=await this.jwt.signAsync({sub:user.id,role:user.role,pv:user.passwordVersion,mfa:true,authAt:Date.now()});setSessionCookie(res,token);return token;}
+  constructor(private service: AuthService,private recovery:AccountRecoveryService,private mfa:MfaService,private sessions:AuthSessionService) {}
+  private async issueSession(res:Response,user:{id:string;passwordVersion:number;mfaMethod?:string},req:Request){setSessionCookie(res,await this.sessions.create(user,req,user.mfaMethod||'EMAIL'));}
   @Get('capabilities') capabilities(){return this.recovery.capabilities();}
   @Post('register') async register(@Body()body:{name?:string;email?:string;password?:string},@Res({passthrough:true})res:Response){
     // Registration never creates an authenticated session. Email verification is first-factor only.
@@ -34,14 +34,14 @@ export class AuthController {
     return this.mfa.begin({id:out.user.id,email:out.user.email});
   }
   @Post('mfa/resend') resendMfa(@Body()body:{challengeId?:string}){return this.mfa.resend(String(body?.challengeId||''));}
-  @Post('mfa/verify') async verifyMfa(@Body()body:{challengeId?:string;code?:string},@Res({passthrough:true})res:Response){
+  @Post('mfa/verify') async verifyMfa(@Req()req:Request,@Body()body:{challengeId?:string;code?:string},@Res({passthrough:true})res:Response){
     const user=await this.mfa.verify(String(body?.challengeId||''),String(body?.code||''));
-    await this.issueSession(res,{id:user.id,role:user.role,passwordVersion:user.passwordVersion});
+    await this.issueSession(res,user,req);
     return {user:{id:user.id,email:user.email,name:user.name,role:user.role},sessionExpiresInDays:7};
   }
-  @Post('mfa/recovery/verify')async recoverMfa(@Body()body:{challengeId?:string;code?:string},@Res({passthrough:true})res:Response){
+  @Post('mfa/recovery/verify')async recoverMfa(@Req()req:Request,@Body()body:{challengeId?:string;code?:string},@Res({passthrough:true})res:Response){
     const user=await this.mfa.verifyRecovery(String(body?.challengeId||''),String(body?.code||''));
-    await this.issueSession(res,user);return {user:{id:user.id,email:user.email,name:user.name,role:user.role},sessionExpiresInDays:7};
+    await this.issueSession(res,user,req);return {user:{id:user.id,email:user.email,name:user.name,role:user.role},sessionExpiresInDays:7};
   }
   @UseGuards(IdentityGuard) @Get('mfa/recovery/status')recoveryStatus(@Req()req:AuthRequest){return this.mfa.recoveryStatus(req.user.id);}
   @UseGuards(IdentityGuard) @Post('mfa/recovery/start')async startRecovery(@Req()req:AuthRequest,@Body()body:{currentPassword?:string}){
@@ -59,8 +59,9 @@ export class AuthController {
     clearAuthCookies(res);
     return result;
   }
-  @Post('logout') logout(@Res({passthrough:true}) res:Response) {
+  @Post('logout') async logout(@Req()req:Request,@Res({passthrough:true}) res:Response) {
     clearAuthCookies(res);
+    await this.sessions.logout(req.cookies?.salesos_session);
     return {success:true};
   }
 }
